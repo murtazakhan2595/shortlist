@@ -4,9 +4,10 @@ name: CI
 on:
   push:
 
+# Never cancel a run on main, so a migration is not stopped halfway.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -49,6 +50,26 @@ jobs:
           fetch-depth: 0
       - name: Scan the full history with gitleaks
         run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact --verbose
+
+  database:
+    name: Database
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: supabase/setup-cli@v3
+        if: github.ref == 'refs/heads/main'
+        with:
+          version: 2.105.0
+      - name: Apply new migrations
+        if: github.ref == 'refs/heads/main'
+        run: supabase db push --db-url "$SUPABASE_DB_URL" --yes
+      - name: Run database tests (pgTAP)
+        run: supabase/tests/run.sh
 
   e2e:
     name: End-to-end

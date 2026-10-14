@@ -44,7 +44,7 @@ All UI and visual design work uses the Claude design skill. Do not hand-roll new
 ## Repository layout
 
 - `frontend/`: the Next.js app (pages, server routes, server code, tests). Run its commands from this folder.
-- `supabase/`: migrations (`migrations/`), database tests (`tests/`) and Supabase configuration. There is no local Supabase stack; migrations go to the cloud project.
+- `supabase/`: migrations (`migrations/`), database tests (`tests/`) and Supabase configuration. There is one Supabase project, used for development, tests and real use; there is no local stack. New migrations are applied with `supabase db push` while building, and again by CI on merge to `main`. Database tests run in a transaction that is rolled back; integration tests delete the rows they create.
 - `docs/`: requirements, plan and research.
 
 ## Testing
@@ -56,7 +56,7 @@ Every work item ends with passing tests. Run from `frontend/`:
 | L1 | Unit: plain functions | Vitest, Node | `src/**/*.test.ts` | `pnpm test:unit` |
 | L2 | Components | Vitest, React Testing Library, jsdom | `src/**/*.test.tsx` | `pnpm test:component` |
 | L3 | Integration: server code with its real dependencies | Vitest, Node | `tests/integration/` | `pnpm test:integration` |
-| L4 | Database: tables, access rules, functions | pgTAP | `supabase/tests/` | added with item 1.2 |
+| L4 | Database: tables, access rules, functions | pgTAP | `supabase/tests/database/` | `pnpm test:db` |
 | L5 | End-to-end, desktop and Android sizes | Playwright | `e2e/` | `pnpm test:e2e` |
 | Rules | The hard rules above, as tests | Vitest, Node | `tests/rules/` | `pnpm test:rules` |
 
