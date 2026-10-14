@@ -1,0 +1,18 @@
+# Secrets: never committed (principle 6)
+.env
+.env.*
+!.env.example
+
+# Personal data stays out of the repository
+/private/
+
+# Dependencies and build output
+node_modules/
+.next/
+out/
+coverage/
+
+# OS and editor
+.DS_Store
+.vscode/
+*.log
