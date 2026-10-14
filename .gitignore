@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+*.pem
 
 # Personal data stays out of the repository
 /private/
@@ -10,9 +11,21 @@
 node_modules/
 .next/
 out/
-coverage/
+build/
+*.tsbuildinfo
+next-env.d.ts
 
-# OS and editor
+# Tests
+coverage/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# Host folders (nothing host-specific is committed)
+.vercel
+
+# OS, editor, logs
 .DS_Store
 .vscode/
 *.log
