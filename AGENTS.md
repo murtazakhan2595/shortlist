@@ -82,6 +82,7 @@ A feature only has the files it needs. Opening a feature folder should show its 
 9. **Secrets stay on the server.** The secret key is used only in `server/`. The Gmail token is stored in Supabase Vault.
 10. **Constants live in code, not in the database.** The database holds only data that changes while the app runs, or that the owner edits in the app. Fixed lists and reference values (model steps, providers, effort levels, model prices) are constants in code, so changing one needs no migration.
 11. **Every model call goes through `callModel`** (`server/models/call-model.ts`). It reads the step's model from `step_models`, checks the answer against the step's Zod schema, and records tokens and cost in `model_calls`, also when the call fails. Only queued steps call it. Each step's prompt and answer schema live in its feature's `steps/` folder. Model options and prices are in `src/lib/model-catalog.ts`; adding a provider means adding a case to `server/models/chat-models.ts`.
+12. **Background work is a queued step.** Add it with `enqueueStep` (`server/queue/queue.ts`) and register its handler in `app/api/worker/step-handlers.ts`. A handler checks its payload with Zod, does one short piece of work and may queue the next step. The worker runs one step per call; a failed step is retried twice more, then recorded in `failed_steps`. Tests use the `steps_test` queue, never `steps`.
 
 ## Zod and types
 
@@ -138,7 +139,7 @@ Every work item ends with passing tests. Run from `frontend/`:
 | L5 | End-to-end, desktop and Android sizes | Playwright | `e2e/` | `pnpm test:e2e` |
 | Rules | The hard rules above, as tests | Vitest, Node | `tests/rules/` | `pnpm test:rules` |
 
-`pnpm test` runs L1, L2 and the rule tests. Model calls are never made in tests: integration tests replace the provider with a fake (`vi.mock("@/server/models/chat-models")`), and model quality is measured by the evaluation harness (item 1.6). `pnpm model-check` makes one real call and shows its cost row.
+`pnpm test` runs L1, L2 and the rule tests. Model calls are never made in tests: integration tests replace the provider with a fake (`vi.mock("@/server/models/chat-models")`), and model quality is measured by the evaluation harness (item 1.6). `pnpm model-check` makes one real call and shows its cost row. `pnpm queue-check` (add `--schedule` to skip the instant trigger) proves the deployed worker picks up a queued step.
 
 After every migration, run `pnpm db:types` to regenerate `src/server/supabase/database.types.ts`; CI fails if it is out of date.
 

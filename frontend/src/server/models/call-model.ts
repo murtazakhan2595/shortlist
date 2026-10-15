@@ -1,7 +1,8 @@
 import "server-only";
 import { AIMessage, type BaseMessage } from "@langchain/core/messages";
 import type { z } from "zod";
-import { findModelPrice, type ModelStep, REASONING_EFFORTS, MODEL_PROVIDERS } from "@/lib/model-catalog";
+import { describeError } from "@/lib/errors";
+import { findModelPrice, MODEL_PROVIDERS, type ModelStep, REASONING_EFFORTS } from "@/lib/model-catalog";
 import { getAdminClient } from "@/server/supabase/admin";
 import { type ModelSettings, createStructuredModel } from "./chat-models";
 import { calculateCostUsd, NO_TOKENS, type TokenUsage } from "./cost";
@@ -122,11 +123,4 @@ function tokenUsage(raw: BaseMessage): TokenUsage {
 function oneOf<const Options extends readonly string[]>(options: Options, value: string, field: string): Options[number] {
   if (!options.includes(value)) throw new Error(`Unknown ${field} "${value}" in step_models`);
   return value as Options[number];
-}
-
-const MAX_ERROR_LENGTH = 1_000;
-
-function describeError(error: unknown): string {
-  const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-  return message.slice(0, MAX_ERROR_LENGTH);
 }

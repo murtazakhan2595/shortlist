@@ -18,5 +18,12 @@ tests_dir="$(dirname "$0")/database"
 
 for test_file in "$tests_dir"/*.test.sql; do
   echo "# $(basename "$test_file")"
-  psql "$SUPABASE_DB_URL" --quiet --no-psqlrc --tuples-only -v ON_ERROR_STOP=1 --file "$test_file"
+  output="$(psql "$SUPABASE_DB_URL" --quiet --no-psqlrc --tuples-only -v ON_ERROR_STOP=1 --file "$test_file")"
+  echo "$output"
+
+  # finish(true) stops on a failed test; a wrong number of tests only prints a note, so fail on it here.
+  if grep -q "Looks like you planned" <<<"$output"; then
+    echo "Test count does not match plan() in $(basename "$test_file")" >&2
+    exit 1
+  fi
 done
