@@ -141,6 +141,8 @@ Every work item ends with passing tests. Run from `frontend/`:
 
 `pnpm test` runs L1, L2 and the rule tests. Model calls are never made in tests: integration tests replace the provider with a fake (`vi.mock("@/server/models/chat-models")`), and model quality is measured by the evaluation harness (item 1.6). `pnpm model-check` makes one real call and shows its cost row. `pnpm queue-check` (add `--schedule` to skip the instant trigger) proves the deployed worker picks up a queued step.
 
+Quality checks E1 to E5 (REQUIREMENTS.md section 7) run with `pnpm eval <check> --models <model>@<effort>,...`, which uses real models and costs money. Each check lives in `evals/checks.ts`; its cases are private, in `private/evals/<check>/cases/*.json`, never in the repository. Results tables (numbers only) go to `evals/results/<check>.md` and are committed.
+
 After every migration, run `pnpm db:types` to regenerate `src/server/supabase/database.types.ts`; CI fails if it is out of date.
 
 ## Git

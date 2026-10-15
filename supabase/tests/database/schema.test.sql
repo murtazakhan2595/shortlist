@@ -1,7 +1,7 @@
 -- Rules the schema itself enforces, whoever is connected.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(8);
+select plan(9);
 
 select is_empty(
   $$ select tablename from pg_tables where schemaname = 'public' and not rowsecurity $$,
@@ -47,6 +47,11 @@ select throws_ok(
   $$ insert into public.applications (route, fingerprint) values ('note', 'acme|engineer') $$,
   '23505', null,
   'the same job cannot get a second application (X6)'
+);
+
+select lives_ok(
+  $$ insert into public.runs (kind) values ('eval') $$,
+  'an evaluation run can be recorded'
 );
 
 select * from finish(true);

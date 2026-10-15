@@ -1,6 +1,6 @@
 # Shortlist: Build Plan
 
-Version 2.4, 15 October 2026. Agreed plan, now with the open-source parts to reuse (section 6). The build starts on the weekend of 17 and 18 October 2026, with sprint 0.
+Version 2.5, 15 October 2026. Agreed plan, now with the open-source parts to reuse (section 6). The build starts on the weekend of 17 and 18 October 2026, with sprint 0.
 
 This document says **how** Shortlist gets built. **What** is being built, and how success is judged, is in [REQUIREMENTS.md](REQUIREMENTS.md). Requirement IDs (C1, D3, F4, E2 and so on) refer to that file.
 
@@ -189,7 +189,6 @@ Two lessons from the owner's playbook are built into this plan: guard side effec
 | Code check that every number and tool in a draft is in the profile | idea from career-ops `verify-cv-facts.mjs` | 2.2 |
 | Lists of about 16,000 company job boards on Greenhouse, Lever and Ashby | Feashliaa/job-board-aggregator (MIT) | Sprint 8 |
 | Gmail draft with attachment | read MaxwellVolz/hn_whos_hiring (MIT) before building | 2.3 |
-| Quality-check runner | promptfoo (MIT) | 1.6 |
 | Installable app and share menu | `@serwist/next` (MIT); `next-pwa` is unmaintained | 2.5 |
 
 **Not taken:** ai-job-search's LinkedIn scraper; career-ops's DuckDuckGo search fallback; career-ops's pay filter, which rejects any job paid in another currency; anything under AGPL, GPL, Commons Clause or with no licence.
@@ -225,7 +224,7 @@ Two lessons from the owner's playbook are built into this plan: guard side effec
 | 1.3 | A | Server contract | Every server route's request and response shape is written down and agreed |
 | 1.4 | B | Model module | A call made through it uses the configured provider, model and reasoning effort, returns typed output, and writes its cost to `model_calls` (B1, B3). The starting models from section 4 are in configuration |
 | 1.5 | B | Tests and delivery | Tests run on every push; a merge publishes the app and applies migrations. Rule tests exist for: no sending anywhere in the code (`messages.send`, `drafts.send`, `sendMail`, `createTransport`) (X5); no secrets or personal data in the repository; no import from a host-specific package (portability rule 1); no dependency outside the licence list, and every reused file credited in `THIRD_PARTY_NOTICES.md` (principle 6) |
-| 1.6 | C | Evaluation harness | One command, built on promptfoo, runs a check over a folder of cases and writes a results table per model |
+| 1.6 | C | Evaluation harness | One command (`pnpm eval`) runs a check over a folder of private cases and writes a results table per model. Built as a small runner of our own: promptfoo was tried and dropped, as it added about 490 packages, some without an open-source licence |
 | 1.7 | C | Profile loading | The sprint 0 material is stored in Supabase and none of it is in the repository |
 | 1.8 | D | Background jobs | A test step put on the Supabase queue is picked up at once through a database trigger, and by the every-minute schedule if the trigger is missed; a failed step is retried; a step can queue the next one. This also confirms the queue and scheduler work on the free plan |
 | 1.9 | D | Himalayas yield check | A script queries Himalayas for jobs open to Pakistan and for worldwide jobs once a day for seven days and records how many pass the filters. This answers the first risk in section 8 before sprint 4 |

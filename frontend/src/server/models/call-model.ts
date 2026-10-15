@@ -21,6 +21,8 @@ export type ModelCallRequest<Schema extends z.ZodObject> = {
   messages: ModelMessage[];
   /** What the cost belongs to, so every draft can be explained afterwards. */
   link?: { runId?: string; applicationId?: string };
+  /** Used by evaluations to try another model on the same step; the app always uses step_models. */
+  model?: ModelSettings;
 };
 
 export type ModelCallResult<Output> = { output: Output; modelCallId: string };
@@ -30,7 +32,7 @@ type Attempt<Output> = { ok: true; output: Output; usage: TokenUsage } | { ok: f
 export async function callModel<Schema extends z.ZodObject>(
   request: ModelCallRequest<Schema>,
 ): Promise<ModelCallResult<z.infer<Schema>>> {
-  const settings = await loadStepSettings(request.step);
+  const settings = request.model ?? (await loadStepSettings(request.step));
   const price = findModelPrice(settings.provider, settings.model);
   if (!price) throw new Error(`No price is known for ${settings.provider}/${settings.model}`);
 
