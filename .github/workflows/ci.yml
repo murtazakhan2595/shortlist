@@ -36,6 +36,11 @@ jobs:
       - run: pnpm test
         env:
           PERSONAL_DATA_PATTERNS: ${{ secrets.PERSONAL_DATA_PATTERNS }}
+      - name: Integration tests (real database, fake models)
+        run: pnpm test:integration
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
       - run: pnpm build
 
   secrets:
@@ -62,7 +67,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: supabase/setup-cli@v3
-        if: github.ref == 'refs/heads/main'
         with:
           version: 2.105.0
       - name: Apply new migrations
@@ -70,6 +74,15 @@ jobs:
         run: supabase db push --db-url "$SUPABASE_DB_URL" --yes
       - name: Run database tests (pgTAP)
         run: supabase/tests/run.sh
+      - name: Check the generated database types are up to date
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        run: |
+          project_ref="$(echo "$NEXT_PUBLIC_SUPABASE_URL" | sed -E 's#https://([^.]+)\..*#\1#')"
+          supabase gen types --project-id "$project_ref" --lang=typescript --schema public > "$RUNNER_TEMP/database.types.ts"
+          diff -u frontend/src/server/supabase/database.types.ts "$RUNNER_TEMP/database.types.ts" \
+            || { echo "Database types are out of date: run 'pnpm db:types' in frontend/"; exit 1; }
 
   e2e:
     name: End-to-end
