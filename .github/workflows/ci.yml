@@ -36,11 +36,6 @@ jobs:
       - run: pnpm test
         env:
           PERSONAL_DATA_PATTERNS: ${{ secrets.PERSONAL_DATA_PATTERNS }}
-      - name: Integration tests (real database, fake models)
-        run: pnpm test:integration
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
       - run: pnpm build
 
   secrets:
@@ -55,6 +50,31 @@ jobs:
           fetch-depth: 0
       - name: Scan the full history with gitleaks
         run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact --verbose
+
+  integration:
+    name: Integration
+    runs-on: ubuntu-latest
+    # Integration tests share the one database and its steps_test queue, so runs from different
+    # branches take turns instead of interfering with each other.
+    concurrency:
+      group: shared-database-integration
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Integration tests (real database, fake models, test queue)
+        run: pnpm test:integration
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
 
   database:
     name: Database

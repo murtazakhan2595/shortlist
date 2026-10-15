@@ -9,6 +9,8 @@ const ServerEnvSchema = z.object({
   SUPABASE_SECRET_KEY: z.string().startsWith("sb_secret_"),
   // Needed only when a step calls a model, so tests and pages without model calls run without it.
   OPENAI_API_KEY: z.string().min(1).optional(),
+  // The Bearer secret Supabase sends to /api/worker and /api/daily-run. Without it, those routes refuse every call.
+  INTERNAL_API_SECRET: z.string().min(32).optional(),
 });
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;
 

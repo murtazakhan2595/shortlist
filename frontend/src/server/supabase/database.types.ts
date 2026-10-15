@@ -215,6 +215,39 @@ export type Database = {
         }
         Relationships: []
       }
+      failed_steps: {
+        Row: {
+          attempts: number
+          error: string
+          failed_at: string
+          id: string
+          message_id: number
+          payload: Json
+          queue: string
+          step: string
+        }
+        Insert: {
+          attempts: number
+          error: string
+          failed_at?: string
+          id?: string
+          message_id: number
+          payload: Json
+          queue: string
+          step: string
+        }
+        Update: {
+          attempts?: number
+          error?: string
+          failed_at?: string
+          id?: string
+          message_id?: number
+          payload?: Json
+          queue?: string
+          step?: string
+        }
+        Relationships: []
+      }
       form_answers: {
         Row: {
           answer: string | null
@@ -532,7 +565,45 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      complete_step: {
+        Args: { message_id: number; queue_name: string }
+        Returns: undefined
+      }
+      enqueue_step: {
+        Args: {
+          payload: Json
+          queue_name: string
+          step: string
+          wake?: boolean
+        }
+        Returns: number
+      }
+      fail_step: {
+        Args: {
+          attempts: number
+          error: string
+          message_id: number
+          payload: Json
+          queue_name: string
+          step: string
+        }
+        Returns: undefined
+      }
+      queue_length: { Args: { queue_name: string }; Returns: number }
+      read_next_step: {
+        Args: { queue_name: string; visibility_seconds: number }
+        Returns: {
+          attempts: number
+          message_id: number
+          payload: Json
+          step: string
+        }[]
+      }
+      retry_step_later: {
+        Args: { delay_seconds: number; message_id: number; queue_name: string }
+        Returns: undefined
+      }
+      wake_worker: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
