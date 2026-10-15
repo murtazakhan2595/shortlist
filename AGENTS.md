@@ -27,7 +27,7 @@ The database tables, the server entry points and the model module's interface (P
 | `applications` | `updateApplicationStatus` |
 | `discovery` | `labelListing` |
 | `profile` | `saveDocument`, `createCvUploadUrl`, `saveCvFile` |
-| `settings` | `updateSettings` |
+| `settings` | `updateSettings`, `updateStepModel` |
 
 - **Route handlers:** only for callers outside the app.
 
@@ -80,6 +80,8 @@ A feature only has the files it needs. Opening a feature folder should show its 
 7. **Every queue step is safe to run twice**, because failed steps are retried. Check before acting: for example, create a Gmail draft only when `gmail_draft_id` is empty. Each step has a test that runs it twice.
 8. **One result shape.** Server Actions and route handlers return `{ ok: true, data }` or `{ ok: false, error: { code, message } }`; route handlers also set the matching HTTP status.
 9. **Secrets stay on the server.** The secret key is used only in `server/`. The Gmail token is stored in Supabase Vault.
+10. **Constants live in code, not in the database.** The database holds only data that changes while the app runs, or that the owner edits in the app. Fixed lists and reference values (model steps, providers, effort levels, model prices) are constants in code, so changing one needs no migration.
+11. **Every model call goes through `callModel`** (`server/models/call-model.ts`). It reads the step's model from `step_models`, checks the answer against the step's Zod schema, and records tokens and cost in `model_calls`, also when the call fails. Only queued steps call it. Each step's prompt and answer schema live in its feature's `steps/` folder. Model options and prices are in `src/lib/model-catalog.ts`; adding a provider means adding a case to `server/models/chat-models.ts`.
 
 ## Zod and types
 
@@ -136,7 +138,9 @@ Every work item ends with passing tests. Run from `frontend/`:
 | L5 | End-to-end, desktop and Android sizes | Playwright | `e2e/` | `pnpm test:e2e` |
 | Rules | The hard rules above, as tests | Vitest, Node | `tests/rules/` | `pnpm test:rules` |
 
-`pnpm test` runs L1, L2 and the rule tests. Model calls are never made in tests; model quality is measured by the evaluation harness (item 1.6).
+`pnpm test` runs L1, L2 and the rule tests. Model calls are never made in tests: integration tests replace the provider with a fake (`vi.mock("@/server/models/chat-models")`), and model quality is measured by the evaluation harness (item 1.6). `pnpm model-check` makes one real call and shows its cost row.
+
+After every migration, run `pnpm db:types` to regenerate `src/server/supabase/database.types.ts`; CI fails if it is out of date.
 
 ## Git
 

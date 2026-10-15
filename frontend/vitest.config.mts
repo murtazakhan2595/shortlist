@@ -1,8 +1,14 @@
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
+import { existsSync, readFileSync } from "node:fs";
+import { parseEnv } from "node:util";
 import { defineConfig } from "vitest/config";
 
 const src = fileURLToPath(new URL("./src", import.meta.url));
+
+// Integration tests use the real database: settings from .env.local locally, repository secrets in CI.
+const LOCAL_ENV_FILE = ".env.local";
+const localEnv = existsSync(LOCAL_ENV_FILE) ? parseEnv(readFileSync(LOCAL_ENV_FILE, "utf8")) : {};
 
 // Server code imports "server-only", which throws outside React Server Components.
 // Node test projects load its empty version instead; component tests keep the real one,
@@ -43,6 +49,7 @@ export default defineConfig({
         test: {
           name: "integration",
           environment: "node",
+          env: localEnv,
           include: ["tests/integration/**/*.test.ts"],
         },
       },

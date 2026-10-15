@@ -17,9 +17,14 @@
     "test:db": "bash ../supabase/tests/run.sh",
     "test:e2e": "playwright test",
     "test:watch": "vitest",
-    "yield-check": "node --env-file-if-exists=.env.local scripts/himalayas-yield-check.ts"
+    "yield-check": "node --env-file-if-exists=.env.local scripts/himalayas-yield-check.ts",
+    "db:types": "supabase gen types --linked --lang=typescript --schema public --workdir .. > src/server/supabase/database.types.ts",
+    "model-check": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/model-check.ts"
   },
   "dependencies": {
+    "@langchain/core": "^1.2.17",
+    "@langchain/openai": "^1.6.2",
+    "@supabase/supabase-js": "^2.117.3",
     "next": "16.4.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
@@ -41,6 +46,7 @@
     "eslint-config-next": "16.4.0",
     "jsdom": "^30.1.2",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^5.0.4"
   },
