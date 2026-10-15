@@ -15,7 +15,7 @@ export const MODEL_STEPS = [
 ] as const;
 export type ModelStep = (typeof MODEL_STEPS)[number];
 
-export const MODEL_PROVIDERS = ["openai", "anthropic"] as const;
+export const MODEL_PROVIDERS = ["openai"] as const;
 export type ModelProvider = (typeof MODEL_PROVIDERS)[number];
 
 export const REASONING_EFFORTS = ["low", "medium", "high"] as const;
@@ -29,10 +29,6 @@ export const MODEL_PRICES: Record<ModelProvider, Record<string, ModelPrice>> = {
   openai: {
     "gpt-6-luna": { inputUsdPerMillionTokens: 0.1, outputUsdPerMillionTokens: 0.5 },
     "gpt-6.1-sol": { inputUsdPerMillionTokens: 2, outputUsdPerMillionTokens: 10 },
-  },
-  anthropic: {
-    "claude-haiku-5-5": { inputUsdPerMillionTokens: 0.1, outputUsdPerMillionTokens: 0.5 },
-    "claude-sonnet-5-5": { inputUsdPerMillionTokens: 2, outputUsdPerMillionTokens: 10 },
   },
 };
 

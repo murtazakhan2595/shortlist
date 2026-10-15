@@ -1,6 +1,6 @@
 # Shortlist: Build Plan
 
-Version 2.3, 14 October 2026. Agreed plan, now with the open-source parts to reuse (section 6). The build starts on the weekend of 17 and 18 October 2026, with sprint 0.
+Version 2.4, 15 October 2026. Agreed plan, now with the open-source parts to reuse (section 6). The build starts on the weekend of 17 and 18 October 2026, with sprint 0.
 
 This document says **how** Shortlist gets built. **What** is being built, and how success is judged, is in [REQUIREMENTS.md](REQUIREMENTS.md). Requirement IDs (C1, D3, F4, E2 and so on) refer to that file.
 
@@ -91,9 +91,6 @@ Reasoning effort is a setting on each model, and it moves the score, the cost an
 | OpenAI `gpt-6-luna` | 0.10 / 0.50 | low | 22 | $0.0045 | 7 s |
 | | | medium | 30 | $0.02 | |
 | | | high | 33 | $0.03 | 23 s |
-| Anthropic `claude-haiku-5-5` | 0.10 / 0.50 | low | 29 | $0.02 | 12 s |
-| | | medium | 34 | $0.05 | 16 s |
-| | | high | 38 | $0.08 | 27 s |
 | DeepSeek `deepseek-flash` | 0.15 to 0.30 / 0.60 to 1.20 | none | 25 | $0.15 | 4 s |
 | | | max | 39 | $0.27 | 14 s |
 | Google `gemini-3.5-flash-lite` | 0.30 / 2.50 | | 22 | $0.19 | 9 s |
@@ -106,42 +103,41 @@ Reasoning effort is a setting on each model, and it moves the score, the cost an
 | OpenAI `gpt-6.1-sol` | 2.00 / 10.00 | low | 42 | $0.13 | 12 s |
 | | | medium | 48 | $0.21 | 17 s |
 | | | high | 50 | $0.32 | 68 s |
-| Anthropic `claude-sonnet-5-5` | 2.00 / 10.00 | low | 36 | $0.35 | 6 s |
-| | | medium | 41 | $0.48 | 6 s |
-| | | high | 47 | $0.88 | 19 s |
 | Google `gemini-3.8-flash` | 0.75 / 3.75 | medium | 40 | $0.93 | |
 | | | high | 41 | $1.24 | 25 s |
 | OpenAI `gpt-5.6-terra` | 2.00 / 12.00 | medium | 30 | $0.18 | 7 s |
 | | | high | 34 | $0.34 | 12 s |
 | Google `gemini-3.1-pro-preview` | 2.00 / 12.00 | | 30 | $1.30 | 25 s |
 
-For reference, the top of the index is 58 (Anthropic `claude-opus-5-5` at maximum effort).
+For reference, the top of the index is 58.
 
 What the figures show:
 
 - **`gpt-6.1-sol` leads the mid-priced group** on score, and costs far less per task than `gemini-3.8-flash`, whose lower list price is offset by the tokens it uses.
-- **`gpt-6-luna` and `claude-haiku-5-5` lead the lower-priced group.** Haiku at high effort scores 38, close to the mid-priced models, at a twentieth of their list price.
+- **`gpt-6-luna` leads the lower-priced group** on cost per task; `deepseek-flash`, an open-weight model, scores higher at maximum effort for more per task.
 - **Two earlier candidates drop out.** Artificial Analysis marks `gemini-2.5-flash-lite` (index 7) and `gpt-5.4-mini` as deprecated.
 - **High effort is slow.** It suits overnight work, not the one-minute capture path.
 
 **Starting models:**
 
-| Step | Start with | Effort | First challenger |
-|---|---|---|---|
-| Scoring | `gpt-6-luna` | medium | `claude-haiku-5-5` at low |
-| Reading screenshots | `gpt-6.1-sol` | low | `claude-haiku-5-5` at medium |
-| Writing and checking, on capture | `gpt-6.1-sol` | low | `claude-haiku-5-5` at high |
-| Writing and checking, overnight | `gpt-6.1-sol` | medium | `claude-haiku-5-5` at high, `claude-sonnet-5-5` at medium |
+| Step | Start with | Effort |
+|---|---|---|
+| Scoring | `gpt-6-luna` | medium |
+| Reading screenshots | `gpt-6.1-sol` | low |
+| Writing on capture | `gpt-6.1-sol` | low |
+| Checking on capture | `gpt-6.1-sol` | medium |
+| Writing and checking, overnight | `gpt-6.1-sol` | medium |
 
-All three starting and challenger models accept images, per Artificial Analysis.
+Challengers are cheaper open-source models (for example `deepseek-flash`), compared in item 6.1. Anthropic models are not used (owner's decision, 15 October 2026).
 
-**Expected cost.** At the planned volume (6,000 listings scored, 900 applications written and checked a month), scoring on `gpt-6-luna` is about $4 to $8 a month and writing on `gpt-6.1-sol` about $30 to $45, so roughly $35 to $50 in total. These are estimates from assumed token counts; the first week of real use replaces them. If `claude-haiku-5-5` passes the writing checks, the whole system runs for under $10 a month.
+Both starting models accept images, per Artificial Analysis. A challenger for reading screenshots must too.
+
+**Expected cost.** At the planned volume (6,000 listings scored, 900 applications written and checked a month), scoring on `gpt-6-luna` is about $4 to $8 a month and writing on `gpt-6.1-sol` about $30 to $45, so roughly $35 to $50 in total. These are estimates from assumed token counts; the first week of real use replaces them. If a cheaper model passes the writing checks, the monthly cost drops well below that.
 
 What this does not settle:
 
 - **Fit for these tasks.** The index measures general reasoning, knowledge and coding. It does not measure writing a job application or judging a job match. The quality checks do that (item 6.1), and a cheaper model replaces a dearer one only when it passes the same bars.
 - **Missing rows.** The Artificial Analysis page was cut short when read, so `gpt-5.6-luna`, `gpt-5-nano` and `gemini-3.1-flash-lite` have no benchmark figures here.
-- **Anthropic credit.** If the Max plan's API credit exists (item 0.8), the Anthropic models may cost nothing extra.
 - **Google's free tier** uses submitted content to improve its products; its paid tier does not. Use the free tier with test data only.
 
 ## 5. Data
@@ -213,7 +209,7 @@ Two lessons from the owner's playbook are built into this plan: guard side effec
 | 0.5 | Saved posts and forms | A private folder of sample hiring posts and forms exists, as test cases. Continues through every sprint |
 | 0.6 | Accounts | Created: private GitHub repository `shortlist`, Supabase project, Vercel account, Google Cloud project with the Gmail API switched on, an OpenAI API key with a spending limit, the separate alerts mailbox |
 | 0.7 | Read-through | The owner has read REQUIREMENTS.md and this plan in full and raised anything that looks wrong |
-| 0.8 | Owner-only checks | Checked: whether the Max plan's API credit shows in the Console billing page; whether Wellfound's job-alert switch still exists |
+| 0.8 | Owner-only checks | Checked: whether Wellfound's job-alert switch still exists |
 | 0.9 | Email patterns | Research into application emails that get replies is done, and two or three patterns are written down with their length, structure and an example each (P7) |
 
 **Exit check:** items 0.1 to 0.4 and 0.6 to 0.9 are done, and 0.5 holds at least ten posts.
@@ -352,4 +348,3 @@ Not yet checked:
 - Whether Supabase Queues and Cron are included in the free plan (item 1.8).
 - Whether a single-owner app can use `gmail.compose` in production mode without Google's verification (item 2.3).
 - The time limit for a server call on AWS Amplify.
-- The Max plan's API credit amount (item 0.8).

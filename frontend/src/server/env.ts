@@ -7,9 +7,8 @@ import { z } from "zod";
 const ServerEnvSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.url(),
   SUPABASE_SECRET_KEY: z.string().startsWith("sb_secret_"),
-  // Provider keys are needed only when a step uses that provider (see server/models/chat-models.ts).
+  // Needed only when a step calls a model, so tests and pages without model calls run without it.
   OPENAI_API_KEY: z.string().min(1).optional(),
-  ANTHROPIC_API_KEY: z.string().min(1).optional(),
 });
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;
 

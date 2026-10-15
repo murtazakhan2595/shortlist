@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import { UpdateStepModelInputSchema } from "./schemas";
 
 test("a step can switch to a priced model", () => {
-  const input = { step: "score_listing", provider: "anthropic", model: "claude-haiku-5-5", effort: "low" };
+  const input = { step: "score_listing", provider: "openai", model: "gpt-6.1-sol", effort: "low" };
 
   expect(UpdateStepModelInputSchema.safeParse(input).success).toBe(true);
 });
