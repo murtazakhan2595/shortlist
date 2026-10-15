@@ -27,6 +27,60 @@ The app must be movable from Vercel to AWS Amplify by configuration alone (PLAN.
 - One step per server call, within a 25-second budget. Requests and responses under 4.5 MB.
 - The service-role database key is used only in server code and never reaches the browser.
 
+## Architecture
+
+How code is organised in `frontend/src/`. Each folder name comes from a well-known source (in brackets). Do not add other top-level folders.
+
+```
+src/
+  app/              routes only: pages, layouts, route handlers               (Next.js)
+  features/         one folder per feature                                    (Bulletproof React)
+    <feature>/
+      components/   the feature's UI
+      actions.ts    Server Actions: the feature's writes                      (Next.js)
+      data.ts       Data Access Layer: the feature's reads                    (Next.js)
+      schemas.ts    Zod schemas for the feature's inputs and outputs
+      steps/        queue steps the worker runs for this feature
+  components/ui/    shared UI components, made with the design skill          (shadcn/ui)
+  lib/              small shared helpers that run anywhere                    (Next.js, shadcn/ui)
+  server/           shared server-only code: auth, supabase, queue, models,
+                    gmail, env                                                (T3 stack)
+```
+
+A feature only has the files it needs. Opening a feature folder should show its whole flow: writes, reads, AI steps and screens.
+
+1. **Entry points are thin.** A page, Server Action or route handler checks its input, calls one function and returns. Logic lives in `features/` or `server/`.
+2. **Server Actions for everything the owner does in the app.** Route handlers only for callers outside the app: Supabase (worker, daily run), Google (Gmail callback) and the sign-in callback.
+3. **All data goes through the Data Access Layer on the server.** Every read and write first calls `requireOwner()`, then returns typed objects. The browser never queries the database; files are uploaded to one-time signed upload URLs created by the server.
+4. **Server-only modules start with `import "server-only"`.**
+5. **Imports flow one way:** shared code (`components`, `lib`, `server`) → `features` → `app`. Features never import from each other; they hand off work through the queue by step name. ESLint enforces this.
+6. **No barrel files.** Import files directly, not through `index.ts` re-exports.
+7. **Every queue step is safe to run twice**, because failed steps are retried. Check before acting: for example, create a Gmail draft only when `gmail_draft_id` is empty. Each step has a test that runs it twice.
+8. **One result shape.** Server Actions and route handlers return `{ ok: true, data }` or `{ ok: false, error: { code, message } }`; route handlers also set the matching HTTP status.
+9. **Secrets stay on the server.** The secret key is used only in `server/`. The Gmail token is stored in Supabase Vault.
+
+## Zod and types
+
+- **Database types are generated, never written by hand** (`supabase gen types`). Regenerate them after every migration.
+- **Zod checks data where it crosses a trust boundary:** Server Action and route inputs, model output, external APIs and environment variables. Do not write a Zod schema that copies a database row.
+- **Naming** (as in the Next.js docs): the schema is PascalCase with a `Schema` suffix, and its type has the same name without it.
+  ```ts
+  export const CaptureInputSchema = z.object({ ... });
+  export type CaptureInput = z.infer<typeof CaptureInputSchema>;
+  ```
+- **`safeParse` for input that can be wrong** (owner input), so a clear error goes back. **`parse` for model output and external APIs**, so bad data fails loudly and the step is retried.
+
+## Naming conventions
+
+One convention everywhere:
+
+- **Files and folders:** kebab-case (`capture-form.tsx`, `gmail-drafts.ts`). Next.js special files keep their names (`page.tsx`, `layout.tsx`, `route.ts`).
+- **React components and types:** PascalCase. **Functions and variables:** camelCase. **Module-level constants:** SCREAMING_SNAKE_CASE. **Hooks:** `use-*.ts` files exporting `useSomething`.
+- **Zod schemas:** as above.
+- **Database:** snake_case, plural table names. Migrations: `<timestamp>_<snake_case_description>.sql`, created with `supabase migration new`.
+- **Tests:** `*.test.ts(x)` beside the code they test; Playwright `*.spec.ts` in `e2e/`; pgTAP `*.test.sql`.
+- **Branches:** `sprint<n>/<topic>`.
+
 ## Code quality
 
 Readability comes first. The owner must be able to explain every line.
@@ -43,7 +97,7 @@ All UI and visual design work uses the Claude design skill. Do not hand-roll new
 
 ## Repository layout
 
-- `frontend/`: the Next.js app (pages, server routes, server code, tests). Run its commands from this folder.
+- `frontend/`: the Next.js app; its `src/` follows the Architecture section above. Run its commands from this folder.
 - `supabase/`: migrations (`migrations/`), database tests (`tests/`) and Supabase configuration. There is one Supabase project, used for development, tests and real use; there is no local stack. New migrations are applied with `supabase db push` while building, and again by CI on merge to `main`. Database tests run in a transaction that is rolled back; integration tests delete the rows they create.
 - `docs/`: requirements, plan and research.
 
