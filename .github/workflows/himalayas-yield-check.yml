@@ -1,0 +1,40 @@
+name: Himalayas yield check
+
+# PLAN.md item 1.9: count eligible Himalayas jobs once a day for seven days.
+# Each run's report is on its summary page and saved as an artifact.
+# Disable this workflow once seven reports exist.
+on:
+  schedule:
+    - cron: "30 1 * * *" # 06:30 in Pakistan
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  count:
+    name: Count eligible jobs
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --silent yield-check > yield-report.json
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: yield-report-${{ github.run_id }}
+          path: frontend/yield-report.json
+          retention-days: 30

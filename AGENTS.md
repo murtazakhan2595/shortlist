@@ -53,7 +53,7 @@ Every work item ends with passing tests. Run from `frontend/`:
 
 | Level | What | Tool | Where | Command |
 |---|---|---|---|---|
-| L1 | Unit: plain functions | Vitest, Node | `src/**/*.test.ts` | `pnpm test:unit` |
+| L1 | Unit: plain functions | Vitest, Node | `src/**/*.test.ts`, `scripts/**/*.test.ts` | `pnpm test:unit` |
 | L2 | Components | Vitest, React Testing Library, jsdom | `src/**/*.test.tsx` | `pnpm test:component` |
 | L3 | Integration: server code with its real dependencies | Vitest, Node | `tests/integration/` | `pnpm test:integration` |
 | L4 | Database: tables, access rules, functions | pgTAP | `supabase/tests/database/` | `pnpm test:db` |

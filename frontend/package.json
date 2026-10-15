@@ -2,6 +2,7 @@
   "name": "shortlist",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -15,12 +16,14 @@
     "test:rules": "vitest run --project rules",
     "test:db": "bash ../supabase/tests/run.sh",
     "test:e2e": "playwright test",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "yield-check": "node --env-file-if-exists=.env.local scripts/himalayas-yield-check.ts"
   },
   "dependencies": {
     "next": "16.4.0",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",
