@@ -17,7 +17,7 @@
     "test:db": "bash ../supabase/tests/run.sh",
     "test:e2e": "playwright test",
     "test:watch": "vitest",
-    "yield-check": "node scripts/himalayas-yield-check.ts"
+    "yield-check": "node --env-file-if-exists=.env.local scripts/himalayas-yield-check.ts"
   },
   "dependencies": {
     "next": "16.4.0",

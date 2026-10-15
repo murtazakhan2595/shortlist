@@ -1,8 +1,11 @@
 // Himalayas yield check (PLAN.md item 1.9).
 //
 // Counts how many jobs posted on Himalayas in the last 24 hours are open to Pakistan and pass
-// simplified versions of the stage 1 filters (D3, D3a, Q2, Q3). Run once a day for seven days,
+// broad versions of the stage 1 filters (D3, D3a, Q2, Q3). Run once a day for seven days,
 // it answers whether one source can supply enough eligible jobs a day (PLAN.md section 8).
+//
+// The filters only drop jobs that are clearly out, so no model credits are spent on them.
+// Anything unclear is kept; judging fit is the scoring step's job (D5).
 //
 // Run: pnpm yield-check
 
@@ -15,14 +18,27 @@ const DAY_SECONDS = 24 * 60 * 60;
 const MAX_PAGES = 30;
 const DELAY_BETWEEN_PAGES_MS = 1_000;
 
-const PAY_FLOOR_USD_MONTH = 2_500;
-const ALLOWED_SENIORITY = ["Mid-level", "Senior"];
-const ROLE_CATEGORIES = ["Developer", "Data Science"];
+// Himalayas categories that are clearly not technical roles.
+const NON_TECH_CATEGORIES = [
+  "Sales",
+  "Human Resources",
+  "Customer Service",
+  "Marketing",
+  "Finance",
+  "Legal",
+  "Logistics",
+  "Operations",
+  "Content Creator",
+  "Growth",
+];
+// A job in a non-technical category is still kept when its title looks technical, e.g. "DevOps Engineer".
+const TECH_TITLE = /software|engineer|developer|programmer|full[- ]?stack|front[- ]?end|back[- ]?end|\bai\b|\bml\b|machine learning|data/i;
 
-const SOFTWARE_TITLE = /\b(engineer|developer|programmer)\b|full[- ]?stack|front[- ]?end|back[- ]?end/i;
-const SENIORITY_ABOVE_RANGE = /\b(lead|staff|principal|head|director|vp|intern)\b/i;
+// Q2: mid-level and senior. Entry-level and unlabelled jobs are kept; only roles clearly above the range are dropped.
+const LEVELS_ABOVE_RANGE = ["Manager", "Director", "Executive"];
+const TITLE_ABOVE_RANGE = /\b(lead|staff|principal)\b/i;
+
 const CLEARANCE_OR_CITIZENSHIP = /security clearance|must be a u\.?s\.? citizen|citizenship is required/i;
-const BASED_IN_INDIA = /\b(based|located) in india\b/i;
 
 // Rough rates, good enough for an estimate. The real filter (item 4.3) will use live rates.
 const USD_PER_UNIT: Record<string, number> = { USD: 1, EUR: 1.1, GBP: 1.3 };
@@ -45,11 +61,22 @@ const JobSchema = z.object({
 
 const SearchPageSchema = z.object({ jobs: z.array(JobSchema) });
 
+// The owner's filter settings, read from the settings table so the code holds no fixed values.
+const FilterSettingsSchema = z.object({
+  pay_floor_usd_month: z.number(),
+  excluded_countries: z.array(z.string()),
+});
+
 export type Job = z.infer<typeof JobSchema>;
 
+export type FilterSettings = {
+  payFloorUsdMonth: number;
+  excludedCountries: string[];
+};
+
 export type DropReason =
-  | "not a software role"
-  | "seniority out of range"
+  | "not a technical role"
+  | "seniority above range"
   | "pay below floor"
   | "clearance or citizenship required"
   | "excluded country";
@@ -64,22 +91,36 @@ export function monthlyPayUsd(job: Job): number | null {
   return pay * rate * multiplier;
 }
 
-/** The first filter a job fails, or null when it is kept. Unclear cases are kept, as D4 requires. */
-export function dropReason(job: Job): DropReason | null {
-  const isSoftwareRole =
-    job.parentCategories.some((category) => ROLE_CATEGORIES.includes(category)) && SOFTWARE_TITLE.test(job.title);
-  if (!isSoftwareRole) return "not a software role";
+function isClearlyNonTech(job: Job): boolean {
+  const inNonTechCategory =
+    job.parentCategories.length > 0 && job.parentCategories.every((category) => NON_TECH_CATEGORIES.includes(category));
+  return inNonTechCategory && !TECH_TITLE.test(job.title);
+}
 
-  const seniorityStated = job.seniority.length > 0;
-  const seniorityInRange = job.seniority.some((level) => ALLOWED_SENIORITY.includes(level));
-  if ((seniorityStated && !seniorityInRange) || SENIORITY_ABOVE_RANGE.test(job.title)) return "seniority out of range";
+function isAboveSeniorityRange(job: Job): boolean {
+  const labelledAboveRange =
+    job.seniority.length > 0 && job.seniority.every((level) => LEVELS_ABOVE_RANGE.includes(level));
+  return labelledAboveRange || TITLE_ABOVE_RANGE.test(job.title);
+}
+
+/** Restricted to candidates in excluded countries only (D3a). */
+function isOnlyForExcludedCountries(job: Job, excludedCountries: string[]): boolean {
+  return (
+    job.locationRestrictions.length > 0 &&
+    job.locationRestrictions.every((country) => excludedCountries.includes(country))
+  );
+}
+
+/** The first filter a job clearly fails, or null when it is kept. */
+export function dropReason(job: Job, settings: FilterSettings): DropReason | null {
+  if (isClearlyNonTech(job)) return "not a technical role";
+  if (isAboveSeniorityRange(job)) return "seniority above range";
 
   const pay = monthlyPayUsd(job);
-  if (pay !== null && pay < PAY_FLOOR_USD_MONTH) return "pay below floor";
+  if (pay !== null && pay < settings.payFloorUsdMonth) return "pay below floor";
 
   if (CLEARANCE_OR_CITIZENSHIP.test(job.description)) return "clearance or citizenship required";
-
-  if (BASED_IN_INDIA.test(job.description)) return "excluded country";
+  if (isOnlyForExcludedCountries(job, settings.excludedCountries)) return "excluded country";
 
   return null;
 }
@@ -91,17 +132,25 @@ export type YieldReport = {
   listingPakistan: number;
   dropped: Partial<Record<DropReason, number>>;
   eligible: number;
+  eligibleByCategory: Record<string, number>;
   eligibleJobs: string[];
 };
 
-export function buildReport(jobs: Job[], now: Date): YieldReport {
+export function buildReport(jobs: Job[], settings: FilterSettings, now: Date): YieldReport {
   const dropped: Partial<Record<DropReason, number>> = {};
+  const eligibleByCategory: Record<string, number> = {};
   const eligibleJobs: string[] = [];
 
   for (const job of jobs) {
-    const reason = dropReason(job);
-    if (reason) dropped[reason] = (dropped[reason] ?? 0) + 1;
-    else eligibleJobs.push(`${job.title} at ${job.companyName}`);
+    const reason = dropReason(job, settings);
+    if (reason) {
+      dropped[reason] = (dropped[reason] ?? 0) + 1;
+      continue;
+    }
+
+    const category = job.parentCategories[0] ?? "No category";
+    eligibleByCategory[category] = (eligibleByCategory[category] ?? 0) + 1;
+    eligibleJobs.push(`${job.title} at ${job.companyName} (${category})`);
   }
 
   return {
@@ -111,8 +160,25 @@ export function buildReport(jobs: Job[], now: Date): YieldReport {
     listingPakistan: jobs.filter((job) => job.locationRestrictions.includes("Pakistan")).length,
     dropped,
     eligible: eligibleJobs.length,
+    eligibleByCategory,
     eligibleJobs,
   };
+}
+
+function requiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is not set`);
+  return value;
+}
+
+/** Reads the filter settings with the secret key, which bypasses the owner-only access rules. */
+async function fetchFilterSettings(): Promise<FilterSettings> {
+  const url = `${requiredEnv("NEXT_PUBLIC_SUPABASE_URL")}/rest/v1/settings?select=pay_floor_usd_month,excluded_countries`;
+  const response = await fetch(url, { headers: { apikey: requiredEnv("SUPABASE_SECRET_KEY") } });
+  if (!response.ok) throw new Error(`Supabase returned ${response.status} for settings`);
+
+  const [row] = z.array(FilterSettingsSchema).length(1).parse(await response.json());
+  return { payFloorUsdMonth: row.pay_floor_usd_month, excludedCountries: row.excluded_countries };
 }
 
 function postedInLastDay(job: Job, now: Date): boolean {
@@ -144,16 +210,22 @@ async function fetchNewJobs(now: Date): Promise<Job[]> {
 }
 
 function toMarkdown(report: YieldReport): string {
-  const droppedLines = Object.entries(report.dropped).map(([reason, count]) => `| ${reason} | ${count} |`);
+  const tableRows = (counts: Record<string, number>) =>
+    Object.entries(counts).map(([name, count]) => `| ${name} | ${count} |`);
+
   return [
     `## Himalayas yield, ${report.date}`,
     "",
     `**${report.eligible} eligible** out of ${report.newJobsOpenToPakistan} new jobs open to Pakistan ` +
       `(${report.worldwide} worldwide, ${report.listingPakistan} listing Pakistan).`,
     "",
+    "| Eligible, by category | Jobs |",
+    "|---|---|",
+    ...tableRows(report.eligibleByCategory),
+    "",
     "| Dropped because | Jobs |",
     "|---|---|",
-    ...droppedLines,
+    ...tableRows(report.dropped),
     "",
     ...report.eligibleJobs.map((job) => `- ${job}`),
     "",
@@ -162,7 +234,8 @@ function toMarkdown(report: YieldReport): string {
 
 async function main(): Promise<void> {
   const now = new Date();
-  const report = buildReport(await fetchNewJobs(now), now);
+  const settings = await fetchFilterSettings();
+  const report = buildReport(await fetchNewJobs(now), settings, now);
 
   console.log(JSON.stringify(report, null, 2));
 

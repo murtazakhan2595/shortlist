@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vitest";
-import { buildReport, dropReason, type Job, monthlyPayUsd } from "./himalayas-yield-check";
+import { buildReport, dropReason, type FilterSettings, type Job, monthlyPayUsd } from "./himalayas-yield-check";
+
+const settings: FilterSettings = { payFloorUsdMonth: 2_500, excludedCountries: ["India"] };
 
 function job(overrides: Partial<Job> = {}): Job {
   return {
@@ -38,53 +40,67 @@ describe("monthlyPayUsd", () => {
 });
 
 describe("dropReason", () => {
-  test("keeps a mid-level or senior software role with no stated pay", () => {
-    expect(dropReason(job())).toBeNull();
+  test("keeps a senior software role with no stated pay", () => {
+    expect(dropReason(job(), settings)).toBeNull();
   });
 
-  test("keeps an AI engineer listed under Data Science", () => {
-    expect(dropReason(job({ title: "AI Engineer", parentCategories: ["Data Science"] }))).toBeNull();
+  test("keeps technical roles whatever their title or category", () => {
+    expect(dropReason(job({ title: "Software Development Manager", seniority: [] }), settings)).toBeNull();
+    expect(dropReason(job({ title: "Research Scientist", parentCategories: ["Data Science"] }), settings)).toBeNull();
+    expect(dropReason(job({ title: "Claims Specialist", parentCategories: [] }), settings)).toBeNull();
   });
 
-  test("drops a role outside software", () => {
-    expect(dropReason(job({ title: "Account Executive", parentCategories: ["Sales"] }))).toBe("not a software role");
+  test("drops a role in a non-technical category", () => {
+    expect(dropReason(job({ title: "Account Executive", parentCategories: ["Sales"] }), settings)).toBe(
+      "not a technical role",
+    );
   });
 
-  test("drops entry-level roles", () => {
-    expect(dropReason(job({ seniority: ["Entry-level"] }))).toBe("seniority out of range");
+  test("keeps a technical title in a non-technical category", () => {
+    expect(dropReason(job({ title: "DevOps Engineer", parentCategories: ["Operations"] }), settings)).toBeNull();
   });
 
-  test("drops lead, staff and principal roles by title", () => {
-    expect(dropReason(job({ title: "Staff Software Engineer" }))).toBe("seniority out of range");
+  test("keeps entry-level and unlabelled roles", () => {
+    expect(dropReason(job({ seniority: ["Entry-level"] }), settings)).toBeNull();
+    expect(dropReason(job({ seniority: [] }), settings)).toBeNull();
   });
 
-  test("keeps a role whose seniority is not stated", () => {
-    expect(dropReason(job({ seniority: [] }))).toBeNull();
+  test("drops roles labelled only above the range", () => {
+    expect(dropReason(job({ seniority: ["Director"] }), settings)).toBe("seniority above range");
   });
 
-  test("drops stated pay below the floor", () => {
-    expect(dropReason(job({ maxSalary: 24_000, salaryPeriod: "annual", currency: "USD" }))).toBe("pay below floor");
+  test("drops lead, staff and principal roles by title (Q2)", () => {
+    expect(dropReason(job({ title: "Staff Software Engineer" }), settings)).toBe("seniority above range");
+  });
+
+  test("drops stated pay below the floor from settings", () => {
+    const annual = (maxSalary: number) => job({ maxSalary, salaryPeriod: "annual", currency: "USD" });
+
+    expect(dropReason(annual(24_000), settings)).toBe("pay below floor");
+    expect(dropReason(annual(24_000), { ...settings, payFloorUsdMonth: 1_500 })).toBeNull();
   });
 
   test("drops a clearance requirement", () => {
-    expect(dropReason(job({ description: "Active security clearance needed." }))).toBe(
+    expect(dropReason(job({ description: "Active security clearance needed." }), settings)).toBe(
       "clearance or citizenship required",
     );
   });
 
-  test("drops a job based in India", () => {
-    expect(dropReason(job({ description: "This role is based in India." }))).toBe("excluded country");
+  test("drops a job only for candidates in an excluded country", () => {
+    expect(dropReason(job({ locationRestrictions: ["India"] }), settings)).toBe("excluded country");
+    expect(dropReason(job({ locationRestrictions: ["India", "Pakistan"] }), settings)).toBeNull();
   });
 });
 
 describe("buildReport", () => {
-  test("counts eligible jobs and the reason each other job was dropped", () => {
+  test("counts eligible jobs by category and the reason each other job was dropped", () => {
     const report = buildReport(
       [
         job(),
-        job({ locationRestrictions: ["Pakistan"] }),
+        job({ locationRestrictions: ["Pakistan"], parentCategories: ["Data Science"] }),
         job({ title: "Recruiter", parentCategories: ["Human Resources"] }),
       ],
+      settings,
       new Date("2026-10-15T01:30:00Z"),
     );
 
@@ -93,8 +109,9 @@ describe("buildReport", () => {
       newJobsOpenToPakistan: 3,
       worldwide: 2,
       listingPakistan: 1,
-      dropped: { "not a software role": 1 },
+      dropped: { "not a technical role": 1 },
       eligible: 2,
+      eligibleByCategory: { Developer: 1, "Data Science": 1 },
     });
   });
 });
