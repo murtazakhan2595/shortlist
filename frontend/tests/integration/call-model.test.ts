@@ -82,6 +82,16 @@ describe("callModel", () => {
     expect(failed?.error).toContain("ZodError");
   });
 
+  test("an evaluation can try another model on the same step", async () => {
+    invokeModel.mockResolvedValue(modelAnswer({ score: 40 }));
+    const model = { provider: "openai" as const, model: "gpt-6.1-sol", effort: "high" as const };
+
+    await callModel({ ...request, model, link: { runId } });
+
+    const call = (await recordedCalls()).at(-1);
+    expect(call).toMatchObject({ model: "gpt-6.1-sol", effort: "high", cost_usd: 0.004 });
+  });
+
   test("a provider error or timeout fails, and is recorded", async () => {
     invokeModel.mockRejectedValue(new DOMException("The operation timed out.", "TimeoutError"));
 
