@@ -15,7 +15,29 @@ These come from REQUIREMENTS.md section 4. Breaking one is never acceptable, wha
 
 ## Contracts
 
-The database tables, the server routes and the model module's interface (PLAN.md items 1.2 to 1.4) are owned by the owner. Build against them; do not change them without the owner's approval.
+The database tables, the server entry points and the model module's interface (PLAN.md items 1.2 to 1.4) are owned by the owner. Build against them; do not change them without the owner's approval.
+
+- **Tables:** `supabase/migrations/`.
+- **Server Actions:** each feature's `schemas.ts` lists its actions, with a Zod schema for each input and a type for each output. All return `Result` from `src/lib/result.ts`.
+
+| Feature | Server Actions |
+|---|---|
+| `captures` | `createCaptureUploadUrl`, `submitCapture`, `confirmCaptureEmail` |
+| `forms` | `createFormUploadUrl`, `addFormPages`, `answerFormQuestion` |
+| `applications` | `updateApplicationStatus` |
+| `discovery` | `labelListing` |
+| `profile` | `saveDocument`, `createCvUploadUrl`, `saveCvFile` |
+| `settings` | `updateSettings` |
+
+- **Route handlers:** only for callers outside the app.
+
+| Route | Caller | Checked by | Input | Returns |
+|---|---|---|---|---|
+| `POST /api/worker` | Database trigger, and Supabase Cron every minute | `Authorization: Bearer <INTERNAL_API_SECRET>` | none | `Result<WorkerRunSummary>` (`server/queue/schemas.ts`) |
+| `POST /api/daily-run` | Supabase Cron, once a day | `Authorization: Bearer <INTERNAL_API_SECRET>` | none | `Result<DailyRunSummary>` (`features/discovery/schemas.ts`) |
+| `GET /api/gmail/connect` | The owner, once | `requireOwner()` | none | Redirect to Google |
+| `GET /api/gmail/callback` | Google | `state` matches the one set on connect | `GmailCallbackQuery` (`server/gmail/schemas.ts`) | Redirect to settings |
+| `GET /auth/callback` | Supabase Auth | Code exchange | `AuthCallbackQuery` (`server/auth/schemas.ts`) | Redirect to `next`, a path inside the app |
 
 ## Portability
 
