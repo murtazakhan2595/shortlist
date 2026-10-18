@@ -603,6 +603,14 @@ export type Database = {
         Args: { delay_seconds: number; message_id: number; queue_name: string }
         Returns: undefined
       }
+      set_current_cv: {
+        Args: {
+          cv_file_name: string
+          cv_storage_path: string
+          cv_variant: string
+        }
+        Returns: string
+      }
       wake_worker: { Args: never; Returns: undefined }
     }
     Enums: {
