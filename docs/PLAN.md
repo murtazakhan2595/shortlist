@@ -1,6 +1,6 @@
 # Shortlist: Build Plan
 
-Version 2.5, 15 October 2026. Agreed plan, now with the open-source parts to reuse (section 6). The build starts on the weekend of 17 and 18 October 2026, with sprint 0.
+Version 2.6, 19 October 2026. Agreed plan. Sprints 0 and 1 are done; sections 2, 3, 5, 8 and 9 now describe what sprint 1 actually built.
 
 This document says **how** Shortlist gets built. **What** is being built, and how success is judged, is in [REQUIREMENTS.md](REQUIREMENTS.md). Requirement IDs (C1, D3, F4, E2 and so on) refer to that file.
 
@@ -26,7 +26,7 @@ All work is done as a chain of short steps. Each step is one job on the queue an
 **Capture path** (on demand, result within one minute):
 
 1. The owner shares a screenshot or pastes a post into the app. Screenshots upload straight from the browser to Supabase Storage.
-2. A server route saves the capture and puts the first step on the queue. A database trigger calls the worker route at once, so nothing waits for the next scheduled tick.
+2. A Server Action saves the capture and puts the first step on the queue. Queuing a step makes the database call the worker route at once, so nothing waits for the next scheduled tick.
 3. Step "extract": the role, the company, and either a contact email or a form link.
 4. With an email, steps "write", "check" and, if the check fails, "revise": the email is written and fact-checked. Then ordinary code creates the Gmail draft with the chosen CV attached.
 5. With a form link: the app asks the owner for full-page screenshots of the form. Steps list the questions and answer them from the profile and the answer bank. Anything that cannot be answered is marked for the owner.
@@ -35,7 +35,7 @@ All work is done as a chain of short steps. Each step is one job on the queue an
 
 1. Supabase's scheduler calls a protected route on the app.
 2. That route fetches new listings, converts them to one format, removes duplicates, drops those that clearly exclude the owner, and puts one scoring step per listing on the queue.
-3. The scheduler calls the worker route every minute. Each call takes a few steps from the queue and finishes quickly. This repeats until the queue is empty.
+3. The worker route runs one step per call. While steps are waiting it asks the database to call it again, and the scheduler also calls it every minute in case a call is missed. This repeats until the queue is empty.
 4. The top N listings each get a chosen CV and a short tailored note, by the same steps as a capture.
 
 Both paths end in the same place: an entry in the review app.
@@ -56,7 +56,7 @@ Both paths end in the same place: an entry in the review app.
 | Sign-in | Supabase Auth, one allowed account only | Meets U6 |
 | Queue | Supabase Queues, in Postgres | Retries without a separate service |
 | Schedule and triggers | Supabase Cron and database triggers, calling protected routes on the app | Scheduling does not depend on the host |
-| Secrets | Plain environment variables | Every host supports them; never in the repository |
+| Secrets | Plain environment variables for the app; Supabase Vault for the app's address, the worker's secret and the Gmail token | Every host supports environment variables; never in the repository |
 | Delivery | GitHub Actions run tests on every push and apply database migrations; the host builds and publishes on merge | |
 | Gmail | Gmail API, `gmail.compose` permission, one-time consent by the owner | The narrowest permission that can create drafts |
 
@@ -73,9 +73,9 @@ Moving host then means: connect the repository to the new host, copy the environ
 
 **What this choice gives up.** Earlier versions of this plan ran a Python pipeline on AWS. The project itself now shows neither Python nor an AWS deployment. Job posts for AI engineers mostly ask for Python, so that evidence has to come from the course repositories and interview preparation. The gain is one language, one deployment and no hosting cost, and a project that fits the owner's first-priority role, full-stack with AI.
 
-Two rules for the code:
+Two rules for the code (the full set is in `AGENTS.md`, section "Architecture"):
 
-- **The pages read data directly from Supabase,** under access rules that allow only the owner. Anything that starts work goes through a server route.
+- **All data goes through server code.** Pages read through each feature's data layer and write through Server Actions, both of which first check that the owner is signed in. The browser never queries the database; files are uploaded to one-time signed upload URLs that the server creates. Access rules in the database allow only the owner, as a second line of defence.
 - **The database key that bypasses access rules** is used only in server code and never reaches the browser.
 
 ## 4. Models
@@ -142,20 +142,29 @@ What this does not settle:
 
 ## 5. Data
 
+The tables, as built in sprint 1 (`supabase/migrations/`). Every table allows only the owner.
+
 | Table | Holds |
 |---|---|
-| `profile` | The master profile, versioned |
-| `answers` | The answer bank: standard answers and links to reusable assets |
-| `cv_files` | Each CV version and where its file is stored |
-| `captures` | Posts the owner sent in: raw text or image, extracted fields, whether the email was confirmed |
-| `listings` | Automated listings in the common format, with source, link, eligibility tags and a fingerprint for spotting duplicates |
-| `scores` | Score and reasons per listing, with the model that produced them |
-| `applications` | One row per prepared application: route (email, note, form), CV, title and email pattern used, Gmail draft reference, status |
+| `settings` | One row: the owner's account, daily target, monthly cap, pay floor, excluded countries (India) |
+| `step_models` | The provider, model and reasoning effort for each model step (B3) |
+| `documents` | The owner's plain-text material, versioned: profile, answer bank, voice examples, email patterns. An edit adds a version; the `current_documents` view shows the latest |
+| `cv_files` | Each CV variant (full-stack, AI engineer, AI full-stack), its stored file and which one is current |
+| `captures` | Posts the owner sent in: raw text or images, extracted fields, whether the email was confirmed, a fingerprint for spotting duplicates |
+| `listings` | Automated listings in the common format, with source, link, eligibility, tags, a fingerprint, and the owner's apply or skip mark |
+| `scores` | Score and reasons per listing, with the model call that produced them |
+| `applications` | One row per prepared application: route (email, note, form), CV, title and email pattern used, recipient, text, Gmail draft reference, status. Its fingerprint is unique, so a job gets one application (X6) |
 | `form_answers` | Each question of a form, its answer, and whether it still needs the owner's input |
-| `runs` | Each daily run and each capture: timings, counts, total cost |
-| `model_calls` | Every model call: step, provider, model, tokens, cost |
-| `settings` | Daily target, monthly cap, model per step, excluded countries (India) |
-| `labels` | The owner's apply or skip marks, for the match-quality check |
+| `runs` | Each daily run, capture and evaluation run: timings and counts |
+| `model_calls` | Every model call: step, provider, model, effort, tokens, cost, time, error. Run and monthly costs are summed from here |
+| `failed_steps` | Queued steps that failed every attempt, with the last error |
+
+Alongside the tables:
+
+- **Queues** (Supabase Queues): `steps` for real work, `steps_test` and `steps_db_test` for tests only.
+- **File buckets** (Supabase Storage, private): `cvs`, `screenshots`, `raw-listings`.
+- **Vault secrets:** `app_url` (where the worker is called) and `internal_api_secret`.
+- **Fixed lists live in code, not tables:** the model steps, providers, effort levels and model prices are in `frontend/src/lib/model-catalog.ts`.
 
 ## 6. What already exists
 
@@ -314,7 +323,6 @@ Two lessons from the owner's playbook are built into this plan: guard side effec
 | Risk | What to do |
 |---|---|
 | One source cannot supply enough eligible jobs a day | Item 1.9 measures it early. If it falls short, the Hacker News port (sprint 7) joins sprint 4 |
-| Supabase's queue or scheduler is not on the free plan | Supabase's pages do not state plan availability. Item 1.8 confirms it first. A missing queue is replaced by a plain table used as one. A missing scheduler has no free replacement that keeps the app independent of its host, so that case goes to the owner to decide |
 | Overnight work outgrows the host's free limits | Vercel's free plan allows four hours of active processing a month; time spent waiting for a model does not count. Short steps keep usage low. Watch the usage page in the first week of sprint 4 |
 | A step runs longer than the 25-second budget | High reasoning effort can take a minute or more. Effort is set per step in configuration; the capture path uses low effort. Raise the budget only after Amplify's limit is confirmed |
 | Amplify's time limit turns out lower than expected | It is not stated on Amplify's documentation page. Confirm it before any move; the step design means only the budget number changes |
@@ -340,10 +348,10 @@ Checked against the providers' own pages on 13 October 2026:
 - **Google sign-in tokens:** expire after seven days while the app is in testing mode.
 - **Android share menu:** an installed web app can receive shared text, links and images.
 - **Model prices and benchmarks:** as in section 4.
+- **Supabase Queues, Cron and pg_net:** available on the free plan, and the deployed worker answers the every-minute schedule (item 1.8, confirmed 15 October 2026).
 - **AWS Amplify:** hosts Next.js with server routes; no edge routes, no on-demand page revalidation, responses up to 5.72 MB, build output up to 220 MB.
 
 Not yet checked:
 
-- Whether Supabase Queues and Cron are included in the free plan (item 1.8).
 - Whether a single-owner app can use `gmail.compose` in production mode without Google's verification (item 2.3).
 - The time limit for a server call on AWS Amplify.
