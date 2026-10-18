@@ -15,19 +15,19 @@ select throws_ok(
 );
 
 select lives_ok(
-  $$ insert into public.documents (kind, name, content) values ('profile', 'main', 'v1');
-     insert into public.documents (kind, name, content, version) values ('profile', 'main', 'v2', 2) $$,
+  $$ insert into public.documents (kind, name, content) values ('profile', 'schema-test', 'v1');
+     insert into public.documents (kind, name, content, version) values ('profile', 'schema-test', 'v2', 2) $$,
   'a document can have several versions'
 );
 
 select throws_ok(
-  $$ insert into public.documents (kind, name, content) values ('profile', 'main', 'again') $$,
+  $$ insert into public.documents (kind, name, content) values ('profile', 'schema-test', 'again') $$,
   '23505', null,
   'a document version cannot be stored twice'
 );
 
 select is(
-  (select content from public.current_documents where kind = 'profile' and name = 'main'),
+  (select content from public.current_documents where kind = 'profile' and name = 'schema-test'),
   'v2',
   'current_documents shows the latest version'
 );
