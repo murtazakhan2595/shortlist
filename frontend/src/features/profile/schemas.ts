@@ -11,7 +11,10 @@ import { storagePathSchema } from "@/lib/uploads";
 export const MAX_DOCUMENT_LENGTH = 100_000;
 
 export const DOCUMENT_KINDS = ["profile", "answer_bank", "voice_example", "email_pattern"] as const;
+export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
+
 export const CV_VARIANTS = ["full_stack", "ai_engineer", "ai_full_stack"] as const;
+export type CvVariant = (typeof CV_VARIANTS)[number];
 
 // Saving never overwrites: it adds a new version of the document.
 export const SaveDocumentInputSchema = z.object({

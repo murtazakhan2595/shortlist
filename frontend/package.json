@@ -21,7 +21,8 @@
     "db:types": "supabase gen types --linked --lang=typescript --schema public --workdir .. > src/server/supabase/database.types.ts",
     "model-check": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/model-check.ts",
     "queue-check": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/queue-check.ts",
-    "eval": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/eval.ts"
+    "eval": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/eval.ts",
+    "profile:load": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/load-profile.ts"
   },
   "dependencies": {
     "@langchain/core": "^1.2.17",
