@@ -12,8 +12,10 @@ export type ServerClient = SupabaseClient<Database>;
  * It obeys the owner-only access rules. Owner code gets it through requireOwner(), not directly.
  */
 export async function getServerClient(): Promise<ServerClient> {
-  const env = getServerEnv();
+  // Cookies first: reading request data is what tells Next.js to stop prerendering here, so the
+  // settings below are read only for a real request, never at build time.
   const cookieStore = await cookies();
+  const env = getServerEnv();
 
   return createServerClient<Database>(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
     cookies: {
