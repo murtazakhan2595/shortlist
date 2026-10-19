@@ -8,7 +8,7 @@ const textPost: PostInput = {
 const screenshotPost: PostInput = { kind: "screenshots", images: [{ mimeType: "image/png", base64: "" }] };
 
 function answer(fields: Partial<ExtractedPost>): ExtractedPost {
-  return { role: null, company: null, posterName: null, contactEmail: null, formUrl: null, ...fields };
+  return { role: null, company: null, posterName: null, contactEmail: null, formUrl: null, postText: null, ...fields };
 }
 
 describe("checkExtraction", () => {
@@ -40,6 +40,13 @@ describe("checkExtraction", () => {
     const linkedIn = answer({ formUrl: "https://www.linkedin.com/jobs/view/123" });
 
     expect(checkExtraction(linkedIn, screenshotPost).formUrl).toBeNull();
+  });
+
+  test("keeps the text read from screenshots, and ignores any for pasted text", () => {
+    const withText = answer({ postText: "We are hiring." });
+
+    expect(checkExtraction(withText, screenshotPost).postText).toBe("We are hiring.");
+    expect(checkExtraction(withText, textPost).postText).toBeNull();
   });
 
   test("turns blank answers into null and trims the rest", () => {

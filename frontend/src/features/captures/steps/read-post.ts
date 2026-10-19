@@ -40,6 +40,12 @@ export const ExtractedPostSchema = z.object({
     .describe(
       "The link to an application form or apply page that the post gives for applying, copied exactly. Null if there is none. A LinkedIn profile or post link is never a form link.",
     ),
+  postText: z
+    .string()
+    .nullable()
+    .describe(
+      "For screenshots only: the post's full text, word for word, in reading order, without the page around it. Null for pasted text.",
+    ),
 });
 export type ExtractedPost = z.infer<typeof ExtractedPostSchema>;
 
@@ -95,6 +101,8 @@ export function checkExtraction(answer: ExtractedPost, post: PostInput): Extract
     posterName: tidy(answer.posterName),
     contactEmail: contactEmail && isEmail(contactEmail) && inPost(contactEmail) ? contactEmail : null,
     formUrl: formUrl && isFormLink(formUrl) && inPost(formUrl) ? formUrl : null,
+    // Pasted text is already stored as it was given; only a screenshot's text needs reading.
+    postText: post.kind === "screenshots" ? tidy(answer.postText) : null,
   };
 }
 

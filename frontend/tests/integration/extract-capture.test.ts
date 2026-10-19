@@ -11,8 +11,12 @@ vi.mock("@/server/models/chat-models", () => ({
   createStructuredModel: () => ({ invoke: invokeModel }),
 }));
 
+// Hand-offs to the writer are collected here, never put on the real queue.
+const enqueueStep = vi.hoisted(() => vi.fn());
+vi.mock("@/server/queue/queue", () => ({ enqueueStep }));
+
 function modelAnswer(fields: Partial<ExtractedPost>) {
-  const parsed = { role: null, company: null, posterName: null, contactEmail: null, formUrl: null, ...fields };
+  const parsed = { role: null, company: null, posterName: null, contactEmail: null, formUrl: null, postText: null, ...fields };
   const raw = new AIMessage({
     content: JSON.stringify(parsed),
     usage_metadata: { input_tokens: 800, output_tokens: 60, total_tokens: 860 },
@@ -33,6 +37,7 @@ describe("extractCapture", () => {
 
   beforeEach(() => {
     invokeModel.mockReset();
+    enqueueStep.mockReset();
   });
 
   afterAll(async () => {
@@ -71,7 +76,7 @@ describe("extractCapture", () => {
     return count;
   }
 
-  test("saves what a pasted post says, and running twice reads it only once", async () => {
+  test("saves what a pasted post says, hands it to the writer, and running twice reads it only once", async () => {
     const { captureId, runId } = await createCapture({
       input_type: "text",
       raw_text: "Acme is hiring a Full-Stack Engineer. Email jobs@acme.example. Posted by Sara Khan.",
@@ -93,6 +98,8 @@ describe("extractCapture", () => {
     });
     expect(invokeModel).toHaveBeenCalledTimes(1);
     expect(await modelCallCount(runId)).toBe(1);
+    // The hand-off is repeated on the second run; the writer's first step is safe to repeat.
+    expect(enqueueStep).toHaveBeenCalledWith("prepare_email_application", { captureId });
   });
 
   test("sends screenshots to the model inside the request and waits for the owner to confirm the email", async () => {
@@ -102,13 +109,19 @@ describe("extractCapture", () => {
     imagePaths.push(imagePath);
 
     const { captureId } = await createCapture({ input_type: "screenshot", image_paths: [imagePath] });
-    invokeModel.mockResolvedValue(modelAnswer({ contactEmail: "hr@acme.example" }));
+    invokeModel.mockResolvedValue(modelAnswer({ contactEmail: "hr@acme.example", postText: "We are hiring. Email hr@acme.example" }));
 
     await extractCapture({ captureId });
 
     const [messages] = invokeModel.mock.calls[0];
     expect(JSON.stringify(messages)).toContain(`data:image/png;base64,${ONE_PIXEL_PNG.toString("base64")}`);
-    expect(await loadCapture(captureId)).toMatchObject({ contact_email: "hr@acme.example", status: "awaiting_confirmation" });
+    // The text read from the screenshot is kept, so the writer can use the whole post.
+    expect(await loadCapture(captureId)).toMatchObject({
+      contact_email: "hr@acme.example",
+      raw_text: "We are hiring. Email hr@acme.example",
+      status: "awaiting_confirmation",
+    });
+    expect(enqueueStep).not.toHaveBeenCalled();
   });
 
   test("a post with no way to apply ends its run", async () => {

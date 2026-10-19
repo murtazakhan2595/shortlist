@@ -8,6 +8,7 @@ const expected: ExtractedPost = {
   posterName: null,
   contactEmail: "jobs@acme.example",
   formUrl: null,
+  postText: null,
 };
 
 test("passes when the email and form link match, ignoring letter case", () => {

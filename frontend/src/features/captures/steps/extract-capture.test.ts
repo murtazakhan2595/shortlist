@@ -2,7 +2,14 @@ import { expect, test } from "vitest";
 import { statusAfterReading } from "./extract-capture";
 import type { ExtractedPost } from "./read-post";
 
-const nothing: ExtractedPost = { role: null, company: null, posterName: null, contactEmail: null, formUrl: null };
+const nothing: ExtractedPost = {
+  role: null,
+  company: null,
+  posterName: null,
+  contactEmail: null,
+  formUrl: null,
+  postText: null,
+};
 const withEmail = { ...nothing, contactEmail: "jobs@acme.example" };
 const withForm = { ...nothing, formUrl: "https://forms.gle/abc123" };
 

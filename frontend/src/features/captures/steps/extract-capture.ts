@@ -1,14 +1,16 @@
 import "server-only";
 import { z } from "zod";
 import { imageContentType } from "@/lib/uploads";
+import { enqueueStep } from "@/server/queue/queue";
+import { STEP_NAMES } from "@/server/queue/step-names";
+import { finishRun } from "@/server/runs";
 import { getAdminClient } from "@/server/supabase/admin";
 import type { Json, Tables } from "@/server/supabase/database.types";
 import { type ExtractedPost, type PostImage, type PostInput, readPost } from "./read-post";
 
 // Queue step: read a captured post and save what it says (PLAN.md item 2.1).
 // Queued when a capture is submitted (item 2.4). Safe to run twice: a capture is read only once.
-
-export const EXTRACT_CAPTURE_STEP = "extract_capture";
+// A post with an email from pasted text is handed to the writer.
 
 export const ExtractCapturePayloadSchema = z.object({ captureId: z.uuid() });
 
@@ -20,15 +22,21 @@ const SCREENSHOTS_BUCKET = "screenshots";
 export async function extractCapture(payload: Json): Promise<void> {
   const { captureId } = ExtractCapturePayloadSchema.parse(payload);
   const capture = await loadCapture(captureId);
-  if (capture.status !== "received") return;
+  const status = capture.status === "received" ? await readAndSave(capture) : capture.status;
 
+  // The hand-offs run again if this step is retried, so each is safe to repeat: the writer skips a
+  // capture that already has an application, and finishing a run twice changes nothing.
+  if (status === "processing") await enqueueStep(STEP_NAMES.prepareEmailApplication, { captureId });
+  // Nothing more happens for a post without an email or a form, so its run ends here.
+  if (status === "no_contact" && capture.run_id) await finishRun(capture.run_id);
+}
+
+async function readAndSave(capture: Capture): Promise<CaptureStatus> {
   const post = await toPostInput(capture);
   const details = await readPost(post, { link: { runId: capture.run_id ?? undefined } });
   const status = statusAfterReading(details, post.kind);
-
   await saveDetails(capture.id, details, status);
-  // Nothing more happens for a post without an email or a form, so its run ends here.
-  if (status === "no_contact" && capture.run_id) await finishRun(capture.run_id);
+  return status;
 }
 
 /**
@@ -74,18 +82,12 @@ async function saveDetails(captureId: string, details: ExtractedPost, status: Ca
       poster_name: details.posterName,
       contact_email: details.contactEmail,
       form_url: details.formUrl,
+      // For screenshots, the text read from them, so later steps can use the whole post.
+      ...(details.postText ? { raw_text: details.postText } : {}),
       status,
     })
     .eq("id", captureId)
     // Only a capture that has not been read yet, so a second run of this step changes nothing.
     .eq("status", "received");
   if (error) throw new Error(`Could not save capture ${captureId}: ${error.message}`);
-}
-
-async function finishRun(runId: string): Promise<void> {
-  const { error } = await getAdminClient()
-    .from("runs")
-    .update({ status: "succeeded", finished_at: new Date().toISOString() })
-    .eq("id", runId);
-  if (error) throw new Error(`Could not finish run ${runId}: ${error.message}`);
 }
