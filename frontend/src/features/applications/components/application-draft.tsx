@@ -1,6 +1,11 @@
+import Link from "next/link";
+import { AutoRefresh } from "@/components/ui/auto-refresh";
 import type { ApplicationView } from "../data";
 
-/** The email the writer prepared, or why it was stopped. Gmail drafts come with item 2.3. */
+// Gmail's drafts folder. A link to one draft needs its message id in Gmail's own format, which the API does not give.
+const GMAIL_DRAFTS_URL = "https://mail.google.com/mail/#drafts";
+
+/** The email the writer prepared, or why it was stopped, and whether it is in Gmail yet. */
 export function ApplicationDraft({ application }: { application: ApplicationView }) {
   if (application.status === "preparing") return null;
 
@@ -10,6 +15,25 @@ export function ApplicationDraft({ application }: { application: ApplicationView
       <h2 id="draft-heading" className="text-lg font-semibold">
         {blocked ? "The draft was stopped" : "The prepared email"}
       </h2>
+
+      {application.status === "ready" &&
+        (application.inGmail ? (
+          <p role="status">
+            Saved as a draft in Gmail, with the CV attached.{" "}
+            <a href={GMAIL_DRAFTS_URL} target="_blank" rel="noreferrer" className="underline">
+              Open Gmail drafts
+            </a>
+          </p>
+        ) : (
+          <p className="text-ink-muted">
+            <AutoRefresh />
+            Saving to Gmail… If Gmail is not connected yet, connect it in{" "}
+            <Link href="/settings" className="underline">
+              Settings
+            </Link>
+            .
+          </p>
+        ))}
 
       {blocked && application.blockedReason && (
         <div className="flex flex-col gap-2">

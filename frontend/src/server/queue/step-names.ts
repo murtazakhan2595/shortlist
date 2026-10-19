@@ -9,4 +9,6 @@ export const STEP_NAMES = {
   prepareEmailApplication: "prepare_email_application",
   /** applications: run the next stage of the writer's loop (item 2.2). */
   advanceWriter: "advance_writer",
+  /** applications: save a ready application as a Gmail draft with its CV (item 2.3). */
+  createGmailDraft: "create_gmail_draft",
 } as const;

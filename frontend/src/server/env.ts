@@ -16,6 +16,9 @@ const ServerEnvSchema = z.object({
   SUPABASE_DB_URL: z.url().optional(),
   // The Bearer secret Supabase sends to /api/worker and /api/daily-run. Without it, those routes refuse every call.
   INTERNAL_API_SECRET: z.string().min(32).optional(),
+  // The Google Cloud OAuth client (a "Web application"), for Gmail drafts. Needed only by the Gmail code.
+  GOOGLE_CLIENT_ID: z.string().endsWith(".apps.googleusercontent.com").optional(),
+  GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
 });
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;
 

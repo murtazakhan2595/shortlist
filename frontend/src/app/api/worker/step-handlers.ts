@@ -1,3 +1,4 @@
+import { createGmailDraft } from "@/features/applications/steps/gmail-draft";
 import { advanceWriter, prepareEmailApplication } from "@/features/applications/steps/writer-steps";
 import { extractCapture } from "@/features/captures/steps/extract-capture";
 import { QUEUE_CHECK_STEP, runQueueCheck } from "@/server/queue/queue-check";
@@ -10,4 +11,5 @@ export const STEP_HANDLERS: StepHandlers = {
   [STEP_NAMES.extractCapture]: extractCapture,
   [STEP_NAMES.prepareEmailApplication]: prepareEmailApplication,
   [STEP_NAMES.advanceWriter]: advanceWriter,
+  [STEP_NAMES.createGmailDraft]: createGmailDraft,
 };

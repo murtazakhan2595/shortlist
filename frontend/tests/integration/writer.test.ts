@@ -49,9 +49,12 @@ describe("the writer's queued steps", () => {
   const captureIds: string[] = [];
   const applicationIds: string[] = [];
 
+  const gmailDraftsQueued: unknown[] = [];
+
   beforeEach(() => {
     invokeModel.mockReset();
     queued.length = 0;
+    gmailDraftsQueued.length = 0;
   });
 
   afterAll(async () => {
@@ -88,6 +91,11 @@ describe("the writer's queued steps", () => {
   async function runQueuedSteps(maxSteps = 10) {
     for (let count = 0; queued.length > 0 && count < maxSteps; count++) {
       const next = queued.shift();
+      // The Gmail draft step has its own test (gmail-draft.test.ts); here it is only collected.
+      if (next?.step === "create_gmail_draft") {
+        gmailDraftsQueued.push(next.payload);
+        continue;
+      }
       if (next?.step !== "advance_writer") throw new Error(`Unexpected step ${next?.step}`);
       await advanceWriter(next.payload as { applicationId: string });
     }
@@ -127,10 +135,34 @@ describe("the writer's queued steps", () => {
     expect(run?.status).toBe("succeeded");
     expect(calls?.map((call) => call.step).sort()).toEqual(["check_email", "write_email"]);
     expect(calls?.every((call) => call.application_id === applicationId)).toBe(true);
+    expect(gmailDraftsQueued).toEqual([{ applicationId }]);
 
     // Run again, both steps change nothing and call no model.
     await prepareEmailApplication({ captureId });
     await runQueuedSteps();
+    expect(invokeModel).toHaveBeenCalledTimes(2);
+  });
+
+  test("a retry that finds the outcome already saved still closes the capture and queues the draft", async () => {
+    const { captureId, runId } = await createCapture(`jobs-${randomUUID()}@acme.example`);
+    invokeModel.mockResolvedValueOnce(modelAnswer(SUPPORTED_DRAFT)).mockResolvedValueOnce(modelAnswer({ problems: [] }));
+    await prepareEmailApplication({ captureId });
+    const { applicationId } = queued[0].payload as { applicationId: string };
+    applicationIds.push(applicationId);
+    await runQueuedSteps();
+
+    // As if the call that saved the outcome died before closing the capture and its run.
+    await database.from("captures").update({ status: "processing" }).eq("id", captureId);
+    await database.from("runs").update({ status: "running", finished_at: null }).eq("id", runId);
+    gmailDraftsQueued.length = 0;
+    await advanceWriter({ applicationId });
+    await runQueuedSteps();
+
+    const { data: capture } = await database.from("captures").select("status").eq("id", captureId).single();
+    const { data: run } = await database.from("runs").select("status").eq("id", runId).single();
+    expect(capture?.status).toBe("done");
+    expect(run?.status).toBe("succeeded");
+    expect(gmailDraftsQueued).toEqual([{ applicationId }]);
     expect(invokeModel).toHaveBeenCalledTimes(2);
   });
 
