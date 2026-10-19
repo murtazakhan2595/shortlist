@@ -23,5 +23,8 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   // Route handlers check their own callers (the internal secret or requireOwner), and static files need no session.
-  matcher: ["/((?!api/|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)"],
+  // The install files are open too: Chrome fetches the manifest and its icons without the session cookie.
+  matcher: [
+    "/((?!api/|_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|icon/|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)",
+  ],
 };

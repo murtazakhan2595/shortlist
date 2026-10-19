@@ -198,7 +198,7 @@ Two lessons from the owner's playbook are built into this plan: guard side effec
 | Code check that every number and tool in a draft is in the profile | idea from career-ops `verify-cv-facts.mjs` | 2.2 |
 | Lists of about 16,000 company job boards on Greenhouse, Lever and Ashby | Feashliaa/job-board-aggregator (MIT) | Sprint 8 |
 | Gmail draft with attachment | read MaxwellVolz/hn_whos_hiring (MIT) before building | 2.3 |
-| Installable app and share menu | `@serwist/next` (MIT); `next-pwa` is unmaintained | 2.5 |
+| Installable app and share menu | Next.js's own PWA guide: `app/manifest.ts` and a hand-written `public/sw.js` that only receives shares. `@serwist/next` was dropped: it is for offline caching, which Shortlist does not need, and on Turbopack it adds a separate build step | 2.5 |
 
 **Not taken:** ai-job-search's LinkedIn scraper; career-ops's DuckDuckGo search fallback; career-ops's pay filter, which rejects any job paid in another currency; anything under AGPL, GPL, Commons Clause or with no licence.
 
@@ -250,7 +250,7 @@ Two lessons from the owner's playbook are built into this plan: guard side effec
 | 2.2 | B | Writer | A LangGraph loop chooses the CV, title and email pattern, writes the email in the owner's voice, checks every claim against the profile, and revises or blocks (P4, P7, X4). Its state is saved in Postgres, so each step runs as its own short call. Before the model's check, code confirms every number and technology in the draft appears in the profile and the draft is within the word limit |
 | 2.3 | C | Gmail drafts | After one-time consent, code creates a draft with the CV attached in the owner's Gmail (X1). The Google app is in production mode and the token survives past seven days. The code refuses to run if the token has any Gmail permission other than `gmail.compose` |
 | 2.4 | D | Capture route | A capture is saved and its first step queued; the steps run one after another without waiting for the schedule, each within the 25-second budget |
-| 2.5 | E | Pages: sign-in and capture | The owner signs in, shares a screenshot from Android or pastes text, confirms the email address, and sees the result (C1, C2, C4, U6). Built with `@serwist/next` |
+| 2.5 | E | Pages: sign-in and capture | The owner signs in, shares a screenshot from Android or pastes text, confirms the email address, and sees the result (C1, C2, C4, U6). The installed app is a share target; a small service worker hands the shared post to the capture form |
 | 2.6 | all | Join the tracks | Duplicate captures are recognised (C5, X6) and the whole path meets the one-minute target (C6) |
 
 **Exit check:** a screenshot shared from the phone produces a correct Gmail draft within a minute of confirmation, and checks E1, E3 and E4 pass on 20 saved posts.

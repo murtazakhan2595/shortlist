@@ -9,6 +9,7 @@ import { fail, type Result } from "@/lib/result";
 import { type ImageUploadRequest, MAX_UPLOAD_BYTES } from "@/lib/uploads";
 import { createCaptureUploadUrl, submitCapture } from "../actions";
 import { MAX_SCREENSHOTS_PER_CAPTURE, type SubmitCaptureInput } from "../schemas";
+import { useSharedPost } from "./use-shared-post";
 
 const ACCEPTED_IMAGES = "image/png,image/jpeg,image/webp";
 const ERROR_ID = "capture-error";
@@ -18,21 +19,32 @@ type Mode = "text" | "screenshot";
 export function CaptureForm() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("text");
+  const [text, setText] = useState("");
+  const [postUrl, setPostUrl] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const [notice, setNotice] = useState<string>();
   const [error, setError] = useState<string>();
   const [isPending, startTransition] = useTransition();
 
+  // Arriving from Android's share menu, the form starts with what was shared (item 2.5).
+  useSharedPost((shared) => {
+    setMode(shared.mode);
+    setText(shared.text);
+    setPostUrl(shared.postUrl);
+    setFiles(shared.screenshots);
+    setNotice(shared.notice);
+  });
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const postUrl = String(form.get("postUrl") ?? "").trim() || undefined;
+    const link = postUrl.trim() || undefined;
 
     startTransition(async () => {
       setError(undefined);
       const result =
         mode === "text"
-          ? await submitCapture({ inputType: "text", text: String(form.get("text") ?? ""), postUrl })
-          : await submitScreenshots(files, postUrl);
+          ? await submitCapture({ inputType: "text", text, postUrl: link })
+          : await submitScreenshots(files, link);
 
       if (!result.ok) return setError(result.error.message);
       router.push(`/captures/${result.data.captureId}`);
@@ -41,6 +53,12 @@ export function CaptureForm() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6" aria-describedby={error ? ERROR_ID : undefined}>
+      {notice && (
+        <p role="status" className="rounded-md border border-rule bg-field p-3 text-sm">
+          {notice}
+        </p>
+      )}
+
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-2 text-sm font-medium">What do you have?</legend>
         <div className="grid grid-cols-2 rounded-md border border-rule bg-field p-1">
@@ -57,6 +75,8 @@ export function CaptureForm() {
             name="text"
             required
             rows={10}
+            value={text}
+            onChange={(event) => setText(event.target.value)}
             placeholder="Paste the whole post, including any email address or link."
             className="w-full rounded-md border border-rule bg-field p-3 text-base outline-offset-2 placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-ink"
           />
@@ -72,6 +92,10 @@ export function CaptureForm() {
             onChange={(event) => setFiles(Array.from(event.target.files ?? []))}
             className="h-auto py-3 file:mr-3 file:rounded file:border-0 file:bg-ink file:px-3 file:py-1 file:text-paper"
           />
+          {/* Shared screenshots are not in the file input, which a page cannot fill, so they are listed here. */}
+          {files.length > 0 && (
+            <p className="text-sm">Ready to send: {files.map((file) => file.name).join(", ")}</p>
+          )}
           <p className="text-sm text-ink-muted">
             Up to {MAX_SCREENSHOTS_PER_CAPTURE}, in reading order. Make sure the email address is in one of them.
           </p>
@@ -80,7 +104,15 @@ export function CaptureForm() {
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="postUrl">Link to the post (optional)</Label>
-        <Input id="postUrl" name="postUrl" type="url" inputMode="url" placeholder="https://www.linkedin.com/posts/…" />
+        <Input
+          id="postUrl"
+          name="postUrl"
+          type="url"
+          inputMode="url"
+          placeholder="https://www.linkedin.com/posts/…"
+          value={postUrl}
+          onChange={(event) => setPostUrl(event.target.value)}
+        />
         <p className="text-sm text-ink-muted">Kept for your reference only. Shortlist never opens it.</p>
       </div>
 
