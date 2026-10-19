@@ -125,6 +125,7 @@ export type Database = {
           poster_name: string | null
           raw_text: string | null
           role: string | null
+          run_id: string | null
           status: string
         }
         Insert: {
@@ -141,6 +142,7 @@ export type Database = {
           poster_name?: string | null
           raw_text?: string | null
           role?: string | null
+          run_id?: string | null
           status?: string
         }
         Update: {
@@ -157,9 +159,18 @@ export type Database = {
           poster_name?: string | null
           raw_text?: string | null
           role?: string | null
+          run_id?: string | null
           status?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "captures_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "runs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       cv_files: {
         Row: {

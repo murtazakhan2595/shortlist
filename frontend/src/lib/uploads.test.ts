@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { IMAGE_EXTENSIONS, ImageUploadRequestSchema, MAX_UPLOAD_BYTES, storagePathSchema } from "./uploads";
+import { IMAGE_EXTENSIONS, ImageUploadRequestSchema, imageContentType, MAX_UPLOAD_BYTES, storagePathSchema } from "./uploads";
 
 describe("ImageUploadRequestSchema", () => {
   test("accepts a PNG screenshot", () => {
@@ -28,4 +28,10 @@ describe("storagePathSchema", () => {
     expect(capturePath.safeParse("cvs/0f8fad5b-d9cb-469f-a165-70867728950e.png").success).toBe(false);
     expect(capturePath.safeParse("captures/../cvs/my-cv.pdf").success).toBe(false);
   });
+});
+
+test("knows the content type of an allowed image from its name", () => {
+  expect(imageContentType("captures/0f8fad5b-d9cb-469f-a165-70867728950e.jpg")).toBe("image/jpeg");
+  expect(imageContentType("post.PNG")).toBe("image/png");
+  expect(imageContentType("cv.pdf")).toBeUndefined();
 });
