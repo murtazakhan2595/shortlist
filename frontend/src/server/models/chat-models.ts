@@ -18,6 +18,10 @@ export type StructuredModel<Output> = Runnable<BaseLanguageModelInput, { raw: Ba
 // The queue retries failed steps, so the providers' own retries are turned off.
 const NO_PROVIDER_RETRIES = 0;
 
+// Only the parts a step marks are cached (ModelContentPart cache: true). In OpenAI's automatic mode the
+// whole prompt, ending with the post, is written to the cache at 1.25 times the price and never read again.
+const PROMPT_CACHE = { mode: "explicit", ttl: "30m" } as const;
+
 function requireKey(name: "OPENAI_API_KEY"): string {
   const key = getServerEnv()[name];
   if (!key) throw new Error(`${name} is not set, but a step is configured to use this provider`);
@@ -42,6 +46,7 @@ export function createStructuredModel<Schema extends z.ZodObject>(
         reasoning: { effort: settings.effort },
         useResponsesApi: true,
         maxRetries: NO_PROVIDER_RETRIES,
+        promptCacheOptions: PROMPT_CACHE,
       }).withStructuredOutput<z.infer<Schema>>(schema, options);
   }
 }

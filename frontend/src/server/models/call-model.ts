@@ -107,6 +107,7 @@ async function recordModelCall<Schema extends z.ZodObject>(record: ModelCallReco
       effort: record.settings.effort,
       input_tokens: record.usage.inputTokens,
       cached_input_tokens: record.usage.cachedInputTokens,
+      cache_write_tokens: record.usage.cacheWriteTokens,
       output_tokens: record.usage.outputTokens,
       cost_usd: record.costUsd,
       duration_ms: record.durationMs,
@@ -123,6 +124,7 @@ function tokenUsage(raw: BaseMessage): TokenUsage {
   return {
     inputTokens: usage?.input_tokens ?? 0,
     cachedInputTokens: usage?.input_token_details?.cache_read ?? 0,
+    cacheWriteTokens: usage?.input_token_details?.cache_creation ?? 0,
     outputTokens: usage?.output_tokens ?? 0,
   };
 }

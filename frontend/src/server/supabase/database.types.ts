@@ -378,6 +378,7 @@ export type Database = {
       model_calls: {
         Row: {
           application_id: string | null
+          cache_write_tokens: number
           cached_input_tokens: number
           cost_usd: number
           created_at: string
@@ -394,6 +395,7 @@ export type Database = {
         }
         Insert: {
           application_id?: string | null
+          cache_write_tokens?: number
           cached_input_tokens?: number
           cost_usd?: number
           created_at?: string
@@ -410,6 +412,7 @@ export type Database = {
         }
         Update: {
           application_id?: string | null
+          cache_write_tokens?: number
           cached_input_tokens?: number
           cost_usd?: number
           created_at?: string

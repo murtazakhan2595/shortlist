@@ -45,17 +45,15 @@ export function materialMessage(material: OwnerMaterial): ModelMessage {
   const patterns = material.patterns.map((pattern) => `<pattern name="${pattern.name}">\n${pattern.content}\n</pattern>`);
   const voice = material.voiceExamples.map((example) => `<example>\n${example}\n</example>`);
 
-  return {
-    role: "user",
-    content: [
+  const text = [
       `<profile>\n${material.profile}\n</profile>`,
       `<answer_bank>\n${material.answerBank}\n</answer_bank>`,
       `<writing_guide>\n${material.writingGuide}\n</writing_guide>`,
       `<email_patterns>\n${patterns.join("\n")}\n</email_patterns>`,
       `<voice_examples>\n${voice.join("\n")}\n</voice_examples>`,
       `<cv_variants>${material.cvVariants.join(", ")}</cv_variants>`,
-    ].join("\n\n"),
-  };
+    ].join("\n\n");
+  return { role: "user", content: [{ type: "text", text, cache: true }] };
 }
 
 function taskMessage(context: WriterContext, revision?: { draft: EmailDraft; problems: string[] }): ModelMessage {

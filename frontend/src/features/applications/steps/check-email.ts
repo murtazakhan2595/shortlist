@@ -37,10 +37,8 @@ const DraftReviewSchema = z.object({
 
 /** The owner's facts, first and always the same, so the provider's prompt cache can reuse them. */
 function sourcesMessage(context: WriterContext): ModelMessage {
-  return {
-    role: "user",
-    content: `<profile>\n${context.profile}\n</profile>\n\n<answer_bank>\n${context.answerBank}\n</answer_bank>`,
-  };
+  const text = `<profile>\n${context.profile}\n</profile>\n\n<answer_bank>\n${context.answerBank}\n</answer_bank>`;
+  return { role: "user", content: [{ type: "text", text, cache: true }] };
 }
 
 function draftMessage(context: WriterContext, draft: EmailDraft): ModelMessage {
