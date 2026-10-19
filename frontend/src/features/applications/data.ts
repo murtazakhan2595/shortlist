@@ -15,6 +15,8 @@ export type ApplicationView = {
   emailPattern: string | null;
   /** The problems that stopped a draft, one per line (X4). */
   blockedReason: string | null;
+  /** True once the email is saved as a draft in the owner's Gmail (X1). */
+  inGmail: boolean;
 };
 
 /** The application prepared from a capture, or null if there is none yet. */
@@ -24,7 +26,7 @@ export async function getApplicationForCapture(captureId: string): Promise<Appli
   const { db } = await requireOwner();
   const { data, error } = await db
     .from("applications")
-    .select("status, recipient_email, subject, body, presented_title, blocked_reason, cv_files (file_name), documents (name)")
+    .select("status, recipient_email, subject, body, presented_title, blocked_reason, gmail_draft_id, cv_files (file_name), documents (name)")
     .eq("capture_id", captureId)
     .maybeSingle();
   if (error) throw new Error(`Could not load the application for capture ${captureId}: ${error.message}`);
@@ -39,5 +41,6 @@ export async function getApplicationForCapture(captureId: string): Promise<Appli
     cvFileName: data.cv_files?.file_name ?? null,
     emailPattern: data.documents?.name ?? null,
     blockedReason: data.blocked_reason,
+    inGmail: data.gmail_draft_id !== null,
   };
 }

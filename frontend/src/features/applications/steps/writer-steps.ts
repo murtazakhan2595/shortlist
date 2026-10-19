@@ -7,7 +7,7 @@ import { STEP_NAMES } from "@/server/queue/step-names";
 import { finishRun } from "@/server/runs";
 import { getAdminClient } from "@/server/supabase/admin";
 import type { Json } from "@/server/supabase/database.types";
-import type { WriterContext } from "../schemas";
+import { ApplicationPayloadSchema, type WriterContext } from "../schemas";
 import { buildWriterGraph, START_STATE, type WriterStateValues, writerOutcome } from "./writer";
 
 // The writer's two queue steps (PLAN.md items 2.2 and 2.6), in the order they run:
@@ -16,7 +16,8 @@ import { buildWriterGraph, START_STATE, type WriterStateValues, writerOutcome } 
 //    already has one (then the capture is a duplicate). Queued when a pasted post is read, or when the
 //    owner confirms a screenshot's email.
 // 2. advance_writer: runs the next stage of the writer's loop (writer.ts) and queues itself again, until
-//    the loop ends and the application is saved as ready or blocked. One stage per call keeps every call
+//    the loop ends and the application is saved as ready or blocked. A ready one goes on to
+//    create_gmail_draft (gmail-draft.ts). One stage per call keeps every call
 //    within the 25-second budget; LangGraph saves the loop's state in Postgres between calls.
 //
 // Both are safe to run twice. A capture that already has its application only moves the writer on. A call
@@ -24,7 +25,6 @@ import { buildWriterGraph, START_STATE, type WriterStateValues, writerOutcome } 
 // extra call only moves the loop one stage further. If a call dies, its lease runs out and the queue's
 // retry carries on from the last saved stage.
 
-const ApplicationPayloadSchema = z.object({ applicationId: z.uuid() });
 const CapturePayloadSchema = z.object({ captureId: z.uuid() });
 
 // Longer than one stage (25 seconds), shorter than the queue's 60 seconds before a retry.
@@ -103,22 +103,36 @@ async function runNextStage(applicationId: string): Promise<boolean> {
     .single();
   if (application.error) throw new Error(`Could not load application ${applicationId}: ${application.error.message}`);
   const { status, recipient_email: recipientEmail, captures: capture } = application.data;
-  if (status !== "preparing") return true;
   if (!capture?.raw_text || !recipientEmail) throw new Error(`Application ${applicationId} has no post text or recipient`);
 
-  const writer: WriterContext = {
-    ...(await loadOwnerMaterial()),
-    link: { runId: capture.run_id ?? undefined, applicationId },
-    post: {
-      text: capture.raw_text,
-      role: capture.role,
-      company: capture.company,
-      posterName: capture.poster_name,
-      seenOn: "LinkedIn",
-    },
-    recipientEmail,
-  };
+  let outcome = status;
+  if (status === "preparing") {
+    const writer: WriterContext = {
+      ...(await loadOwnerMaterial()),
+      link: { runId: capture.run_id ?? undefined, applicationId },
+      post: {
+        text: capture.raw_text,
+        role: capture.role,
+        company: capture.company,
+        posterName: capture.poster_name,
+        seenOn: "LinkedIn",
+      },
+      recipientEmail,
+    };
+    outcome = await runOneStage(applicationId, writer);
+    if (outcome === "preparing") return false;
+  }
 
+  // Also reached when a retry finds the outcome already saved, so a call that died here still hands off.
+  if (outcome === "ready") await enqueueStep(STEP_NAMES.createGmailDraft, { applicationId });
+  const done = await getAdminClient().from("captures").update({ status: "done" }).eq("id", capture.id).eq("status", "processing");
+  if (done.error) throw new Error(`Could not close capture ${capture.id}: ${done.error.message}`);
+  if (capture.run_id) await finishRun(capture.run_id);
+  return true;
+}
+
+/** Runs the loop's next stage, and saves the outcome once the loop has ended. Returns the application's status. */
+async function runOneStage(applicationId: string, writer: WriterContext): Promise<string> {
   const graph = buildWriterGraph(getCheckpointer());
   const thread = { configurable: { thread_id: applicationId } };
   const saved = await graph.getState(thread);
@@ -129,17 +143,12 @@ async function runNextStage(applicationId: string): Promise<boolean> {
     await graph.invoke(isNew ? START_STATE : null, { ...thread, context: { writer, models: undefined }, interruptAfter: "*" });
   }
   const after = await graph.getState(thread);
-  if (after.next.length > 0) return false;
-
-  await saveOutcome(applicationId, writer, after.values);
-  const done = await getAdminClient().from("captures").update({ status: "done" }).eq("id", capture.id).eq("status", "processing");
-  if (done.error) throw new Error(`Could not close capture ${capture.id}: ${done.error.message}`);
-  if (capture.run_id) await finishRun(capture.run_id);
-  return true;
+  if (after.next.length > 0) return "preparing";
+  return saveOutcome(applicationId, writer, after.values);
 }
 
 /** Saves the last draft, as ready, or as blocked with the problems that stopped it. */
-async function saveOutcome(applicationId: string, writer: WriterContext, state: WriterStateValues): Promise<void> {
+async function saveOutcome(applicationId: string, writer: WriterContext, state: WriterStateValues): Promise<string> {
   const db = getAdminClient();
   const outcome = writerOutcome(state);
   const { draft } = state;
@@ -163,6 +172,7 @@ async function saveOutcome(applicationId: string, writer: WriterContext, state: 
     .eq("id", applicationId)
     .eq("status", "preparing");
   if (error) throw new Error(`Could not save application ${applicationId}: ${error.message}`);
+  return outcome;
 }
 
 async function claimLease(applicationId: string): Promise<boolean> {

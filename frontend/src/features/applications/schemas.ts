@@ -45,3 +45,6 @@ export type WriterContext = {
   /** The CV variants with a current file, to choose from (P2). */
   cvVariants: string[];
 };
+
+/** The payload of the queue steps that work on one application. */
+export const ApplicationPayloadSchema = z.object({ applicationId: z.uuid() });

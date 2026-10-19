@@ -609,6 +609,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      gmail_token: { Args: never; Returns: string }
       queue_length: { Args: { queue_name: string }; Returns: number }
       read_next_step: {
         Args: { queue_name: string; visibility_seconds: number }
@@ -623,6 +624,7 @@ export type Database = {
         Args: { delay_seconds: number; message_id: number; queue_name: string }
         Returns: undefined
       }
+      save_gmail_token: { Args: { token: string }; Returns: undefined }
       set_current_cv: {
         Args: {
           cv_file_name: string

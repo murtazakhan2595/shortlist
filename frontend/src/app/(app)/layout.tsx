@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { buttonVariants } from "@/components/ui/button";
 import { Wordmark } from "@/components/ui/wordmark";
 import { SignOutButton } from "@/features/auth/components/sign-out-button";
 
@@ -8,7 +10,12 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
     <>
       <header className="flex items-center justify-between border-b border-rule px-5 py-3">
         <Wordmark size="small" />
-        <SignOutButton />
+        <nav className="flex items-center gap-1">
+          <Link href="/settings" className={buttonVariants("quiet")}>
+            Settings
+          </Link>
+          <SignOutButton />
+        </nav>
       </header>
       {children}
     </>
