@@ -21,14 +21,20 @@ export type ModelProvider = (typeof MODEL_PROVIDERS)[number];
 export const REASONING_EFFORTS = ["low", "medium", "high"] as const;
 export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
 
-export type ModelPrice = { inputUsdPerMillionTokens: number; outputUsdPerMillionTokens: number };
+export type ModelPrice = {
+  inputUsdPerMillionTokens: number;
+  /** Input the provider reads from its prompt cache, when a prompt starts the same way as a recent one. */
+  cachedInputUsdPerMillionTokens: number;
+  outputUsdPerMillionTokens: number;
+};
 
-// From each provider's own pricing page, checked on 13 October 2026 (PLAN.md section 4).
+// Input and output prices from each provider's own pricing page, checked on 13 October 2026 (PLAN.md section 4).
+// Cached input prices from third-party pricing pages on 19 October 2026, to be confirmed against the provider's bill.
 // A model that is not listed here cannot be used, so the cost of every call is known (B1).
 export const MODEL_PRICES: Record<ModelProvider, Record<string, ModelPrice>> = {
   openai: {
-    "gpt-6-luna": { inputUsdPerMillionTokens: 0.1, outputUsdPerMillionTokens: 0.5 },
-    "gpt-6.1-sol": { inputUsdPerMillionTokens: 2, outputUsdPerMillionTokens: 10 },
+    "gpt-6-luna": { inputUsdPerMillionTokens: 0.1, cachedInputUsdPerMillionTokens: 0.01, outputUsdPerMillionTokens: 0.5 },
+    "gpt-6.1-sol": { inputUsdPerMillionTokens: 2, cachedInputUsdPerMillionTokens: 0.1, outputUsdPerMillionTokens: 10 },
   },
 };
 

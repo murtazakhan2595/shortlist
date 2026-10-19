@@ -106,6 +106,7 @@ async function recordModelCall<Schema extends z.ZodObject>(record: ModelCallReco
       model: record.settings.model,
       effort: record.settings.effort,
       input_tokens: record.usage.inputTokens,
+      cached_input_tokens: record.usage.cachedInputTokens,
       output_tokens: record.usage.outputTokens,
       cost_usd: record.costUsd,
       duration_ms: record.durationMs,
@@ -119,7 +120,11 @@ async function recordModelCall<Schema extends z.ZodObject>(record: ModelCallReco
 
 function tokenUsage(raw: BaseMessage): TokenUsage {
   const usage = AIMessage.isInstance(raw) ? raw.usage_metadata : undefined;
-  return { inputTokens: usage?.input_tokens ?? 0, outputTokens: usage?.output_tokens ?? 0 };
+  return {
+    inputTokens: usage?.input_tokens ?? 0,
+    cachedInputTokens: usage?.input_token_details?.cache_read ?? 0,
+    outputTokens: usage?.output_tokens ?? 0,
+  };
 }
 
 function oneOf<const Options extends readonly string[]>(options: Options, value: string, field: string): Options[number] {

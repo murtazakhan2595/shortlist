@@ -33,6 +33,7 @@ export type Database = {
           sent_at: string | null
           status: string
           subject: string | null
+          writer_lease_until: string | null
         }
         Insert: {
           blocked_reason?: string | null
@@ -52,6 +53,7 @@ export type Database = {
           sent_at?: string | null
           status?: string
           subject?: string | null
+          writer_lease_until?: string | null
         }
         Update: {
           blocked_reason?: string | null
@@ -71,6 +73,7 @@ export type Database = {
           sent_at?: string | null
           status?: string
           subject?: string | null
+          writer_lease_until?: string | null
         }
         Relationships: [
           {
@@ -375,6 +378,7 @@ export type Database = {
       model_calls: {
         Row: {
           application_id: string | null
+          cached_input_tokens: number
           cost_usd: number
           created_at: string
           duration_ms: number | null
@@ -390,6 +394,7 @@ export type Database = {
         }
         Insert: {
           application_id?: string | null
+          cached_input_tokens?: number
           cost_usd?: number
           created_at?: string
           duration_ms?: number | null
@@ -405,6 +410,7 @@ export type Database = {
         }
         Update: {
           application_id?: string | null
+          cached_input_tokens?: number
           cost_usd?: number
           created_at?: string
           duration_ms?: number | null
