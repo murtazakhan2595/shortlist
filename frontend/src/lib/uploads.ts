@@ -35,3 +35,15 @@ export function storagePathSchema(folder: string, extensions: readonly string[])
 }
 
 export const IMAGE_EXTENSIONS = ["png", "jpg", "webp"] as const;
+
+const IMAGE_CONTENT_TYPES: Record<(typeof IMAGE_EXTENSIONS)[number], ImageUploadRequest["contentType"]> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  webp: "image/webp",
+};
+
+/** The content type of an image file from its name, or undefined if it is not an allowed image. */
+export function imageContentType(fileName: string): ImageUploadRequest["contentType"] | undefined {
+  const extension = fileName.split(".").pop()?.toLowerCase();
+  return IMAGE_CONTENT_TYPES[extension as (typeof IMAGE_EXTENSIONS)[number]];
+}

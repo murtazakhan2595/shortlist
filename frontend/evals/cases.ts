@@ -5,9 +5,15 @@ import type { EvalCheck } from "./check";
 
 // Test cases are kept out of the repository (principle 6): private/evals/<check id>/cases/*.json,
 // one case per file, named after the case.
-const PRIVATE_EVALS_DIRECTORY = fileURLToPath(new URL("../../private/evals", import.meta.url));
+const PRIVATE_DIRECTORY = fileURLToPath(new URL("../../private", import.meta.url));
+const PRIVATE_EVALS_DIRECTORY = path.join(PRIVATE_DIRECTORY, "evals");
 
 export type LoadedCase<Case> = { id: string; testCase: Case };
+
+/** Reads a file a case refers to, such as a saved post. Paths in cases are relative to private/. */
+export function readPrivateFile(relativePath: string): Buffer {
+  return readFileSync(path.join(PRIVATE_DIRECTORY, relativePath));
+}
 
 export function casesDirectory(checkId: string): string {
   return path.join(PRIVATE_EVALS_DIRECTORY, checkId, "cases");

@@ -51,6 +51,8 @@ export default defineConfig({
           environment: "node",
           env: localEnv,
           include: ["tests/integration/**/*.test.ts"],
+          // These talk to the real Supabase project over the network, which can take several seconds from CI.
+          testTimeout: 30_000,
         },
       },
       {
