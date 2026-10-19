@@ -4,14 +4,14 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 const REFRESH_EVERY_MS = 2_000;
-// Reading takes a few seconds; a step that keeps failing is retried for about two minutes.
+// Background work takes seconds to a minute; a step that keeps failing is retried for about two minutes.
 const GIVE_UP_AFTER_MS = 3 * 60_000;
 
 /**
- * Re-renders the page from the server every two seconds while a post is being read, so the result
- * appears without the browser ever querying the database. Rendered only while the status is "received".
+ * Re-renders the page from the server every two seconds while background work runs, so its result
+ * appears without the browser ever querying the database. Render it only while there is work to wait for.
  */
-export function RefreshWhileReading() {
+export function AutoRefresh() {
   const router = useRouter();
 
   useEffect(() => {

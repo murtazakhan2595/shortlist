@@ -11,6 +11,7 @@ import {
 } from "@/lib/uploads";
 import { requireOwner } from "@/server/auth/require-owner";
 import { enqueueStep } from "@/server/queue/queue";
+import { STEP_NAMES } from "@/server/queue/step-names";
 import type { ServerClient } from "@/server/supabase/server";
 import {
   type CaptureSubmitted,
@@ -19,7 +20,6 @@ import {
   type SubmitCaptureInput,
   SubmitCaptureInputSchema,
 } from "./schemas";
-import { EXTRACT_CAPTURE_STEP } from "./steps/extract-capture";
 
 // Server Actions for capturing a post (contracts in ./schemas.ts). Each checks its input, checks the
 // owner, and does one thing. Database writes use the owner's client, so the access rules apply too.
@@ -48,7 +48,7 @@ export async function submitCapture(request: SubmitCaptureInput): Promise<Result
   const { db } = await requireOwner();
   try {
     const captureId = await saveCapture(db, input.data);
-    await enqueueStep(EXTRACT_CAPTURE_STEP, { captureId });
+    await enqueueStep(STEP_NAMES.extractCapture, { captureId });
     return ok({ captureId });
   } catch (error) {
     return fail("internal", describeError(error));
@@ -71,6 +71,11 @@ export async function confirmCaptureEmail(request: ConfirmCaptureEmailInput): Pr
   if (error) return fail("internal", `Could not confirm the email: ${error.message}`);
   if (!data) return fail("conflict", "This post is not waiting for an email to be confirmed");
 
+  try {
+    await enqueueStep(STEP_NAMES.prepareEmailApplication, { captureId: data.id });
+  } catch (error) {
+    return fail("internal", describeError(error));
+  }
   return ok({ captureId: data.id });
 }
 

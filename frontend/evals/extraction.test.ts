@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import type { ExtractedPost } from "@/features/captures/steps/read-post";
+import type { ExtractedPost } from "@/features/captures/steps/extract-capture";
 import { gradeExtraction } from "./extraction";
 
 const expected: ExtractedPost = {
@@ -8,6 +8,7 @@ const expected: ExtractedPost = {
   posterName: null,
   contactEmail: "jobs@acme.example",
   formUrl: null,
+  postText: null,
 };
 
 test("passes when the email and form link match, ignoring letter case", () => {

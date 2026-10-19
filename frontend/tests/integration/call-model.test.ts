@@ -12,10 +12,14 @@ vi.mock("@/server/models/chat-models", () => ({
 
 const ScoreSchema = z.object({ score: z.int().min(0).max(100) });
 
-function modelAnswer(parsed: unknown, usage = { input_tokens: 1_000, output_tokens: 200 }) {
+function modelAnswer(parsed: unknown, usage = { input_tokens: 1_000, output_tokens: 200 }, cachedInputTokens = 0) {
   const raw = new AIMessage({
     content: JSON.stringify(parsed),
-    usage_metadata: { ...usage, total_tokens: usage.input_tokens + usage.output_tokens },
+    usage_metadata: {
+      ...usage,
+      total_tokens: usage.input_tokens + usage.output_tokens,
+      input_token_details: { cache_read: cachedInputTokens },
+    },
   });
   return { raw, parsed };
 }
@@ -70,6 +74,16 @@ describe("callModel", () => {
       cost_usd: 0.0002,
       error: null,
     });
+  });
+
+  test("records input read from the provider's cache, at the cached price", async () => {
+    invokeModel.mockResolvedValue(modelAnswer({ score: 70 }, { input_tokens: 100_000, output_tokens: 0 }, 90_000));
+
+    await callModel({ ...request, link: { runId } });
+
+    // gpt-6-luna: 10,000 uncached at $0.10 per million plus 90,000 cached at $0.01 per million.
+    const call = (await recordedCalls()).at(-1);
+    expect(call).toMatchObject({ input_tokens: 100_000, cached_input_tokens: 90_000, cost_usd: 0.0019 });
   });
 
   test("an answer in the wrong shape fails, and its tokens are still recorded and costed", async () => {

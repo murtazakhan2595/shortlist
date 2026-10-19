@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { type ExtractedPost, type PostInput, readPost } from "@/features/captures/steps/read-post";
+import { type ExtractedPost, type PostInput, readPost } from "@/features/captures/steps/extract-capture";
 import { imageContentType } from "@/lib/uploads";
 import { readPrivateFile } from "./cases";
 import type { EvalCheck, Grade } from "./check";
@@ -35,13 +35,13 @@ function screenshotsPost(files: string[]): PostInput {
  * Passes when the email and the form link are exactly right, as they decide where an application goes.
  * Role, company and poster name are shown in the reason but do not fail a case: E1's bar is on the email.
  */
-export function gradeExtraction(output: ExtractedPost, expected: ExtractedPost): Grade {
+export function gradeExtraction(output: ExtractedPost, expected: z.infer<typeof ExpectedSchema>): Grade {
   const same = (a: string | null, b: string | null) => (a ?? "").toLowerCase() === (b ?? "").toLowerCase();
 
   const wrong = (["contactEmail", "formUrl"] as const).filter((field) => !same(output[field], expected[field]));
   const differs = (["role", "company", "posterName"] as const).filter((field) => !same(output[field], expected[field]));
 
-  const describe = (fields: readonly (keyof ExtractedPost)[]) =>
+  const describe = (fields: readonly (keyof typeof expected)[]) =>
     fields.map((field) => `${field}: got ${JSON.stringify(output[field])}, expected ${JSON.stringify(expected[field])}`);
 
   if (wrong.length > 0) return { pass: false, reason: [...describe(wrong), ...describe(differs)].join("; ") };

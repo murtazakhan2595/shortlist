@@ -76,6 +76,8 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          # The writer's LangGraph checkpoints are reached with a direct Postgres connection.
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
 
   database:
     name: Database

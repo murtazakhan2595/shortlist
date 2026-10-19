@@ -3,16 +3,20 @@ import { type BaseMessage, HumanMessage, SystemMessage } from "@langchain/core/m
 
 // The messages a step sends to a model. Our own small type, so steps do not depend on LangChain.
 
-export type ModelContentPart = { type: "text"; text: string } | { type: "image"; url: string };
+/**
+ * cache: true ends the part with a prompt cache breakpoint: the provider keeps everything up to here for
+ * 30 minutes, and a later call that starts the same way reads it at a fraction of the price.
+ */
+export type ModelContentPart = { type: "text"; text: string; cache?: boolean } | { type: "image"; url: string };
 
 export type ModelMessage =
   | { role: "system"; content: string }
   | { role: "user"; content: string | ModelContentPart[] };
 
 function toLangChainContent(part: ModelContentPart) {
-  return part.type === "text"
-    ? { type: "text" as const, text: part.text }
-    : { type: "image_url" as const, image_url: { url: part.url } };
+  if (part.type === "image") return { type: "image_url" as const, image_url: { url: part.url } };
+  if (part.cache) return { type: "text" as const, text: part.text, prompt_cache_breakpoint: { mode: "explicit" } };
+  return { type: "text" as const, text: part.text };
 }
 
 export function toLangChainMessages(messages: ModelMessage[]): BaseMessage[] {

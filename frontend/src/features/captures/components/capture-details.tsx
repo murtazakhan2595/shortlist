@@ -1,6 +1,6 @@
+import { AutoRefresh } from "@/components/ui/auto-refresh";
 import type { CaptureView } from "../data";
 import { ConfirmEmailForm } from "./confirm-email-form";
-import { RefreshWhileReading } from "./refresh-while-reading";
 
 /** One captured post: what was read from it, and what happens next. */
 export function CaptureDetails({ capture }: { capture: CaptureView }) {
@@ -27,7 +27,7 @@ function NextStep({ capture }: { capture: CaptureView }) {
     case "received":
       return (
         <>
-          <RefreshWhileReading />
+          <AutoRefresh />
           <p className="text-lg font-semibold">Reading the post…</p>
           <p className="text-ink-muted">This usually takes a few seconds. The page updates on its own.</p>
         </>
@@ -37,10 +37,21 @@ function NextStep({ capture }: { capture: CaptureView }) {
     case "processing":
       return (
         <>
-          <p className="text-lg font-semibold">Ready to write the application</p>
+          <AutoRefresh />
+          <p className="text-lg font-semibold">Writing the application…</p>
           <p className="text-ink-muted">
-            It will go to <span className="font-medium text-ink">{capture.contactEmail}</span>.
+            To <span className="font-medium text-ink">{capture.contactEmail}</span>. Writing and checking take
+            up to a minute.
           </p>
+        </>
+      );
+    case "done":
+      return <p className="text-lg font-semibold">Application prepared</p>;
+    case "duplicate":
+      return (
+        <>
+          <p className="text-lg font-semibold">You already have an application for this job</p>
+          <p className="text-ink-muted">The same role at the same address was captured before, so no second one was written.</p>
         </>
       );
     case "needs_form":

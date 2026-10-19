@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { ApplicationDraft } from "@/features/applications/components/application-draft";
+import { getApplicationForCapture } from "@/features/applications/data";
 import { CaptureDetails } from "@/features/captures/components/capture-details";
 import { getCapture } from "@/features/captures/data";
 
@@ -24,7 +26,12 @@ export default function CapturedPostPage({ params }: PageProps<"/captures/[id]">
 
 async function Capture({ params }: { params: PageProps<"/captures/[id]">["params"] }) {
   const { id } = await params;
-  const capture = await getCapture(id);
+  const [capture, application] = await Promise.all([getCapture(id), getApplicationForCapture(id)]);
   if (!capture) notFound();
-  return <CaptureDetails capture={capture} />;
+  return (
+    <>
+      <CaptureDetails capture={capture} />
+      {application && <ApplicationDraft application={application} />}
+    </>
+  );
 }

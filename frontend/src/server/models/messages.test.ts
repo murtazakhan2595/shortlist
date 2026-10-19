@@ -29,3 +29,11 @@ test("sends images as image URLs beside the text", () => {
     { type: "image_url", image_url: { url: "data:image/png;base64,iVBORw0KGgo=" } },
   ]);
 });
+
+test("marks a part that ends with a prompt cache breakpoint", () => {
+  const [user] = toLangChainMessages([{ role: "user", content: [{ type: "text", text: "The profile.", cache: true }] }]);
+
+  expect(user.content).toEqual([
+    { type: "text", text: "The profile.", prompt_cache_breakpoint: { mode: "explicit" } },
+  ]);
+});
