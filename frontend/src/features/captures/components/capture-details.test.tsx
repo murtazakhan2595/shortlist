@@ -26,9 +26,10 @@ test("while the post is being read, says so and shows nothing read yet", () => {
   expect(screen.queryByText("Role")).not.toBeInTheDocument();
 });
 
-test("shows what was read, and where the application will go", () => {
+test("shows what was read while the application is written", () => {
   render(<CaptureDetails capture={capture} />);
 
+  expect(screen.getByText("Writing the application…")).toBeInTheDocument();
   expect(screen.getByText("jobs@acme.example")).toBeInTheDocument();
   expect(screen.getByText("Full-Stack Engineer")).toBeInTheDocument();
   expect(screen.getByText("Not stated")).toBeInTheDocument();
@@ -46,6 +47,12 @@ test("shows a form link without opening it", () => {
   render(<CaptureDetails capture={{ ...capture, status: "needs_form", contactEmail: null, formUrl }} />);
 
   expect(screen.getByRole("link", { name: formUrl })).toHaveAttribute("href", formUrl);
+});
+
+test("says when the same job was captured before", () => {
+  render(<CaptureDetails capture={{ ...capture, status: "duplicate" }} />);
+
+  expect(screen.getByText("You already have an application for this job")).toBeInTheDocument();
 });
 
 test("says when a post gives no way to apply", () => {
