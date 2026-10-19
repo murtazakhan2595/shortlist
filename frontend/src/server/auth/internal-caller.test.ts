@@ -5,6 +5,7 @@ const SECRET = "s".repeat(40);
 
 beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "sb_publishable_test");
   vi.stubEnv("SUPABASE_SECRET_KEY", "sb_secret_test");
   vi.stubEnv("INTERNAL_API_SECRET", SECRET);
 });
