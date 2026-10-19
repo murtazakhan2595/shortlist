@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import type { EmailDraft } from "@/features/applications/steps/draft-checks";
+import type { EmailDraft } from "@/features/applications/schemas";
 import { gradeDraft } from "./writer";
 
 const draft: EmailDraft = {

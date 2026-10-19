@@ -1,12 +1,23 @@
 import { describe, expect, test } from "vitest";
-import { countWords, type DraftSources, type EmailDraft, findDraftProblems } from "./draft-checks";
+import type { EmailDraft, WriterContext } from "../schemas";
+import { countWords, findDraftProblems } from "./draft-checks";
 
-const sources: DraftSources = {
+const sources: WriterContext = {
+  link: {},
   profile: "Full-stack developer. 3+ years with React, Next.js and TypeScript. Built a queue on PostgreSQL. 2,500 users.",
   answerBank: "Notice period: immediately. LinkedIn: linkedin.com/in/example-owner. Phone: +92 300 1234567.",
-  postText: "We are hiring a React Developer with 2 years of experience. Email hr@acme.example.",
-  postRole: "React Developer",
-  patternContent: "### Pattern A\n**Length:** 10–40 words in the body.",
+  post: {
+    text: "We are hiring a React Developer with 2 years of experience. Email hr@acme.example.",
+    role: "React Developer",
+    company: null,
+    posterName: null,
+    seenOn: "LinkedIn",
+  },
+  recipientEmail: "hr@acme.example",
+  writingGuide: "",
+  voiceExamples: [],
+  patterns: [{ id: "p1", name: "post-reply", content: "### Pattern A\n**Length:** 10–40 words in the body." }],
+  cvVariants: ["full_stack"],
 };
 
 const words = (count: number) => Array.from({ length: count }, () => "word").join(" ");
@@ -47,7 +58,7 @@ describe("findDraftProblems", () => {
   });
 
   test("allows a technology that is part of the post's role, but not one the draft's own title brings in", () => {
-    const vueRole = { ...sources, postRole: "Vue Developer" };
+    const vueRole = { ...sources, post: { ...sources.post, role: "Vue Developer" } };
     const naming = draft({ body: `I am applying for your Vue Developer role. ${words(10)}` });
     const claiming = draft({ presentedTitle: "Vue Developer", body: `I have built with Vue. ${words(10)}` });
 

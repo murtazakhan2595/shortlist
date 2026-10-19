@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { AIMessage } from "@langchain/core/messages";
 import { afterAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { extractCapture } from "@/features/captures/steps/extract-capture";
-import type { ExtractedPost } from "@/features/captures/steps/read-post";
+import type { ExtractedPost } from "@/features/captures/steps/extract-capture";
 import { getAdminClient } from "@/server/supabase/admin";
 
 // The extract_capture step against the real database and storage, with a fake model.

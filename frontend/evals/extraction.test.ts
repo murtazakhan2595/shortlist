@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import type { ExtractedPost } from "@/features/captures/steps/read-post";
+import type { ExtractedPost } from "@/features/captures/steps/extract-capture";
 import { gradeExtraction } from "./extraction";
 
 const expected: ExtractedPost = {

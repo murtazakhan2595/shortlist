@@ -1,8 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { AIMessage } from "@langchain/core/messages";
 import { afterAll, beforeEach, describe, expect, test, vi } from "vitest";
-import { advanceWriter } from "@/features/applications/steps/advance-writer";
-import { prepareEmailApplication } from "@/features/applications/steps/prepare-email-application";
+import { advanceWriter, prepareEmailApplication } from "@/features/applications/steps/writer-steps";
 import { getCheckpointer } from "@/server/queue/checkpointer";
 import { getAdminClient } from "@/server/supabase/admin";
 

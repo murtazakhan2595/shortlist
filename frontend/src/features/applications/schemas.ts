@@ -15,3 +15,33 @@ export const UpdateApplicationStatusInputSchema = z.object({
 export type UpdateApplicationStatusInput = z.infer<typeof UpdateApplicationStatusInputSchema>;
 
 export type ApplicationStatusUpdated = UpdateApplicationStatusInput;
+
+// Types the writer's files share (PLAN.md item 2.2).
+
+/** An email as the writer produces it: the model writes it, code and a second model check it. */
+export type EmailDraft = {
+  cvVariant: string;
+  presentedTitle: string;
+  emailPattern: string;
+  subject: string;
+  /** From the greeting to the last line before the sign-off. */
+  body: string;
+  /** The sign-off and the signature block. */
+  signature: string;
+};
+
+/** Everything a draft is written from: the post and the owner's material, loaded at every stage. */
+export type WriterContext = {
+  /** Model calls are linked to these, so each draft can be explained afterwards (B1). */
+  link: { runId?: string; applicationId?: string };
+  post: { text: string; role: string | null; company: string | null; posterName: string | null; seenOn: string };
+  /** Always the address from the capture, never one a model wrote (principle 4). */
+  recipientEmail: string;
+  profile: string;
+  answerBank: string;
+  writingGuide: string;
+  voiceExamples: string[];
+  patterns: { id: string; name: string; content: string }[];
+  /** The CV variants with a current file, to choose from (P2). */
+  cvVariants: string[];
+};

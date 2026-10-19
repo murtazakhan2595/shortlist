@@ -83,7 +83,7 @@ A feature only has the files it needs. Opening a feature folder should show its 
 10. **Constants live in code, not in the database.** The database holds only data that changes while the app runs, or that the owner edits in the app. Fixed lists and reference values (model steps, providers, effort levels, model prices) are constants in code, so changing one needs no migration.
 11. **Every model call goes through `callModel`** (`server/models/call-model.ts`). It reads the step's model from `step_models`, checks the answer against the step's Zod schema, and records tokens and cost in `model_calls`, also when the call fails. Only queued steps call it. Each step's prompt and answer schema live in its feature's `steps/` folder. Model options and prices are in `src/lib/model-catalog.ts`; adding a provider means adding a case to `server/models/chat-models.ts`.
 12. **Background work is a queued step.** Add it with `enqueueStep` (`server/queue/queue.ts`), name it in `server/queue/step-names.ts` (features hand work to each other by these names) and register its handler in `app/api/worker/step-handlers.ts`. A handler checks its payload with Zod, does one short piece of work and may queue the next step. The worker runs one step per call; a failed step is retried twice more, then recorded in `failed_steps`. Tests use the `steps_test` queue, never `steps`, or replace `enqueueStep` with a fake that collects the steps.
-13. **A loop of several model calls is a LangGraph graph run one stage per queued step.** The graph lives in the feature's `steps/` folder; its state is saved in Postgres (the `langgraph` schema, `server/queue/checkpointer.ts`) and the step calls `invoke` with `interruptAfter: "*"`, so each call runs one stage. Large inputs (the owner's material) are passed as the run's `context`, never kept in the saved state. A step that advances a graph first claims a short lease on its row, so two workers never run the same graph at once (`features/applications/steps/advance-writer.ts`).
+13. **A loop of several model calls is a LangGraph graph run one stage per queued step.** The graph lives in the feature's `steps/` folder; its state is saved in Postgres (the `langgraph` schema, `server/queue/checkpointer.ts`) and the step calls `invoke` with `interruptAfter: "*"`, so each call runs one stage. Large inputs (the owner's material) are passed as the run's `context`, never kept in the saved state. A step that advances a graph first claims a short lease on its row, so two workers never run the same graph at once (`features/applications/steps/writer-steps.ts`).
 
 ## Zod and types
 
@@ -112,6 +112,9 @@ One convention everywhere:
 Readability comes first. The owner must be able to explain every line.
 
 - Simple over clever. Small functions with one job and names that say what they do.
+- **Few files, few types.** One flow lives in one file where it fits: a queue step keeps its prompt, its answer schema and its checks together, so it can be read top to bottom. Split a file only when it holds two separate things, not because it is long.
+- **A feature's shared types live in its `schemas.ts`**, beside its contracts. Don't add a type that only renames or repeats another; pass the existing one.
+- **Port only what is used.** Take the parts of a library or open-source file the current task needs, and say in a comment what was left out.
 - Reuse before writing: look for an existing helper, component or type first. Extract shared code once it is needed twice, not before.
 - Strict TypeScript. No `any`, no non-null assertions to silence the compiler. Validate model output and external input with Zod.
 - Comments say why, not what. No commented-out code.

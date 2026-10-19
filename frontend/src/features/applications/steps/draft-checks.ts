@@ -1,30 +1,52 @@
-import { BANNED_PATTERNS, BANNED_PHRASES } from "./banned-phrases";
-import { TECH_TERMS } from "./tech-terms";
+// The checks code makes on a draft before a model reviews it (PLAN.md item 2.2; X4). Exact text checks,
+// so they cannot be argued with: every number, link and technology must already be in the sources, the
+// body must fit the pattern's length, and no banned phrase may appear.
+// The first check is an idea from career-ops verify-cv-facts.mjs. The banned phrases are
+// Ported from: https://github.com/MadsLorentzen/ai-job-search/blob/5d9e0977f01465166f25abf0826bd61e7c8cac25/.claude/skills/job-application-assistant/03-writing-style.md (MIT)
+// merged with the owner's own list (private/email-patterns.md section 4).
 
-// The checks code makes on a draft before a model reviews it (PLAN.md item 2.2; X4).
-// Idea from career-ops verify-cv-facts.mjs: every number and technology in a draft must already
-// appear in the sources. These are exact text checks, so they cannot be argued with or talked round.
+import type { EmailDraft, WriterContext } from "../schemas";
 
-export type EmailDraft = {
-  cvVariant: string;
-  presentedTitle: string;
-  emailPattern: string;
-  subject: string;
-  /** From the greeting to the last line before the sign-off. */
-  body: string;
-  /** The sign-off and signature block. */
-  signature: string;
-};
+/** Matched anywhere, ignoring case, from the start of a word. */
+const BANNED_PHRASES = [
+  // Openers and closers
+  "I hope this email finds you well", "I hope you are doing well", "I am writing to express my interest",
+  "Please find attached", "for your kind consideration", "Respected Sir", "Dear Sir/Madam", "To whom it may concern",
+  "I look forward to the opportunity to", "Thank you for your time and consideration", "I would be thrilled",
+  "I am excited to apply",
+  // Self-description without proof
+  "passionate about", "driven by a passion for", "proven track record", "results-driven", "detail-oriented",
+  "self-starter", "team player", "hit the ground running", "I believe I would be a great fit", "perfect fit",
+  "go-getter", "rockstar", "ninja",
+  // Inflated verbs and stock words
+  "leverage", "spearheaded", "orchestrated", "synergy", "synergies", "drive results", "facilitate", "utilize",
+  "endeavor", "delve", "crucial", "underscores", "cutting-edge", "state-of-the-art", "seamless", "robust",
+  "dynamic", "fast-paced", "innovative solutions", "game-changer", "transformative", "unlock", "elevate", "harness",
+  // Hedges
+  "I think I could", "I feel that", "just checking in", "sorry to bother you",
+];
 
-export type DraftSources = {
-  profile: string;
-  answerBank: string;
-  postText: string;
-  /** The role as the post names it, which a draft may repeat even when it names a technology. */
-  postRole: string | null;
-  /** The chosen pattern's text, which states its length as "**Length:** 60–120 words". */
-  patternContent: string;
-};
+const BANNED_PATTERNS = [
+  { pattern: /(^|[.!?]\s+)(Additionally|Furthermore|Moreover),/m, description: 'a sentence opening with "Additionally", "Furthermore" or "Moreover"' },
+  { pattern: /\bin today's .{0,40}landscape\b/i, description: `"In today's ... landscape"` },
+  { pattern: /—/, description: "an em dash (use a comma, period or colon)" },
+];
+
+// Technologies a draft may only name if the profile or the answer bank does. A draft must write a term as
+// it is written here ("Express", not "express"), so ordinary words are not taken for tools; "Go" is left
+// out for that reason. Add a term when a post brings up a new one.
+const TECH_TERMS = [
+  "TypeScript", "JavaScript", "Python", "Java", "Kotlin", "Swift", "Golang", "Rust", "C#", "C++", "Ruby", "PHP",
+  "Scala", "Elixir", "Dart", "SQL", "React", "React Native", "Next.js", "Vue", "Nuxt", "Angular", "Svelte",
+  "Redux", "Tailwind", "Flutter", "Expo", "Remix", "Astro", "jQuery", "Node.js", "NestJS", "Express", "Fastify",
+  "Django", "Flask", "FastAPI", "Spring", "Laravel", "Rails", ".NET", "GraphQL", "gRPC", "tRPC", "Prisma",
+  "Drizzle", "TypeORM", "Sequelize", "PostgreSQL", "Postgres", "MySQL", "MongoDB", "Redis", "DynamoDB",
+  "Elasticsearch", "Cassandra", "SQLite", "Supabase", "Firebase", "Kafka", "RabbitMQ", "SQS", "BigQuery",
+  "Snowflake", "AWS", "Azure", "GCP", "Google Cloud", "Lambda", "Docker", "Kubernetes", "Terraform", "Vercel",
+  "Netlify", "GitHub Actions", "Jenkins", "CircleCI", "Ansible", "LangChain", "LangGraph", "LlamaIndex", "CrewAI",
+  "OpenAI", "Hugging Face", "PyTorch", "TensorFlow", "scikit-learn", "Pandas", "RAG", "pgvector", "Pinecone",
+  "Weaviate", "Qdrant", "Chroma", "MCP", "Jest", "Vitest", "Playwright", "Cypress", "Selenium",
+];
 
 const NUMBER = /\d+(?:[.,]\d+)*/g;
 const LINK = /\bhttps?:\/\/[^\s)>\]]+|\b(?:[a-z0-9-]+\.)+(?:com|io|dev|me|pk|org|net|app)\/[^\s)>\]]*/gi;
@@ -32,19 +54,30 @@ const LENGTH_RULE = /\*\*Length:\*\*\s*(\d+)\s*[–-]\s*(\d+)\s*words/;
 const MAX_SUBJECT_LENGTH = 120;
 
 /** Every problem code can find, in words the writer can act on. Empty when the draft passes. */
-export function findDraftProblems(draft: EmailDraft, sources: DraftSources): string[] {
+export function findDraftProblems(draft: EmailDraft, writer: WriterContext): string[] {
   const text = `${draft.subject}\n${draft.body}\n${draft.signature}`;
-  const aboutOwner = normalise(`${sources.profile}\n${sources.answerBank}`);
-  const everything = normalise(`${aboutOwner}\n${sources.postText}`);
+  const aboutOwner = normalise(`${writer.profile}\n${writer.answerBank}`);
+  const everything = `${aboutOwner}\n${normalise(writer.post.text)}`;
+  // A technology from the post is allowed only as part of the role's name ("your Vue Developer role");
+  // the model check catches a claim made around it.
+  const techSources = `${aboutOwner}\n${normalise(writer.post.role ?? "")}`;
+  const pattern = writer.patterns.find((candidate) => candidate.name === draft.emailPattern);
 
   return [
-    ...lengthProblems(draft, sources.patternContent),
-    ...bannedPhraseProblems(text),
-    ...unsupportedNumbers(text, everything),
-    ...unsupportedLinks(text, everything),
-    // A technology from the post is allowed only as part of the role's own name ("your Vue Developer role");
-    // the model check catches a claim made around it.
-    ...unsupportedTechnologies(`${draft.body}\n${draft.signature}`, `${aboutOwner}\n${normalise(sources.postRole ?? "")}`),
+    ...lengthProblems(draft, pattern?.content ?? ""),
+    ...BANNED_PHRASES.filter((phrase) => new RegExp(`\\b${escapeRegExp(phrase)}`, "i").test(text)).map(
+      (phrase) => `Remove the banned phrase "${phrase}".`,
+    ),
+    ...BANNED_PATTERNS.filter(({ pattern }) => pattern.test(text)).map(({ description }) => `Remove ${description}.`),
+    ...unique(text.matchAll(NUMBER), (number) => number.replace(/,/g, ""))
+      .filter((number) => !containsWhole(everything, number))
+      .map((number) => `The number ${number} does not appear in the profile, the answer bank or the post.`),
+    ...unique(text.matchAll(LINK), (link) => link.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/[.,;:]+$/, ""))
+      .filter((link) => !everything.includes(link.toLowerCase()))
+      .map((link) => `The link ${link} does not appear in the profile, the answer bank or the post.`),
+    ...TECH_TERMS.filter((term) => containsTerm(`${draft.body}\n${draft.signature}`, term, "") && !containsTerm(techSources, term, "i")).map(
+      (term) => `"${term}" is not in the profile or the answer bank, so the draft cannot claim it.`,
+    ),
   ];
 }
 
@@ -57,44 +90,17 @@ function lengthProblems(draft: EmailDraft, patternContent: string): string[] {
   if (!draft.subject.trim()) problems.push("The subject line is empty.");
   if (draft.subject.length > MAX_SUBJECT_LENGTH) problems.push(`The subject line is over ${MAX_SUBJECT_LENGTH} characters.`);
 
+  // The pattern states its own length ("**Length:** 60–120 words"), so editing a pattern changes the check.
   const rule = patternContent.match(LENGTH_RULE);
-  if (rule) {
-    const [min, max] = [Number(rule[1]), Number(rule[2])];
-    const words = countWords(draft.body);
-    if (words < min || words > max) {
-      problems.push(`The body has ${words} words; the ${draft.emailPattern} pattern needs ${min} to ${max}.`);
-    }
+  const words = countWords(draft.body);
+  if (rule && (words < Number(rule[1]) || words > Number(rule[2]))) {
+    problems.push(`The body has ${words} words; the ${draft.emailPattern} pattern needs ${rule[1]} to ${rule[2]}.`);
   }
   return problems;
 }
 
-function bannedPhraseProblems(text: string): string[] {
-  const phrases = BANNED_PHRASES.filter((phrase) => new RegExp(`\\b${escapeRegExp(phrase)}`, "i").test(text));
-  const patterns = BANNED_PATTERNS.filter(({ pattern }) => pattern.test(text));
-  return [
-    ...phrases.map((phrase) => `Remove the banned phrase "${phrase}".`),
-    ...patterns.map(({ description }) => `Remove ${description}.`),
-  ];
-}
-
-function unsupportedNumbers(text: string, sources: string): string[] {
-  const numbers = new Set([...text.matchAll(NUMBER)].map(([number]) => number.replace(/,/g, "")));
-  return [...numbers]
-    .filter((number) => !containsWhole(sources, number))
-    .map((number) => `The number ${number} does not appear in the profile, the answer bank or the post.`);
-}
-
-function unsupportedLinks(text: string, sources: string): string[] {
-  const links = new Set([...text.matchAll(LINK)].map(([link]) => stripLinkStart(link).replace(/[.,;:]+$/, "")));
-  return [...links]
-    .filter((link) => !sources.includes(link.toLowerCase()))
-    .map((link) => `The link ${link} does not appear in the profile, the answer bank or the post.`);
-}
-
-function unsupportedTechnologies(text: string, sources: string): string[] {
-  return TECH_TERMS.filter((term) => containsTerm(text, term, "") && !containsTerm(sources, term, "i")).map(
-    (term) => `"${term}" is not in the profile or the answer bank, so the draft cannot claim it.`,
-  );
+function unique(matches: Iterable<RegExpMatchArray>, clean: (match: string) => string): string[] {
+  return [...new Set([...matches].map(([match]) => clean(match)))];
 }
 
 /** Lowercase, with commas inside numbers removed, so "2,500" in a draft matches "2500" in a source. */
@@ -109,14 +115,10 @@ function containsWhole(text: string, number: string): boolean {
 
 /**
  * A term as a whole word, so "Java" is not found inside "JavaScript" or "SQL" inside "PostgreSQL".
- * Drafts are matched with the term's own capitals ("" flags); sources ignore case ("i").
+ * Drafts are matched with the term's own capitals (""); sources ignore case ("i").
  */
 function containsTerm(text: string, term: string, flags: "" | "i"): boolean {
   return new RegExp(`(^|[^A-Za-z0-9.#+])${escapeRegExp(term)}(?![A-Za-z0-9#+]|\\.[A-Za-z])`, flags).test(text);
-}
-
-function stripLinkStart(link: string): string {
-  return link.replace(/^https?:\/\//i, "").replace(/^www\./i, "");
 }
 
 function escapeRegExp(text: string): string {

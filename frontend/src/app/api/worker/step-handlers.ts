@@ -1,5 +1,4 @@
-import { advanceWriter } from "@/features/applications/steps/advance-writer";
-import { prepareEmailApplication } from "@/features/applications/steps/prepare-email-application";
+import { advanceWriter, prepareEmailApplication } from "@/features/applications/steps/writer-steps";
 import { extractCapture } from "@/features/captures/steps/extract-capture";
 import { QUEUE_CHECK_STEP, runQueueCheck } from "@/server/queue/queue-check";
 import type { StepHandlers } from "@/server/queue/run-next-step";

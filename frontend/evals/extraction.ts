@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { type ExtractedPost, type PostInput, readPost } from "@/features/captures/steps/read-post";
+import { type ExtractedPost, type PostInput, readPost } from "@/features/captures/steps/extract-capture";
 import { imageContentType } from "@/lib/uploads";
 import { readPrivateFile } from "./cases";
 import type { EvalCheck, Grade } from "./check";

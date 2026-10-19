@@ -2,8 +2,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { MemorySaver } from "@langchain/langgraph";
 import { z } from "zod";
-import { loadOwnerMaterial } from "@/features/applications/steps/writer-context";
-import { buildWriterGraph, START_STATE, type WriterStateValues, writerOutcome } from "@/features/applications/steps/writer-graph";
+import { buildWriterGraph, START_STATE, type WriterStateValues, writerOutcome } from "@/features/applications/steps/writer";
+import { loadOwnerMaterial } from "@/features/applications/steps/writer-steps";
 import { casesDirectory, readPrivateFile } from "./cases";
 import type { EvalCheck, Grade } from "./check";
 
@@ -55,7 +55,13 @@ export const E4_WRITER: EvalCheck<WriterCase, WriterStateValues> = {
     const writer = {
       ...material,
       link,
-      post: { text: readPrivateFile(testCase.file).toString("utf8"), role: testCase.expected.role, company: null, posterName: null },
+      post: {
+        text: readPrivateFile(testCase.file).toString("utf8"),
+        role: testCase.expected.role,
+        company: null,
+        posterName: null,
+        seenOn: "LinkedIn",
+      },
       recipientEmail: testCase.expected.contactEmail,
     };
     // The whole loop in one go, in memory: evals have no time limit and keep no state.
