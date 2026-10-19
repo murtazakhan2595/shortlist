@@ -7,13 +7,15 @@ const VARIANTS = {
   quiet: "h-10 rounded-md px-3 font-medium text-ink-muted hover:text-ink hover:underline",
 } as const;
 
-type ButtonProps = ComponentProps<"button"> & { variant?: keyof typeof VARIANTS };
+export type ButtonVariant = keyof typeof VARIANTS;
+
+/** The button classes, also for links that look like buttons (as in shadcn/ui). */
+export function buttonVariants(variant: ButtonVariant = "primary"): string {
+  return `${VARIANTS[variant]} inline-flex cursor-pointer items-center justify-center outline-offset-2 focus-visible:outline-2 focus-visible:outline-ink disabled:cursor-wait disabled:opacity-60`;
+}
+
+type ButtonProps = ComponentProps<"button"> & { variant?: ButtonVariant };
 
 export function Button({ variant = "primary", className = "", ...props }: ButtonProps) {
-  return (
-    <button
-      className={`${VARIANTS[variant]} cursor-pointer outline-offset-2 focus-visible:outline-2 focus-visible:outline-ink disabled:cursor-wait disabled:opacity-60 ${className}`}
-      {...props}
-    />
-  );
+  return <button className={`${buttonVariants(variant)} ${className}`} {...props} />;
 }

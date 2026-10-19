@@ -1,9 +1,16 @@
 import { expect, test } from "@playwright/test";
 
-test("a visitor who is not signed in is sent to the sign-in page", async ({ page }) => {
-  await page.goto("/");
+for (const path of ["/", "/capture", "/captures/0f8fad5b-d9cb-469f-a165-70867728950e"]) {
+  test(`a visitor who is not signed in is sent from ${path} to the sign-in page`, async ({ page }) => {
+    await page.goto(path);
 
-  await expect(page).toHaveURL("/sign-in");
+    await expect(page).toHaveURL("/sign-in");
+  });
+}
+
+test("the sign-in page shows the app's name", async ({ page }) => {
+  await page.goto("/sign-in");
+
   await expect(page).toHaveTitle("Sign in | Shortlist");
   await expect(page.getByRole("heading", { level: 1, name: "Shortlist" })).toBeVisible();
 });
