@@ -4,13 +4,27 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { fail, ok } from "@/lib/result";
 import { createCaptureUploadUrl, submitCapture } from "../actions";
 import { CaptureForm } from "./capture-form";
+import type { SharedForm } from "./use-shared-post";
 
 vi.mock("../actions", () => ({ submitCapture: vi.fn(), createCaptureUploadUrl: vi.fn() }));
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
+// What the share menu handed over, if anything; the real hook reads it from the service worker's cache.
+const shared = vi.hoisted((): { form?: SharedForm } => ({}));
+vi.mock("./use-shared-post", async () => {
+  const { useEffect } = await import("react");
+  return {
+    useSharedPost: (onShared: (form: SharedForm) => void) =>
+      useEffect(() => {
+        if (shared.form) onShared(shared.form);
+      }, [onShared]),
+  };
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
+  shared.form = undefined;
 });
 
 test("submits a pasted post with its link and opens the captured post", async () => {
@@ -75,4 +89,27 @@ test("asks for a screenshot when none is chosen", async () => {
 
   expect(await screen.findByRole("alert")).toHaveTextContent("Choose at least one screenshot");
   expect(createCaptureUploadUrl).not.toHaveBeenCalled();
+});
+
+test("a screenshot shared from the phone fills the form and is uploaded on submit (item 2.5)", async () => {
+  const screenshot = new File(["png"], "post.png", { type: "image/png" });
+  shared.form = { mode: "screenshot", text: "", postUrl: "https://lnkd.in/abc", screenshots: [screenshot] };
+  vi.mocked(createCaptureUploadUrl).mockResolvedValue(ok({ path: "captures/a.png", signedUrl: "https://storage.example/upload" }));
+  vi.mocked(submitCapture).mockResolvedValue(ok({ captureId: "abc" }));
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 200 }));
+  const user = userEvent.setup();
+  render(<CaptureForm />);
+
+  expect(await screen.findByText("Ready to send: post.png")).toBeInTheDocument();
+  expect(screen.getByLabelText("Link to the post (optional)")).toHaveValue("https://lnkd.in/abc");
+  await user.click(screen.getByRole("button", { name: "Read the post" }));
+
+  expect(submitCapture).toHaveBeenCalledWith({ inputType: "screenshot", imagePaths: ["captures/a.png"], postUrl: "https://lnkd.in/abc" });
+});
+
+test("a shared link alone says why it cannot be used", async () => {
+  shared.form = { mode: "screenshot", text: "", postUrl: "https://lnkd.in/abc", screenshots: [], notice: "Only a link was shared." };
+  render(<CaptureForm />);
+
+  expect(await screen.findByRole("status")).toHaveTextContent("Only a link was shared.");
 });

@@ -31,8 +31,12 @@ describe("nothing ties the app to its host", () => {
   });
 
   test("no work after the response is sent (rule 3)", () => {
-    expect(filesMatching(files, /\bwaitUntil\b|import\s*{[^}]*\bafter\b[^}]*}\s*from\s*["']next\/server["']/)).toEqual(
-      [],
-    );
+    // The service worker runs in the owner's browser, where event.waitUntil is the standard way to finish
+    // its own work; the rule is about the server.
+    const serverFiles = files.filter((file) => file !== "frontend/public/sw.js");
+
+    expect(
+      filesMatching(serverFiles, /\bwaitUntil\b|import\s*{[^}]*\bafter\b[^}]*}\s*from\s*["']next\/server["']/),
+    ).toEqual([]);
   });
 });
