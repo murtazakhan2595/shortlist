@@ -47,3 +47,10 @@ export function imageContentType(fileName: string): ImageUploadRequest["contentT
   const extension = fileName.split(".").pop()?.toLowerCase();
   return IMAGE_CONTENT_TYPES[extension as (typeof IMAGE_EXTENSIONS)[number]];
 }
+
+/** The extension an uploaded image is stored under, from its content type. */
+export function imageExtension(contentType: ImageUploadRequest["contentType"]): (typeof IMAGE_EXTENSIONS)[number] {
+  const extension = IMAGE_EXTENSIONS.find((candidate) => IMAGE_CONTENT_TYPES[candidate] === contentType);
+  if (!extension) throw new Error(`No extension for ${contentType}`);
+  return extension;
+}
