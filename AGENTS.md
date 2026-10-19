@@ -22,6 +22,7 @@ The database tables, the server entry points and the model module's interface (P
 
 | Feature | Server Actions |
 |---|---|
+| `auth` | `signIn`, `signOut` |
 | `captures` | `createCaptureUploadUrl`, `submitCapture`, `confirmCaptureEmail` |
 | `forms` | `createFormUploadUrl`, `addFormPages`, `answerFormQuestion` |
 | `applications` | `updateApplicationStatus` |
@@ -37,7 +38,6 @@ The database tables, the server entry points and the model module's interface (P
 | `POST /api/daily-run` | Supabase Cron, once a day | `Authorization: Bearer <INTERNAL_API_SECRET>` | none | `Result<DailyRunSummary>` (`features/discovery/schemas.ts`) |
 | `GET /api/gmail/connect` | The owner, once | `requireOwner()` | none | Redirect to Google |
 | `GET /api/gmail/callback` | Google | `state` matches the one set on connect | `GmailCallbackQuery` (`server/gmail/schemas.ts`) | Redirect to settings |
-| `GET /auth/callback` | Supabase Auth | Code exchange | `AuthCallbackQuery` (`server/auth/schemas.ts`) | Redirect to `next`, a path inside the app |
 
 ## Portability
 
@@ -72,8 +72,8 @@ src/
 A feature only has the files it needs. Opening a feature folder should show its whole flow: writes, reads, AI steps and screens.
 
 1. **Entry points are thin.** A page, Server Action or route handler checks its input, calls one function and returns. Logic lives in `features/` or `server/`.
-2. **Server Actions for everything the owner does in the app.** Route handlers only for callers outside the app: Supabase (worker, daily run), Google (Gmail callback) and the sign-in callback.
-3. **All data goes through the Data Access Layer on the server.** Every read and write first calls `requireOwner()`, then returns typed objects. The browser never queries the database; files are uploaded to one-time signed upload URLs created by the server.
+2. **Server Actions for everything the owner does in the app,** including signing in (email and password; sign-ups are switched off in Supabase). Route handlers only for callers outside the app: Supabase (worker, daily run) and Google (Gmail callback).
+3. **All data goes through the Data Access Layer on the server.** Every read and write first calls `requireOwner()` (`server/auth/require-owner.ts`), which returns the database client acting as the owner, then returns typed objects. `src/proxy.ts` only sends signed-out visitors to `/sign-in`; it is not the security check. The browser never queries the database; files are uploaded to one-time signed upload URLs created by the server.
 4. **Server-only modules start with `import "server-only"`.**
 5. **Imports flow one way:** shared code (`components`, `lib`, `server`) → `features` → `app`. Features never import from each other; they hand off work through the queue by step name. ESLint enforces this.
 6. **No barrel files.** Import files directly, not through `index.ts` re-exports.

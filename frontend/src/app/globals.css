@@ -1,26 +1,43 @@
 @import "tailwindcss";
 
+/*
+ * Shortlist's look: blue-black ink on cool paper, like a hiring list marked up by hand.
+ * Highlighter yellow is used in one place only, the wordmark, so it keeps its meaning.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --paper: #f3f5f7;
+  --field: #ffffff;
+  --ink: #1c2840;
+  --ink-muted: #556078;
+  --rule: #d3d9e1;
+  --highlight: #f4e64f;
+  --danger: #a3261b;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --paper: #141c2e;
+    --field: #1b2439;
+    --ink: #e3e7ee;
+    --ink-muted: #9aa3b5;
+    --rule: #2e3952;
+    --highlight: #6d6418;
+    --danger: #f08a7e;
   }
 }
 
+@theme inline {
+  --color-paper: var(--paper);
+  --color-field: var(--field);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-rule: var(--rule);
+  --color-highlight: var(--highlight);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-schibsted-grotesk);
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
 }
