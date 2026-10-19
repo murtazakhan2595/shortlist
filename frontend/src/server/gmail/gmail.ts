@@ -75,10 +75,13 @@ export async function getGmailAccessToken(): Promise<string | null> {
   return token.access_token;
 }
 
-/** The id of the draft carrying this Message-ID, if one exists. */
-export async function findDraft(accessToken: string, messageId: string): Promise<string | null> {
+/**
+ * The id of a draft already in Gmail to this recipient with this subject, if there is one.
+ * Gmail replaces the Message-ID of every draft with its own, so a draft is found by what it says instead.
+ */
+export async function findDraft(accessToken: string, to: string, subject: string): Promise<string | null> {
   const url = new URL(DRAFTS_URL);
-  url.searchParams.set("q", `rfc822msgid:${messageId}`);
+  url.searchParams.set("q", `in:drafts to:${z.email().parse(to)} subject:"${subject.replace(/"/g, "")}"`);
   const found = DraftListSchema.parse(await callGmail(url, { headers: { Authorization: `Bearer ${accessToken}` } }));
   return found.drafts?.[0]?.id ?? null;
 }
@@ -107,7 +110,6 @@ export function buildEmail(email: DraftEmail): string {
   return [
     `To: ${to}`,
     `Subject: ${encodeHeader(email.subject)}`,
-    `Message-ID: ${email.messageId}`,
     "MIME-Version: 1.0",
     `Content-Type: multipart/mixed; boundary="${boundary}"`,
     "",

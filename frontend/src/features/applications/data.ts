@@ -17,6 +17,9 @@ export type ApplicationView = {
   blockedReason: string | null;
   /** True once the email is saved as a draft in the owner's Gmail (X1). */
   inGmail: boolean;
+  /** What every model call for this application cost, from reading the post to the last check (B1). */
+  costUsd: number;
+  modelCalls: number;
 };
 
 /** The application prepared from a capture, or null if there is none yet. */
@@ -26,11 +29,21 @@ export async function getApplicationForCapture(captureId: string): Promise<Appli
   const { db } = await requireOwner();
   const { data, error } = await db
     .from("applications")
-    .select("status, recipient_email, subject, body, presented_title, blocked_reason, gmail_draft_id, cv_files (file_name), documents (name)")
+    .select(
+      "id, status, recipient_email, subject, body, presented_title, blocked_reason, gmail_draft_id, cv_files (file_name), documents (name), captures (run_id)",
+    )
     .eq("capture_id", captureId)
     .maybeSingle();
   if (error) throw new Error(`Could not load the application for capture ${captureId}: ${error.message}`);
   if (!data) return null;
+
+  // The capture's run holds every call, reading the post included; application_id covers calls made without a run.
+  const runId = data.captures?.run_id;
+  const calls = await db
+    .from("model_calls")
+    .select("cost_usd")
+    .or(runId ? `application_id.eq.${data.id},run_id.eq.${runId}` : `application_id.eq.${data.id}`);
+  if (calls.error) throw new Error(`Could not load the cost of application ${data.id}: ${calls.error.message}`);
 
   return {
     status: data.status,
@@ -42,5 +55,7 @@ export async function getApplicationForCapture(captureId: string): Promise<Appli
     emailPattern: data.documents?.name ?? null,
     blockedReason: data.blocked_reason,
     inGmail: data.gmail_draft_id !== null,
+    costUsd: calls.data.reduce((total, call) => total + call.cost_usd, 0),
+    modelCalls: calls.data.length,
   };
 }

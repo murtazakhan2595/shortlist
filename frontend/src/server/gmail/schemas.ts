@@ -14,8 +14,6 @@ export type GmailCallbackQuery = z.infer<typeof GmailCallbackQuerySchema>;
 
 /** An email to save as a draft, with one attached file. */
 export type DraftEmail = {
-  /** Our own Message-ID, so a retried step can find the draft it already made. */
-  messageId: string;
   to: string;
   subject: string;
   body: string;
