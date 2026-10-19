@@ -15,6 +15,8 @@ const ready: ApplicationView = {
   emailPattern: "post-reply",
   blockedReason: null,
   inGmail: true,
+  costUsd: 0.04193,
+  modelCalls: 3,
 };
 
 test("shows the prepared email with its recipient, subject, CV and pattern", () => {
@@ -24,6 +26,8 @@ test("shows the prepared email with its recipient, subject, CV and pattern", () 
   expect(screen.getByText("hr@acme.example")).toBeInTheDocument();
   expect(screen.getByText("CV-Full-Stack.pdf")).toBeInTheDocument();
   expect(screen.getByText(/I am applying\./)).toBeInTheDocument();
+  expect(screen.getByText("$0.0419")).toBeInTheDocument();
+  expect(screen.getByText("(3 model calls)")).toBeInTheDocument();
 });
 
 test("shows why a draft was stopped, one problem per line (X4)", () => {

@@ -1,7 +1,7 @@
 -- Only the owner can see or change data (U6, principle 6).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(7);
+select plan(8);
 
 -- Two signed-in users: the owner and someone else.
 insert into auth.users (id, email) values
@@ -10,6 +10,7 @@ insert into auth.users (id, email) values
 update public.settings set owner_user_id = '00000000-0000-0000-0000-00000000000a';
 
 insert into public.documents (kind, name, content) values ('profile', 'access-test', 'private text');
+insert into public.model_calls (step, provider, model, cost_usd) values ('access-test', 'openai', 'test-model', 0.01);
 
 -- Visitor who is not signed in.
 set local role anon;
@@ -34,6 +35,10 @@ select is_empty(
 select is_empty(
   $$ select 1 from public.current_documents where name = 'access-test' $$,
   'another signed-in user sees nothing through the current_documents view'
+);
+select is_empty(
+  $$ select 1 from public.monthly_spend where step = 'access-test' $$,
+  'another signed-in user sees no spending through the monthly_spend view'
 );
 select throws_ok(
   $$ insert into public.documents (kind, name, content) values ('profile', 'by-stranger', 'x') $$,

@@ -13,11 +13,11 @@ const gmail = vi.hoisted(() => ({
 }));
 vi.mock("@/server/gmail/gmail", () => ({
   getGmailAccessToken: async () => (gmail.connected ? "access-token" : null),
-  findDraft: async (_token: string, messageId: string) => gmail.drafts.get(messageId)?.id ?? null,
+  findDraft: async (_token: string, to: string, subject: string) => gmail.drafts.get(`${to}|${subject}`)?.id ?? null,
   createDraft: async (_token: string, email: DraftEmail) => {
     gmail.created++;
     const id = `draft-${gmail.created}`;
-    gmail.drafts.set(email.messageId, { id, email });
+    gmail.drafts.set(`${email.to}|${email.subject}`, { id, email });
     return id;
   },
 }));

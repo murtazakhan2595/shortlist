@@ -583,6 +583,15 @@ export type Database = {
         }
         Relationships: []
       }
+      monthly_spend: {
+        Row: {
+          calls: number | null
+          cost_usd: number | null
+          month: string | null
+          step: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       complete_step: {

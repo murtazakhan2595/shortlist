@@ -11,7 +11,6 @@ vi.mock("@/server/env", () => ({
 }));
 
 const EMAIL: DraftEmail = {
-  messageId: "<application-1@shortlist.local>",
   to: "hr@acme.example",
   subject: "Application for the React role",
   body: "Hi team,\n\nMy CV is attached.",
@@ -29,7 +28,6 @@ describe("buildEmail", () => {
     const mime = buildEmail(EMAIL);
 
     expect(mime).toContain("To: hr@acme.example\r\n");
-    expect(mime).toContain("Message-ID: <application-1@shortlist.local>\r\n");
     expect(decodedSubject(mime)).toBe(EMAIL.subject);
     expect(mime).toContain(Buffer.from(EMAIL.body).toString("base64"));
     expect(mime).toContain('Content-Disposition: attachment; filename="CV.pdf"');

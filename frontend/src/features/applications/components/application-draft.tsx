@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AutoRefresh } from "@/components/ui/auto-refresh";
+import { formatUsd } from "@/lib/format";
 import type { ApplicationView } from "../data";
 
 // Gmail's drafts folder. A link to one draft needs its message id in Gmail's own format, which the API does not give.
@@ -59,6 +60,13 @@ export function ApplicationDraft({ application }: { application: ApplicationView
         <dd>{application.presentedTitle}</dd>
         <dt className="text-ink-muted">Pattern</dt>
         <dd>{application.emailPattern}</dd>
+        <dt className="text-ink-muted">Cost</dt>
+        <dd>
+          {formatUsd(application.costUsd)}{" "}
+          <span className="text-ink-muted">
+            ({application.modelCalls} model {application.modelCalls === 1 ? "call" : "calls"})
+          </span>
+        </dd>
       </dl>
 
       {application.body && (

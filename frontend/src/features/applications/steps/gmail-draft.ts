@@ -11,8 +11,8 @@ import { ApplicationPayloadSchema } from "../schemas";
 // The owner reads the draft in Gmail and sends it; nothing here sends (hard rule 1).
 //
 // Safe to run twice (AGENTS.md rule 7). A step that finds gmail_draft_id set does nothing. If a call dies
-// after Gmail made the draft but before its id was saved, the retry finds that draft by its Message-ID
-// instead of making a second one.
+// after Gmail made the draft but before its id was saved, the retry finds that draft by its recipient and
+// subject instead of making a second one.
 
 const CV_BUCKET = "cvs";
 
@@ -34,11 +34,9 @@ export async function createGmailDraft(payload: Json): Promise<void> {
   const accessToken = await getGmailAccessToken();
   if (!accessToken) return;
 
-  const messageId = `<application-${applicationId}@shortlist.local>`;
   const gmailDraftId =
-    (await findDraft(accessToken, messageId)) ??
+    (await findDraft(accessToken, to, subject)) ??
     (await createDraft(accessToken, {
-      messageId,
       to,
       subject,
       body,
