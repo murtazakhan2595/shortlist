@@ -65,7 +65,7 @@ Both paths end in the same place: an entry in the review app.
 1. **Nothing from the host's own toolkit.** No Vercel packages, no Vercel scheduler, storage, key-value store or gateway, and nothing that needs a `vercel.json` file to work.
 2. **Standard Next.js only, on the Node runtime.** No edge routes and no on-demand page revalidation, because Amplify supports neither.
 3. **No work continues after a response is sent.** Background work is always a queued step, triggered from Supabase.
-4. **Every server call is short.** One step per call, with a budget of 25 seconds. Vercel allows 300 seconds; Amplify's limit is not stated on its documentation page, so the budget is deliberately small until it is confirmed.
+4. **Every server call is short.** One step per call, with a budget of 60 seconds, raised from 25 on 20 October 2026 because reading a full-page form screenshot took 22 seconds. Vercel allows 300 seconds. Amplify allows 30 (owner, 20 October 2026), so a move there means lowering the budget and splitting slow steps.
 5. **Requests and responses stay small.** Under 4.5 MB, the lower of the two hosts' limits.
 6. **The app's address is a setting.** The scheduler and triggers read the address they call from one place.
 
@@ -249,7 +249,7 @@ Two lessons from the owner's playbook are built into this plan: guard side effec
 | 2.1 | A | Extraction | Role, company, email or form link and poster's name are extracted from pasted text and from screenshots (C3) |
 | 2.2 | B | Writer | A LangGraph loop chooses the CV, title and email pattern, writes the email in the owner's voice, checks every claim against the profile, and revises or blocks (P4, P7, X4). Its state is saved in Postgres, so each step runs as its own short call. Before the model's check, code confirms every number and technology in the draft appears in the profile and the draft is within the word limit |
 | 2.3 | C | Gmail drafts | After one-time consent, code creates a draft with the CV attached in the owner's Gmail (X1). The Google app is in production mode and the token survives past seven days. The code refuses to run if the token has any Gmail permission other than `gmail.compose` |
-| 2.4 | D | Capture route | A capture is saved and its first step queued; the steps run one after another without waiting for the schedule, each within the 25-second budget |
+| 2.4 | D | Capture route | A capture is saved and its first step queued; the steps run one after another without waiting for the schedule, each within the step budget |
 | 2.5 | E | Pages: sign-in and capture | The owner signs in, shares a screenshot from Android or pastes text, and sees the result (C1, C2, U6). Confirming a screenshot's email address was dropped on 20 October 2026 (C4). The installed app is a share target; a small service worker hands the shared post to the capture form |
 | 2.6 | all | Join the tracks | Duplicate captures are recognised (C5, X6) and the whole path meets the one-minute target (C6) |
 
@@ -326,8 +326,8 @@ Two lessons from the owner's playbook are built into this plan: guard side effec
 |---|---|
 | One source cannot supply enough eligible jobs a day | Item 1.9 measures it early. If it falls short, the Hacker News port (sprint 7) joins sprint 4 |
 | Overnight work outgrows the host's free limits | Vercel's free plan allows four hours of active processing a month; time spent waiting for a model does not count. Short steps keep usage low. Watch the usage page in the first week of sprint 4 |
-| A step runs longer than the 25-second budget | High reasoning effort can take a minute or more. Effort is set per step in configuration; the capture path uses low effort. Raise the budget only after Amplify's limit is confirmed |
-| Amplify's time limit turns out lower than expected | It is not stated on Amplify's documentation page. Confirm it before any move; the step design means only the budget number changes |
+| A step runs longer than the 60-second budget | High reasoning effort can take a minute or more. Effort is set per step in configuration; the capture path uses low effort. A form is read one screenshot per step |
+| A move to Amplify, whose limit is 30 seconds | Lower the step budget and split any step that needs longer, such as reading a long screenshot; the step design means no other change |
 | Gmail access stops after a week | Google expires tokens after seven days for apps left in testing mode. Item 2.3 sets production mode and confirms the token survives |
 | Google asks for app verification | `gmail.compose` is a restricted permission. A personal app used only by its owner is expected to work with an "unverified app" warning; item 2.3 confirms this before more is built on Gmail |
 | A screenshot is misread or incomplete | Questions are shown before use (F2) and the email address is seen in the Gmail draft before sending; pasted text is the more exact alternative |

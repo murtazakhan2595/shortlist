@@ -14,7 +14,7 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const summary = await runNextStep(STEP_HANDLERS);
-    // While steps are waiting, the next one runs in a new call, so each call stays within the 25-second budget.
+    // While steps are waiting, the next one runs in a new call, so each call stays within the 60-second budget.
     if (!summary.queueEmpty) await wakeWorker();
     return Response.json(ok(summary));
   } catch (error) {
