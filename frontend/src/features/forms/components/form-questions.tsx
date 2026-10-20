@@ -4,7 +4,7 @@ import { OwnerAnswerForm } from "./owner-answer-form";
 
 /**
  * The form's questions in order, each with where it stands (F2). They show as soon as they are read, and
- * their answers appear beside them: text to copy, a choice to pick, a blank for the owner to fill (F4, F5),
+ * their answers appear beside them: text to copy, a choice to pick, a draft or a blank for the owner to finish (F4, F5),
  * or something to upload (F6).
  */
 export function FormQuestions({ questions }: { questions: FormQuestion[] }) {
@@ -39,8 +39,9 @@ function Answer({ question }: { question: FormQuestion }) {
       <div className="flex flex-col gap-3 rounded-md border-2 border-dashed border-ink-muted p-3">
         <p className="text-sm">
           <span className="font-semibold">Needs your input.</span> {note}
+          {answer && " Check the draft below and replace anything in [brackets]."}
         </p>
-        <OwnerAnswerForm formAnswerId={question.id} />
+        <OwnerAnswerForm formAnswerId={question.id} initialAnswer={answer ?? ""} />
       </div>
     );
   }

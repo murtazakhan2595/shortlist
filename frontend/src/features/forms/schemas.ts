@@ -36,10 +36,16 @@ export const AddFormPagesInputSchema = z.object({
 export type AddFormPagesInput = z.infer<typeof AddFormPagesInputSchema>;
 
 // The owner answers a "needs your input" question, or corrects an answer; by default it is saved to the
-// answer bank too, so the next form that asks gets it (F5).
+// answer bank too, so the next form that asks gets it (F5). A draft's guesses are in [brackets], and one
+// left in would put a guess in the answer bank, so it is refused.
 export const AnswerFormQuestionInputSchema = z.object({
   formAnswerId: z.uuid(),
-  answer: z.string().trim().min(1).max(MAX_ANSWER_LENGTH),
+  answer: z
+    .string()
+    .trim()
+    .min(1)
+    .max(MAX_ANSWER_LENGTH)
+    .refine((answer) => !/\[[^\]]+\]/.test(answer), "Replace the guesses in [brackets] with your own answer first"),
   saveToAnswerBank: z.boolean().default(true),
 });
 export type AnswerFormQuestionInput = z.infer<typeof AnswerFormQuestionInputSchema>;

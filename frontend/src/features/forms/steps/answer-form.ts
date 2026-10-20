@@ -134,19 +134,19 @@ const AnswersSchema = z.object({
         status: z
           .enum(["answered", "needs_input", "asset_needed"])
           .describe(
-            "answered: the profile or the answer bank supports an answer. needs_input: they do not, so the candidate must answer. asset_needed: the question asks for a file, a video, a portfolio, or a link to one.",
+            "answered: the profile or the answer bank supports the whole answer. needs_input: they support it only in part or not at all, so the candidate finishes the answer. asset_needed: the question asks for a file, a video, a portfolio, or a link to one.",
           ),
         answer: z
           .string()
           .nullable()
           .describe(
-            'The text to enter. For a question with choices, the choice to pick, copied exactly; for checkboxes, each choice to tick, separated by "; ". For asset_needed, the stored asset that covers it. Null when nothing supports an answer.',
+            'The text to enter. For a question with choices, the choice to pick, copied exactly; for checkboxes, each choice to tick, separated by "; ". For needs_input, a draft for the candidate to finish: what the profile and the answer bank support, with your best guess for every missing part in [square brackets]. For asset_needed, the stored asset that covers it. Null only when there is nothing to go on.',
           ),
         note: z
           .string()
           .nullable()
           .describe(
-            "For needs_input: in one short sentence, what the candidate must decide or tell. For asset_needed: what the form needs and whether a stored asset covers it. Null otherwise.",
+            "For needs_input: in one short sentence, what the candidate must check or fill in. For asset_needed: what the form needs and whether a stored asset covers it. Null otherwise.",
           ),
       }),
     )
@@ -157,9 +157,10 @@ export type ModelAnswer = z.infer<typeof AnswersSchema>["answers"][number];
 const ANSWER_INSTRUCTIONS = `You fill in one job application form for the candidate described in the documents. The candidate reviews every answer and fills in the form themselves; nothing is submitted for them.
 
 Rules:
-- Every answer must be supported by the profile or the answer bank. Where they do not answer a question, mark it needs_input and say what is missing. Never guess, never round a number up, never add a skill.
-- Pay, notice period, location, relocation, work authorisation, visas, and personal or demographic questions: use only the answer bank's answer for this kind of job. If none fits, mark the question needs_input.
-- Yes or no, and "have you worked with" questions: yes only when the profile shows that work. Where the profile is silent, needs_input, not no.
+- Every statement outside square brackets must be supported by the profile or the answer bank. Never round a number up, never add a skill.
+- Where the profile and the answer bank answer a question only in part, or not at all, mark it needs_input and draft the answer anyway: write what they support, and put your best guess for each missing part in [square brackets], so the candidate sees and corrects every guess before using it.
+- Pay, notice period, location, relocation, work authorisation, visas, and personal or demographic questions: use only the answer bank's answer for this kind of job. If none fits, needs_input, with your guess in brackets.
+- Yes or no, and "have you worked with" questions: yes only when the profile shows that work. Where the profile is silent, needs_input, with your guess in brackets.
 - For a question with choices, pick only from the choices, copied exactly.
 - Write in the candidate's own words: first person, short and plain. An open question ("Why do you want to join us?") gets a few sentences that fit the job.
 - A request for a CV, a file, a video, a portfolio or a link to one is asset_needed. Name the stored asset that covers it (for a CV, the variant that fits the job best), or say that none is stored.
@@ -187,7 +188,9 @@ async function answerQuestions(
 
 /**
  * The checks code can make on the model's answers. Every question gets exactly one outcome; an answer
- * that is missing, empty, or not one of the form's choices goes to the owner instead.
+ * that is missing, empty, or not one of the form's choices goes to the owner instead. A question that
+ * needs the owner keeps the model's draft, with its guesses in [brackets], for the owner to finish: it
+ * is not checked, as the owner reads every word of it before saving.
  */
 export function settleAnswers(questions: Question[], answers: ModelAnswer[]): SettledQuestion[] {
   return questions.map(({ id, position, options }) => {
@@ -196,6 +199,9 @@ export function settleAnswers(questions: Question[], answers: ModelAnswer[]): Se
     const note = given?.note?.trim() || null;
 
     if (given?.status === "asset_needed") return { id, status: "asset_needed", answer, note };
+    if (given?.status === "needs_input") {
+      return { id, status: "needs_input", answer, note: note ?? "Your profile and answer bank do not answer this." };
+    }
     if (given?.status !== "answered" || !answer) {
       return { id, status: "needs_input", answer: null, note: note ?? "Your profile and answer bank do not answer this." };
     }

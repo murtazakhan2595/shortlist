@@ -18,6 +18,7 @@ const questions: FormQuestion[] = [
   { ...base, id: "q3", position: 3, question: "Spoken English out of 10?", status: "needs_input", note: "No number is stored." },
   { ...base, id: "q4", position: 4, question: "Attach your CV", status: "asset_needed", answer: "full_stack CV", note: "Upload the CV." },
   { ...base, id: "q5", position: 5, question: "Notice period?", status: "pending" },
+  { ...base, id: "q6", position: 6, question: "Home setup?", status: "needs_input", answer: "Own laptop, [50 Mbps] internet.", note: "Add your specs." },
 ];
 
 beforeEach(() => vi.clearAllMocks());
@@ -36,6 +37,13 @@ test("shows each question in order with what to do about it", () => {
   expect(within(items[3]).getByText("Upload this yourself.")).toBeInTheDocument();
   expect(within(items[3]).getByText("full_stack CV", { selector: "p" })).toBeInTheDocument();
   expect(within(items[4]).getByText("Answering…")).toBeInTheDocument();
+});
+
+test("a draft is put in the answer box for the owner to finish", () => {
+  render(<FormQuestions questions={[questions[5]]} />);
+
+  expect(screen.getByLabelText("Your answer")).toHaveValue("Own laptop, [50 Mbps] internet.");
+  expect(screen.getByText(/replace anything in \[brackets\]/)).toBeInTheDocument();
 });
 
 test("the owner's answer is saved, to the answer bank too unless they untick it", async () => {

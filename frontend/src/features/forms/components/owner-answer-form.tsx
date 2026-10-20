@@ -34,7 +34,7 @@ export function OwnerAnswerForm({ formAnswerId, initialAnswer = "" }: { formAnsw
       <textarea
         id={fieldId}
         required
-        rows={2}
+        rows={answerRows(initialAnswer)}
         value={answer}
         onChange={(event) => setAnswer(event.target.value)}
         placeholder="Your answer"
@@ -61,4 +61,9 @@ export function OwnerAnswerForm({ formAnswerId, initialAnswer = "" }: { formAnsw
       </Button>
     </form>
   );
+}
+
+/** Room for a draft without scrolling: about one row per 60 characters, between 2 and 8. */
+function answerRows(text: string): number {
+  return Math.min(8, Math.max(2, Math.ceil(text.length / 60)));
 }
