@@ -1,12 +1,12 @@
 import "server-only";
 import { z } from "zod";
-import { imageContentType } from "@/lib/uploads";
 import { callModel } from "@/server/models/call-model";
 import type { ModelSettings } from "@/server/models/chat-models";
-import type { ModelContentPart, ModelMessage } from "@/server/models/messages";
+import type { ModelMessage } from "@/server/models/messages";
 import { enqueueStep } from "@/server/queue/queue";
 import { STEP_NAMES } from "@/server/queue/step-names";
 import { finishRun } from "@/server/runs";
+import { downloadScreenshot, type Screenshot, screenshotPart } from "@/server/screenshots";
 import { getAdminClient } from "@/server/supabase/admin";
 import type { Json, Tables } from "@/server/supabase/database.types";
 
@@ -21,8 +21,6 @@ export const ExtractCapturePayloadSchema = z.object({ captureId: z.uuid() });
 
 type Capture = Tables<"captures">;
 type CaptureStatus = "processing" | "awaiting_confirmation" | "needs_form" | "no_contact";
-
-const SCREENSHOTS_BUCKET = "screenshots";
 
 export async function extractCapture(payload: Json): Promise<void> {
   const { captureId } = ExtractCapturePayloadSchema.parse(payload);
@@ -65,17 +63,7 @@ async function toPostInput(capture: Capture): Promise<PostInput> {
     if (!capture.raw_text) throw new Error(`Capture ${capture.id} has no text`);
     return { kind: "text", text: capture.raw_text };
   }
-  return { kind: "screenshots", images: await Promise.all(capture.image_paths.map(downloadImage)) };
-}
-
-/** Screenshots go to the model inside the request, so the provider is never given a link to private storage. */
-async function downloadImage(storagePath: string): Promise<PostImage> {
-  const mimeType = imageContentType(storagePath);
-  if (!mimeType) throw new Error(`Unexpected screenshot type: ${storagePath}`);
-
-  const { data, error } = await getAdminClient().storage.from(SCREENSHOTS_BUCKET).download(storagePath);
-  if (error) throw new Error(`Could not download screenshot ${storagePath}: ${error.message}`);
-  return { mimeType, base64: Buffer.from(await data.arrayBuffer()).toString("base64") };
+  return { kind: "screenshots", images: await Promise.all(capture.image_paths.map(downloadScreenshot)) };
 }
 
 async function saveDetails(captureId: string, details: ExtractedPost, status: CaptureStatus): Promise<void> {
@@ -101,9 +89,7 @@ async function saveDetails(captureId: string, details: ExtractedPost, status: Ca
 // Reading the post: the prompt, the answer's shape, and the checks on it
 // ---------------------------------------------------------------------------
 
-export type PostImage = { mimeType: string; base64: string };
-
-export type PostInput = { kind: "text"; text: string } | { kind: "screenshots"; images: PostImage[] };
+export type PostInput = { kind: "text"; text: string } | { kind: "screenshots"; images: Screenshot[] };
 
 // The rules for each field live in its description, which the model receives as part of the schema.
 export const ExtractedPostSchema = z.object({
@@ -153,10 +139,7 @@ function postMessage(post: PostInput): ModelMessage {
     return { role: "user", content: `The post, between the tags:\n<post>\n${post.text}\n</post>` };
   }
 
-  const images: ModelContentPart[] = post.images.map((image) => ({
-    type: "image",
-    url: `data:${image.mimeType};base64,${image.base64}`,
-  }));
+  const images = post.images.map(screenshotPart);
   return { role: "user", content: [{ type: "text", text: "Screenshots of one post, in order:" }, ...images] };
 }
 

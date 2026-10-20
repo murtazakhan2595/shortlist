@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { jobKey } from "@/server/job-key";
+import { loadOwnerMaterial } from "@/server/owner-material";
 import { getCheckpointer } from "@/server/queue/checkpointer";
 import { enqueueStep } from "@/server/queue/queue";
 import { STEP_NAMES } from "@/server/queue/step-names";
@@ -108,7 +109,7 @@ async function runNextStage(applicationId: string): Promise<boolean> {
   let outcome = status;
   if (status === "preparing") {
     const writer: WriterContext = {
-      ...(await loadOwnerMaterial()),
+      ...(await loadWriterMaterial()),
       link: { runId: capture.run_id ?? undefined, applicationId },
       post: {
         text: capture.raw_text,
@@ -192,38 +193,10 @@ async function releaseLease(applicationId: string): Promise<void> {
   if (error) throw new Error(`Could not release application ${applicationId}: ${error.message}`);
 }
 
-// ---------------------------------------------------------------------------
-// The owner's material, the same for every application. Loaded at every stage rather than kept in the
-// saved state, so that state stays small and each stage uses the latest version of the profile.
-// ---------------------------------------------------------------------------
-
-export async function loadOwnerMaterial(): Promise<Omit<WriterContext, "link" | "post" | "recipientEmail">> {
-  const db = getAdminClient();
-  const [documents, cvFiles] = await Promise.all([
-    db.from("current_documents").select("id, kind, name, content").order("name"),
-    db.from("cv_files").select("variant").eq("is_current", true).order("variant"),
-  ]);
-  if (documents.error) throw new Error(`Could not load the owner's documents: ${documents.error.message}`);
-  if (cvFiles.error) throw new Error(`Could not load the CV list: ${cvFiles.error.message}`);
-
-  const ofKind = (kind: string) =>
-    documents.data.flatMap(({ id, kind: documentKind, name, content }) =>
-      documentKind === kind && id && name && content ? [{ id, name, content }] : [],
-    );
-  const answerBank = ofKind("answer_bank").find((document) => document.name === "main")?.content;
-  const writingGuide = ofKind("email_pattern").find((document) => document.name === "writing-guide")?.content;
-  const patterns = ofKind("email_pattern").filter((document) => CAPTURE_EMAIL_PATTERNS.includes(document.name));
-  const profile = ofKind("profile").map((document) => `## ${document.name}\n\n${document.content}`);
-
-  if (profile.length === 0 || !answerBank || !writingGuide || patterns.length === 0 || cvFiles.data.length === 0) {
-    throw new Error("The owner's material is incomplete: run pnpm profile:load");
-  }
-  return {
-    profile: profile.join("\n\n"),
-    answerBank,
-    writingGuide,
-    voiceExamples: ofKind("voice_example").map((document) => document.content),
-    patterns,
-    cvVariants: cvFiles.data.map((file) => file.variant),
-  };
+/** The owner's material, with the email patterns a captured post can use. */
+export async function loadWriterMaterial(): Promise<Omit<WriterContext, "link" | "post" | "recipientEmail">> {
+  const { emailPatterns, ...material } = await loadOwnerMaterial();
+  const patterns = emailPatterns.filter((pattern) => CAPTURE_EMAIL_PATTERNS.includes(pattern.name));
+  if (patterns.length === 0) throw new Error("No email pattern for captured posts is stored: run pnpm profile:load");
+  return { ...material, patterns };
 }

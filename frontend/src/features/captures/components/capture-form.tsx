@@ -5,8 +5,9 @@ import { type FormEvent, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ToggleGroup } from "@/components/ui/toggle-group";
 import { fail, type Result } from "@/lib/result";
-import { type ImageUploadRequest, MAX_UPLOAD_BYTES } from "@/lib/uploads";
+import { uploadImages } from "@/lib/uploads";
 import { createCaptureUploadUrl, submitCapture } from "../actions";
 import { MAX_SCREENSHOTS_PER_CAPTURE, type SubmitCaptureInput } from "../schemas";
 import { useSharedPost } from "./use-shared-post";
@@ -15,6 +16,10 @@ const ACCEPTED_IMAGES = "image/png,image/jpeg,image/webp";
 const ERROR_ID = "capture-error";
 
 type Mode = "text" | "screenshot";
+const MODES: { value: Mode; label: string }[] = [
+  { value: "text", label: "Pasted text" },
+  { value: "screenshot", label: "Screenshots" },
+];
 
 export function CaptureForm() {
   const router = useRouter();
@@ -59,13 +64,7 @@ export function CaptureForm() {
         </p>
       )}
 
-      <fieldset className="flex flex-col gap-2">
-        <legend className="mb-2 text-sm font-medium">What do you have?</legend>
-        <div className="grid grid-cols-2 rounded-md border border-rule bg-field p-1">
-          <ModeOption mode="text" current={mode} onSelect={setMode} label="Pasted text" />
-          <ModeOption mode="screenshot" current={mode} onSelect={setMode} label="Screenshots" />
-        </div>
-      </fieldset>
+      <ToggleGroup legend="What do you have?" name="mode" value={mode} options={MODES} onChange={setMode} />
 
       {mode === "text" ? (
         <div className="flex flex-col gap-2">
@@ -129,53 +128,16 @@ export function CaptureForm() {
   );
 }
 
-function ModeOption({
-  mode,
-  current,
-  onSelect,
-  label,
-}: {
-  mode: Mode;
-  current: Mode;
-  onSelect: (mode: Mode) => void;
-  label: string;
-}) {
-  const selected = mode === current;
-  return (
-    <label
-      className={`flex h-10 cursor-pointer items-center justify-center rounded text-sm font-medium has-focus-visible:outline-2 has-focus-visible:outline-ink ${
-        selected ? "bg-ink text-paper" : "text-ink-muted hover:text-ink"
-      }`}
-    >
-      <input type="radio" name="mode" value={mode} checked={selected} onChange={() => onSelect(mode)} className="sr-only" />
-      {label}
-    </label>
-  );
-}
-
-/** Uploads each screenshot straight to storage through a one-time link, then submits their paths. */
+/** Uploads the screenshots, then submits their paths as one capture. */
 async function submitScreenshots(files: File[], postUrl: string | undefined): Promise<Result<{ captureId: string }>> {
   if (files.length === 0) return fail("invalid_input", "Choose at least one screenshot");
   if (files.length > MAX_SCREENSHOTS_PER_CAPTURE) {
     return fail("invalid_input", `Choose up to ${MAX_SCREENSHOTS_PER_CAPTURE} screenshots`);
   }
-  if (files.some((file) => file.size > MAX_UPLOAD_BYTES)) return fail("invalid_input", "Each screenshot must be under 10 MB");
 
-  const imagePaths: string[] = [];
-  for (const file of files) {
-    const upload = await createCaptureUploadUrl({
-      fileName: file.name,
-      // Checked on the server: any other type gets a clear "not allowed" message back.
-      contentType: file.type as ImageUploadRequest["contentType"],
-      sizeBytes: file.size,
-    });
-    if (!upload.ok) return upload;
+  const uploaded = await uploadImages(files, createCaptureUploadUrl);
+  if (!uploaded.ok) return uploaded;
 
-    const response = await fetch(upload.data.signedUrl, { method: "PUT", body: file, headers: { "content-type": file.type } });
-    if (!response.ok) return fail("internal", `Could not upload ${file.name}`);
-    imagePaths.push(upload.data.path);
-  }
-
-  const input: SubmitCaptureInput = { inputType: "screenshot", imagePaths, postUrl };
+  const input: SubmitCaptureInput = { inputType: "screenshot", imagePaths: uploaded.data, postUrl };
   return submitCapture(input);
 }

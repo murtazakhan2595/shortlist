@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { fail, ok, type Result } from "./result";
 
 // Files go from the browser straight to Supabase Storage, through a one-time signed upload URL
 // that a Server Action creates. These checks run before the URL is created.
@@ -53,4 +54,31 @@ export function imageExtension(contentType: ImageUploadRequest["contentType"]): 
   const extension = IMAGE_EXTENSIONS.find((candidate) => IMAGE_CONTENT_TYPES[candidate] === contentType);
   if (!extension) throw new Error(`No extension for ${contentType}`);
   return extension;
+}
+
+/**
+ * In the browser: uploads each image straight to storage through a one-time link from createUploadUrl,
+ * and returns their storage paths in the same order.
+ */
+export async function uploadImages(
+  files: File[],
+  createUploadUrl: (request: ImageUploadRequest) => Promise<Result<SignedUpload>>,
+): Promise<Result<string[]>> {
+  if (files.some((file) => file.size > MAX_UPLOAD_BYTES)) return fail("invalid_input", "Each screenshot must be under 10 MB");
+
+  const paths: string[] = [];
+  for (const file of files) {
+    const upload = await createUploadUrl({
+      fileName: file.name,
+      // Checked on the server: any other type gets a clear "not allowed" message back.
+      contentType: file.type as ImageUploadRequest["contentType"],
+      sizeBytes: file.size,
+    });
+    if (!upload.ok) return upload;
+
+    const response = await fetch(upload.data.signedUrl, { method: "PUT", body: file, headers: { "content-type": file.type } });
+    if (!response.ok) return fail("internal", `Could not upload ${file.name}`);
+    paths.push(upload.data.path);
+  }
+  return ok(paths);
 }

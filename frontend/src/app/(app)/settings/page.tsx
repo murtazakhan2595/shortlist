@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { z } from "zod";
+import { SignOutButton } from "@/features/auth/components/sign-out-button";
 import { GmailConnection } from "@/features/settings/components/gmail-connection";
 import { MonthlySpend } from "@/features/settings/components/monthly-spend";
 import { getGmailConnected, getMonthlySpend } from "@/features/settings/data";
@@ -21,6 +22,9 @@ export default function SettingsPage({ searchParams }: PageProps<"/settings">) {
       <Suspense fallback={<p className="text-ink-muted">Loading…</p>}>
         <Spend searchParams={searchParams} />
       </Suspense>
+      <div className="border-t border-rule pt-6">
+        <SignOutButton />
+      </div>
     </main>
   );
 }

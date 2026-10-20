@@ -3,7 +3,9 @@ import type { ComponentProps } from "react";
 const VARIANTS = {
   // The one main action on a screen.
   primary: "h-12 w-full rounded-md bg-ink px-5 font-semibold text-paper hover:opacity-90",
-  // Secondary actions that should not compete with the content, such as signing out.
+  // A second action that still matters, below the screen's main content.
+  secondary: "h-12 w-full rounded-md border border-ink px-5 font-semibold text-ink hover:bg-field",
+  // Minor actions that should not compete with the content, such as signing out.
   quiet: "h-10 rounded-md px-3 font-medium text-ink-muted hover:text-ink hover:underline",
 } as const;
 

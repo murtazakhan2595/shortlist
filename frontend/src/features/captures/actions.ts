@@ -1,17 +1,12 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
 import { describeError } from "@/lib/errors";
 import { fail, ok, type Result } from "@/lib/result";
-import {
-  imageExtension,
-  type ImageUploadRequest,
-  ImageUploadRequestSchema,
-  type SignedUpload,
-} from "@/lib/uploads";
+import { type ImageUploadRequest, ImageUploadRequestSchema, type SignedUpload } from "@/lib/uploads";
 import { requireOwner } from "@/server/auth/require-owner";
 import { enqueueStep } from "@/server/queue/queue";
 import { STEP_NAMES } from "@/server/queue/step-names";
+import { createScreenshotUploadUrl } from "@/server/screenshots";
 import type { ServerClient } from "@/server/supabase/server";
 import {
   type CaptureSubmitted,
@@ -24,20 +19,17 @@ import {
 // Server Actions for capturing a post (contracts in ./schemas.ts). Each checks its input, checks the
 // owner, and does one thing. Database writes use the owner's client, so the access rules apply too.
 
-const SCREENSHOTS_BUCKET = "screenshots";
-
 /** A one-time link the browser uploads a screenshot to, straight into private storage. */
 export async function createCaptureUploadUrl(request: ImageUploadRequest): Promise<Result<SignedUpload>> {
   const input = ImageUploadRequestSchema.safeParse(request);
   if (!input.success) return fail("invalid_input", input.error.issues[0].message);
 
   const { db } = await requireOwner();
-  // The server picks the name, so a request can never point at another file.
-  const path = `captures/${randomUUID()}.${imageExtension(input.data.contentType)}`;
-  const { data, error } = await db.storage.from(SCREENSHOTS_BUCKET).createSignedUploadUrl(path);
-  if (error) return fail("internal", `Could not prepare the upload: ${error.message}`);
-
-  return ok({ path: data.path, signedUrl: data.signedUrl });
+  try {
+    return ok(await createScreenshotUploadUrl(db, "captures", input.data.contentType));
+  } catch (error) {
+    return fail("internal", describeError(error));
+  }
 }
 
 /** Saves a pasted post or its screenshots as a new capture, and queues it to be read. */
