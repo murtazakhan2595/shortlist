@@ -7,8 +7,21 @@ import { Label } from "@/components/ui/label";
 import { saveDocument } from "../actions";
 import type { DocumentKind } from "../schemas";
 
-/** One document as plain text, to read or edit (P6, Q8). Saving adds a new version; the old one is kept. */
-export function DocumentEditor({ kind, name, content }: { kind: DocumentKind; name: string; content: string }) {
+/**
+ * One document as plain text, to read or edit (P6, Q8). Saving adds a new version; the old one is kept.
+ * It sends the version it shows, so a version saved meanwhile (such as a form answer) is never overwritten.
+ */
+export function DocumentEditor({
+  kind,
+  name,
+  content,
+  version,
+}: {
+  kind: DocumentKind;
+  name: string;
+  content: string;
+  version: number;
+}) {
   const router = useRouter();
   const [text, setText] = useState(content);
   const [message, setMessage] = useState<{ ok: boolean; text: string }>();
@@ -18,7 +31,7 @@ export function DocumentEditor({ kind, name, content }: { kind: DocumentKind; na
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     startTransition(async () => {
-      const result = await saveDocument({ kind, name, content: text });
+      const result = await saveDocument({ kind, name, content: text, baseVersion: version });
       if (!result.ok) return setMessage({ ok: false, text: result.error.message });
       setMessage({ ok: true, text: `Saved as version ${result.data.version}.` });
       router.refresh();

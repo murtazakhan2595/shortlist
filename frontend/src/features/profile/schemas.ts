@@ -16,11 +16,13 @@ export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
 export const CV_VARIANTS = ["full_stack", "ai_engineer", "ai_full_stack"] as const;
 export type CvVariant = (typeof CV_VARIANTS)[number];
 
-// Saving never overwrites: it adds a new version of the document.
+// Saving never overwrites: it adds a new version of the document. baseVersion is the version the edit
+// started from; if a newer one was saved meanwhile, the save is refused with "conflict".
 export const SaveDocumentInputSchema = z.object({
   kind: z.enum(DOCUMENT_KINDS),
   name: z.string().trim().min(1).max(100),
   content: z.string().trim().min(1).max(MAX_DOCUMENT_LENGTH),
+  baseVersion: z.int().min(1),
 });
 export type SaveDocumentInput = z.infer<typeof SaveDocumentInputSchema>;
 

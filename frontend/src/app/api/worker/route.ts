@@ -5,6 +5,10 @@ import { wakeWorker } from "@/server/queue/queue";
 import { runNextStep } from "@/server/queue/run-next-step";
 import { STEP_HANDLERS } from "./step-handlers";
 
+// The step budget (AGENTS.md, Portability), set here so it does not depend on the host's default.
+// A standard Next.js option, which the host reads from the build.
+export const maxDuration = 60;
+
 // POST /api/worker: runs one queued step (AGENTS.md, Contracts).
 // Called by Supabase when a step is added, and by Supabase Cron every minute.
 export async function POST(request: Request): Promise<Response> {

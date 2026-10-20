@@ -10,17 +10,22 @@ import { type FormAnswerStatus, FormPayloadSchema } from "../schemas";
 
 // The form's two answering steps (PLAN.md items 3.2 and 3.3; F4, F5, F6, X4), in the order they run:
 //
-// 1. answer_form: one model call answers every question not answered yet, from the profile and the
-//    answer bank. Each is answered, marked "needs your input", or marked as something the form needs that
-//    cannot be written, such as a CV or a video. Code then checks each answer, and answers go to be checked.
-// 2. check_form_answers: a second model call checks every new answer against the profile and the answer
-//    bank, as the writer's check does. An answer it cannot support is removed and its question goes to the
-//    owner (principle 2). Once nothing is left to answer or check, the form is ready.
+// 1. answer_form: one model call answers up to QUESTIONS_PER_STEP questions not answered yet, from the
+//    profile and the answer bank. Each is answered, marked "needs your input", or marked as something the
+//    form needs that cannot be written, such as a CV or a video. Code then checks each answer, and answers
+//    go to be checked. While questions are left, the step queues itself again.
+// 2. check_form_answers: a second model call checks up to QUESTIONS_PER_STEP new answers against the
+//    profile and the answer bank, as the writer's check does. An answer it cannot support is removed and its
+//    question goes to the owner (principle 2). Once nothing is left to answer or check, the form is ready.
 //
 // There is no rewrite loop as in the writer: the owner knows the answer to a question the check rejects.
 //
 // Both are safe to run twice: each works only on questions still in the status it expects, and changes a
 // question only if it is still in that status.
+
+// A long form answered in one call can run past the time limit, so each call takes this many questions,
+// as read_form takes one page per call.
+export const QUESTIONS_PER_STEP = 10;
 
 type Question = Pick<Tables<"form_answers">, "id" | "position" | "question" | "options" | "answer">;
 
@@ -34,13 +39,15 @@ type Job = { role: string | null; company: string | null; text: string | null };
 export async function answerForm(payload: Json): Promise<void> {
   const { applicationId } = FormPayloadSchema.parse(payload);
   const questions = await loadQuestions(applicationId, "pending");
+  const batch = questions.slice(0, QUESTIONS_PER_STEP);
 
-  if (questions.length > 0) {
+  if (batch.length > 0) {
     const [job, material] = await Promise.all([loadJob(applicationId), loadOwnerMaterial()]);
-    const answers = await answerQuestions(questions, job, material, applicationId);
-    await Promise.all(settleAnswers(questions, answers).map((settled) => saveQuestion(settled, "pending")));
+    const answers = await answerQuestions(batch, job, material, applicationId);
+    await Promise.all(settleAnswers(batch, answers).map((settled) => saveQuestion(settled, "pending")));
   }
-  await enqueueStep(STEP_NAMES.checkFormAnswers, { applicationId });
+  const questionsLeft = questions.length > batch.length;
+  await enqueueStep(questionsLeft ? STEP_NAMES.answerForm : STEP_NAMES.checkFormAnswers, { applicationId });
 }
 
 // ---------------------------------------------------------------------------
@@ -50,13 +57,15 @@ export async function answerForm(payload: Json): Promise<void> {
 export async function checkFormAnswers(payload: Json): Promise<void> {
   const { applicationId } = FormPayloadSchema.parse(payload);
   const questions = await loadQuestions(applicationId, "checking");
+  const batch = questions.slice(0, QUESTIONS_PER_STEP);
 
-  if (questions.length > 0) {
+  if (batch.length > 0) {
     const [job, material] = await Promise.all([loadJob(applicationId), loadOwnerMaterial()]);
-    const problems = await checkAnswers(questions, job, material, applicationId);
-    await Promise.all(questions.map((question) => saveQuestion(afterCheck(question, problems), "checking")));
+    const problems = await checkAnswers(batch, job, material, applicationId);
+    await Promise.all(batch.map((question) => saveQuestion(afterCheck(question, problems), "checking")));
   }
-  await markReadyWhenDone(applicationId);
+  if (questions.length > batch.length) await enqueueStep(STEP_NAMES.checkFormAnswers, { applicationId });
+  else await markReadyWhenDone(applicationId);
 }
 
 /** An answer the check found unsupported is removed, and the owner is told why. */

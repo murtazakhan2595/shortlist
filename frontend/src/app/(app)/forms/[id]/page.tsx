@@ -29,17 +29,24 @@ async function Form({ params }: { params: PageProps<"/forms/[id]">["params"] }) 
   return (
     <>
       <FormDetails form={form} />
-      <section aria-labelledby="more-heading" className="flex flex-col gap-4 border-t border-rule pt-6">
-        <div className="flex flex-col gap-1">
-          <h2 id="more-heading" className="text-lg font-semibold">
-            More pages
-          </h2>
-          <p className="text-sm text-ink-muted">
-            If the form shows more questions after you fill in these, add screenshots of the next pages.
-          </p>
-        </div>
-        <FormPagesForm applicationId={form.id} />
-      </section>
+      {/* Pages added while earlier ones are worked on would start a second chain of steps (actions.ts). */}
+      {(form.status !== "preparing" || form.failure) && <MorePages applicationId={form.id} />}
     </>
+  );
+}
+
+function MorePages({ applicationId }: { applicationId: string }) {
+  return (
+    <section aria-labelledby="more-heading" className="flex flex-col gap-4 border-t border-rule pt-6">
+      <div className="flex flex-col gap-1">
+        <h2 id="more-heading" className="text-lg font-semibold">
+          More pages
+        </h2>
+        <p className="text-sm text-ink-muted">
+          If the form shows more questions after you fill in these, add screenshots of the next pages.
+        </p>
+      </div>
+      <FormPagesForm applicationId={applicationId} />
+    </section>
   );
 }
