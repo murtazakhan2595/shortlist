@@ -11,4 +11,10 @@ export const STEP_NAMES = {
   advanceWriter: "advance_writer",
   /** applications: save a ready application as a Gmail draft with its CV (item 2.3). */
   createGmailDraft: "create_gmail_draft",
+  /** forms: list the questions on pages the owner added (item 3.1). */
+  readForm: "read_form",
+  /** forms: answer the questions not answered yet (items 3.2, 3.3). */
+  answerForm: "answer_form",
+  /** forms: check the new answers against the profile (item 3.2). */
+  checkFormAnswers: "check_form_answers",
 } as const;

@@ -1,6 +1,6 @@
 # Shortlist: Build Plan
 
-Version 2.6, 19 October 2026. Agreed plan. Sprints 0 and 1 are done; sections 2, 3, 5, 8 and 9 now describe what sprint 1 actually built.
+Version 2.7, 20 October 2026. Agreed plan. Sprints 0 and 1 are done; sections 2, 3, 5, 8 and 9 describe what sprint 1 actually built. Sprint 3 records what it built under its table.
 
 This document says **how** Shortlist gets built. **What** is being built, and how success is judged, is in [REQUIREMENTS.md](REQUIREMENTS.md). Requirement IDs (C1, D3, F4, E2 and so on) refer to that file.
 
@@ -153,8 +153,8 @@ The tables, as built in sprint 1 (`supabase/migrations/`). Every table allows on
 | `captures` | Posts the owner sent in: raw text or images, extracted fields, whether the email was confirmed, a fingerprint for spotting duplicates |
 | `listings` | Automated listings in the common format, with source, link, eligibility, tags, a fingerprint, and the owner's apply or skip mark |
 | `scores` | Score and reasons per listing, with the model call that produced them |
-| `applications` | One row per prepared application: route (email, note, form), CV, title and email pattern used, recipient, text, Gmail draft reference, status. Its fingerprint is unique, so a job gets one application (X6) |
-| `form_answers` | Each question of a form, its answer, and whether it still needs the owner's input |
+| `applications` | One row per prepared application: route (email, note, form), CV, title and email pattern used, recipient, text, Gmail draft reference, status. Its fingerprint is unique, so a job gets one application (X6). A form also keeps its pages and the job read from them |
+| `form_answers` | Each question of a form, its choices, its answer, and where it stands: pending, checking, answered, needs the owner's input, or something to upload |
 | `runs` | Each daily run, capture and evaluation run: timings and counts |
 | `model_calls` | Every model call: step, provider, model, effort, tokens, cost, time, error. Run and monthly costs are summed from here |
 | `failed_steps` | Queued steps that failed every attempt, with the last error |
@@ -266,7 +266,9 @@ Two lessons from the owner's playbook are built into this plan: guard side effec
 | 3.3 | B | Missing items | Videos, uploads and portfolios are listed, with any stored asset that covers them (F6) |
 | 3.4 | C | Pages: form | Questions are shown first, then answers with copy buttons; more screenshots can be added; the answer bank can be edited (F2, P6) |
 
-**Exit check:** check E5 passes on 20 saved forms.
+**Exit check:** check E5 passes on 20 saved forms. Replaced by the owner's decision (20 October 2026): the owner tests forms live instead.
+
+**As built (20 October 2026).** A form needs no captured post: on one page the owner adds screenshots of the form and of the job post or description, in any order, and the job is read from them. Three queued steps run in turn: `read_form` lists the questions on the pages just added (pages added later add only new questions), `answer_form` answers them all in one call, and `check_form_answers` sends any answer it cannot support to the owner. There is no rewrite loop as in the writer: the owner knows the answer to a rejected question. An answer the owner types is saved to the answer bank's "Answers given on forms" section. The Profile page shows every document and CV and edits documents as plain text (P6); from here on Supabase holds the latest versions, and `pnpm profile:load` is no longer used.
 
 ### Sprint 4: Discovery
 

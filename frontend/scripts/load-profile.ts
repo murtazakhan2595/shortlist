@@ -4,44 +4,28 @@
 //
 // Safe to run again: an unchanged file is skipped; a changed one is saved as a new version,
 // and the old version is kept. Nothing from private/ ever enters the repository.
+//
+// Since sprint 3 the owner edits these documents in the app (the Profile page), so Supabase holds the
+// latest versions. Running this again saves any file that differs as a newer version over those edits.
 
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { type SavedDocument, saveDocumentIfChanged } from "@/server/documents";
 import { type AdminClient, getAdminClient } from "@/server/supabase/admin";
-import { type CvSource, findCvSources, type ProfileDocument, readProfileDocuments } from "./profile-sources";
+import { type CvSource, findCvSources, readProfileDocuments } from "./profile-sources";
 
 const PRIVATE_DIRECTORY = fileURLToPath(new URL("../../private", import.meta.url));
 const CV_BUCKET = "cvs";
 
-export type SaveOutcome = { status: "added" | "updated" | "unchanged"; version: number };
-
-/** Saves the document as a new version unless its latest version already has the same content. */
-export async function saveDocumentIfChanged(database: AdminClient, document: ProfileDocument): Promise<SaveOutcome> {
-  const { data: current, error: readError } = await database
-    .from("current_documents")
-    .select("version, content")
-    .eq("kind", document.kind)
-    .eq("name", document.name)
-    .maybeSingle();
-  if (readError) throw new Error(`Could not read ${document.kind}/${document.name}: ${readError.message}`);
-
-  const currentVersion = current?.version ?? 0;
-  if (current?.content === document.content) return { status: "unchanged", version: currentVersion };
-
-  const version = currentVersion + 1;
-  const { error } = await database.from("documents").insert({ ...document, version });
-  if (error) throw new Error(`Could not save ${document.kind}/${document.name}: ${error.message}`);
-
-  return { status: current ? "updated" : "added", version };
-}
+export type SaveOutcome = SavedDocument["status"];
 
 function sha256(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
 /** Uploads the CV and makes it current for its variant, unless the current CV is the same file. */
-export async function saveCvIfChanged(database: AdminClient, cv: CvSource): Promise<SaveOutcome["status"]> {
+export async function saveCvIfChanged(database: AdminClient, cv: CvSource): Promise<SaveOutcome> {
   const bytes = readFileSync(cv.filePath);
 
   const { data: current, error: readError } = await database

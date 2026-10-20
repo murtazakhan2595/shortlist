@@ -7,9 +7,14 @@ export default function HomePage() {
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-3 px-5 py-8">
       <h1 className="text-2xl font-bold">Your applications</h1>
-      <Link href="/capture" className={`${buttonVariants()} my-2 sm:w-auto sm:self-start`}>
-        Capture a post
-      </Link>
+      <div className="my-2 flex flex-col gap-3 sm:flex-row">
+        <Link href="/capture" className={`${buttonVariants()} sm:w-auto`}>
+          Capture a post
+        </Link>
+        <Link href="/forms" className={`${buttonVariants("secondary")} sm:w-auto`}>
+          Answer a form
+        </Link>
+      </div>
       {/* The owner check reads the session, so it streams in behind a boundary (Cache Components). */}
       <Suspense fallback={<p className="text-ink-muted">Loading…</p>}>
         <Applications />

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, expect, test } from "vitest";
+import { saveDocumentIfChanged } from "@/server/documents";
 import { getAdminClient } from "@/server/supabase/admin";
-import { saveDocumentIfChanged } from "../../scripts/load-profile";
 
 // Document versioning against the real database, on a document name only this test uses.
 // (CV swapping is covered by the database tests, so the owner's real CVs are never touched.)
@@ -15,9 +15,9 @@ afterAll(async () => {
 test("adds a document, skips it when unchanged, and adds a new version when it changes", async () => {
   const document = { kind: "voice_example" as const, name, content: "Hi Ken," };
 
-  expect(await saveDocumentIfChanged(database, document)).toEqual({ status: "added", version: 1 });
-  expect(await saveDocumentIfChanged(database, document)).toEqual({ status: "unchanged", version: 1 });
-  expect(await saveDocumentIfChanged(database, { ...document, content: "Hi Ken, thanks." })).toEqual({
+  expect(await saveDocumentIfChanged(database, document)).toMatchObject({ status: "added", version: 1 });
+  expect(await saveDocumentIfChanged(database, document)).toMatchObject({ status: "unchanged", version: 1 });
+  expect(await saveDocumentIfChanged(database, { ...document, content: "Hi Ken, thanks." })).toMatchObject({
     status: "updated",
     version: 2,
   });

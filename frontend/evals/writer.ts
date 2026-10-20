@@ -3,7 +3,7 @@ import path from "node:path";
 import { MemorySaver } from "@langchain/langgraph";
 import { z } from "zod";
 import { buildWriterGraph, START_STATE, type WriterStateValues, writerOutcome } from "@/features/applications/steps/writer";
-import { loadOwnerMaterial } from "@/features/applications/steps/writer-steps";
+import { loadWriterMaterial } from "@/features/applications/steps/writer-steps";
 import { casesDirectory, readPrivateFile } from "./cases";
 import type { EvalCheck, Grade } from "./check";
 
@@ -51,7 +51,7 @@ export const E4_WRITER: EvalCheck<WriterCase, WriterStateValues> = {
   passBar: 1,
   caseSchema: WriterCaseSchema,
   async run(testCase, model, link) {
-    const material = await loadOwnerMaterial();
+    const material = await loadWriterMaterial();
     const writer = {
       ...material,
       link,

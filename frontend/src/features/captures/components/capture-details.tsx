@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AutoRefresh } from "@/components/ui/auto-refresh";
 import type { CaptureView } from "../data";
 import { ConfirmEmailForm } from "./confirm-email-form";
@@ -63,7 +64,14 @@ function NextStep({ capture }: { capture: CaptureView }) {
               {capture.formUrl}
             </a>
           </p>
-          <p className="text-ink-muted">Shortlist does not open it. If it is a form, you will be able to add its screenshots here for answers.</p>
+          <p className="text-ink-muted">
+            Shortlist does not open it. If it is a form, open it yourself, take screenshots of its pages and of this
+            post, and{" "}
+            <Link href="/forms" className="underline">
+              add them on the forms page
+            </Link>{" "}
+            for answers to copy.
+          </p>
         </>
       );
     case "no_contact":

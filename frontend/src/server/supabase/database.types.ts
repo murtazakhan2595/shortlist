@@ -24,8 +24,12 @@ export type Database = {
           email_pattern_id: string | null
           fingerprint: string
           form_image_paths: string[]
+          form_text: string | null
           gmail_draft_id: string | null
           id: string
+          job_company: string | null
+          job_role: string | null
+          job_text: string | null
           listing_id: string | null
           presented_title: string | null
           recipient_email: string | null
@@ -44,8 +48,12 @@ export type Database = {
           email_pattern_id?: string | null
           fingerprint: string
           form_image_paths?: string[]
+          form_text?: string | null
           gmail_draft_id?: string | null
           id?: string
+          job_company?: string | null
+          job_role?: string | null
+          job_text?: string | null
           listing_id?: string | null
           presented_title?: string | null
           recipient_email?: string | null
@@ -64,8 +72,12 @@ export type Database = {
           email_pattern_id?: string | null
           fingerprint?: string
           form_image_paths?: string[]
+          form_text?: string | null
           gmail_draft_id?: string | null
           id?: string
+          job_company?: string | null
+          job_role?: string | null
+          job_text?: string | null
           listing_id?: string | null
           presented_title?: string | null
           recipient_email?: string | null
@@ -266,8 +278,11 @@ export type Database = {
         Row: {
           answer: string | null
           application_id: string
+          batch_id: string
           created_at: string
           id: string
+          note: string | null
+          options: string[]
           position: number
           question: string
           status: string
@@ -275,8 +290,11 @@ export type Database = {
         Insert: {
           answer?: string | null
           application_id: string
+          batch_id: string
           created_at?: string
           id?: string
+          note?: string | null
+          options?: string[]
           position: number
           question: string
           status: string
@@ -284,8 +302,11 @@ export type Database = {
         Update: {
           answer?: string | null
           application_id?: string
+          batch_id?: string
           created_at?: string
           id?: string
+          note?: string | null
+          options?: string[]
           position?: number
           question?: string
           status?: string
