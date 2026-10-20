@@ -3,7 +3,6 @@ import { expect, test, vi } from "vitest";
 import type { CaptureView } from "../data";
 import { CaptureDetails } from "./capture-details";
 
-vi.mock("../actions", () => ({ confirmCaptureEmail: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 const capture: CaptureView = {
@@ -33,13 +32,6 @@ test("shows what was read while the application is written", () => {
   expect(screen.getByText("jobs@acme.example")).toBeInTheDocument();
   expect(screen.getByText("Full-Stack Engineer")).toBeInTheDocument();
   expect(screen.getByText("Not stated")).toBeInTheDocument();
-});
-
-test("asks the owner to confirm an email read from a screenshot (C4)", () => {
-  render(<CaptureDetails capture={{ ...capture, inputType: "screenshot", status: "awaiting_confirmation" }} />);
-
-  expect(screen.getByLabelText("Email address read from the screenshot")).toHaveValue("jobs@acme.example");
-  expect(screen.getByRole("button", { name: "Confirm email" })).toBeInTheDocument();
 });
 
 test("shows a form link without opening it", () => {

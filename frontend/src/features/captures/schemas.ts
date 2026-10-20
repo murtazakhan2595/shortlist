@@ -1,12 +1,11 @@
 import { z } from "zod";
 import { IMAGE_EXTENSIONS, storagePathSchema } from "@/lib/uploads";
 
-// Contracts for the captures feature (PLAN.md item 1.3; C1, C4, C8).
+// Contracts for the captures feature (PLAN.md item 1.3; C1, C8).
 //
 // Server Actions:
 //   createCaptureUploadUrl(ImageUploadRequest) -> Result<SignedUpload>   (from @/lib/uploads)
 //   submitCapture(SubmitCaptureInput)          -> Result<CaptureSubmitted>
-//   confirmCaptureEmail(ConfirmCaptureEmailInput) -> Result<CaptureSubmitted>
 
 export const MAX_SCREENSHOTS_PER_CAPTURE = 5;
 export const MAX_POST_TEXT_LENGTH = 20_000;
@@ -29,12 +28,5 @@ export const SubmitCaptureInputSchema = z.discriminatedUnion("inputType", [
   }),
 ]);
 export type SubmitCaptureInput = z.infer<typeof SubmitCaptureInputSchema>;
-
-// For screenshots, the owner confirms or corrects the email address before a draft is written (C4).
-export const ConfirmCaptureEmailInputSchema = z.object({
-  captureId: z.uuid(),
-  email: z.email(),
-});
-export type ConfirmCaptureEmailInput = z.infer<typeof ConfirmCaptureEmailInputSchema>;
 
 export type CaptureSubmitted = { captureId: string };

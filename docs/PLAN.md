@@ -250,10 +250,10 @@ Two lessons from the owner's playbook are built into this plan: guard side effec
 | 2.2 | B | Writer | A LangGraph loop chooses the CV, title and email pattern, writes the email in the owner's voice, checks every claim against the profile, and revises or blocks (P4, P7, X4). Its state is saved in Postgres, so each step runs as its own short call. Before the model's check, code confirms every number and technology in the draft appears in the profile and the draft is within the word limit |
 | 2.3 | C | Gmail drafts | After one-time consent, code creates a draft with the CV attached in the owner's Gmail (X1). The Google app is in production mode and the token survives past seven days. The code refuses to run if the token has any Gmail permission other than `gmail.compose` |
 | 2.4 | D | Capture route | A capture is saved and its first step queued; the steps run one after another without waiting for the schedule, each within the 25-second budget |
-| 2.5 | E | Pages: sign-in and capture | The owner signs in, shares a screenshot from Android or pastes text, confirms the email address, and sees the result (C1, C2, C4, U6). The installed app is a share target; a small service worker hands the shared post to the capture form |
+| 2.5 | E | Pages: sign-in and capture | The owner signs in, shares a screenshot from Android or pastes text, and sees the result (C1, C2, U6). Confirming a screenshot's email address was dropped on 20 October 2026 (C4). The installed app is a share target; a small service worker hands the shared post to the capture form |
 | 2.6 | all | Join the tracks | Duplicate captures are recognised (C5, X6) and the whole path meets the one-minute target (C6) |
 
-**Exit check:** a screenshot shared from the phone produces a correct Gmail draft within a minute of confirmation, and checks E1, E3 and E4 pass on 20 saved posts.
+**Exit check:** a screenshot shared from the phone produces a correct Gmail draft within a minute, and checks E1, E3 and E4 pass on 20 saved posts.
 
 ### Sprint 3: Form answers
 
@@ -330,7 +330,7 @@ Two lessons from the owner's playbook are built into this plan: guard side effec
 | Amplify's time limit turns out lower than expected | It is not stated on Amplify's documentation page. Confirm it before any move; the step design means only the budget number changes |
 | Gmail access stops after a week | Google expires tokens after seven days for apps left in testing mode. Item 2.3 sets production mode and confirms the token survives |
 | Google asks for app verification | `gmail.compose` is a restricted permission. A personal app used only by its owner is expected to work with an "unverified app" warning; item 2.3 confirms this before more is built on Gmail |
-| A screenshot is misread or incomplete | Questions and the extracted email are shown before use (F2, C4); pasted text is the more exact alternative |
+| A screenshot is misread or incomplete | Questions are shown before use (F2) and the email address is seen in the Gmail draft before sending; pasted text is the more exact alternative |
 | Drafts and answers read as generic | Voice examples (0.3), email patterns (0.9), and checks E3, E4 and E5 before real use |
 | Supabase free project is paused or outgrown | Free projects pause after a week without activity and allow 500 MB of database. The every-minute schedule keeps it active; bulky raw listings are stored as files, not rows |
 | Reused code carries upstream bugs | Pin the source commit, port its tests, and check each endpoint live before relying on it. A failed fetch is not an expired listing |

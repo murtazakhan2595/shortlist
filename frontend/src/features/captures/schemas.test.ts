@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { ConfirmCaptureEmailInputSchema, MAX_SCREENSHOTS_PER_CAPTURE, SubmitCaptureInputSchema } from "./schemas";
+import { MAX_SCREENSHOTS_PER_CAPTURE, SubmitCaptureInputSchema } from "./schemas";
 
 const imagePath = (n: number) => `captures/0f8fad5b-d9cb-469f-a165-70867728950${n}.png`;
 
@@ -32,14 +32,5 @@ describe("SubmitCaptureInputSchema", () => {
     const input = { inputType: "screenshot", imagePaths: ["cvs/0f8fad5b-d9cb-469f-a165-70867728950e.pdf"] };
 
     expect(SubmitCaptureInputSchema.safeParse(input).success).toBe(false);
-  });
-});
-
-describe("ConfirmCaptureEmailInputSchema", () => {
-  test("requires a valid email address", () => {
-    const captureId = "0f8fad5b-d9cb-469f-a165-70867728950e";
-
-    expect(ConfirmCaptureEmailInputSchema.safeParse({ captureId, email: "jobs@acme.com" }).success).toBe(true);
-    expect(ConfirmCaptureEmailInputSchema.safeParse({ captureId, email: "jobs at acme" }).success).toBe(false);
   });
 });

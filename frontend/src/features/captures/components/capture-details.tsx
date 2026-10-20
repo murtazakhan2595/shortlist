@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { AutoRefresh } from "@/components/ui/auto-refresh";
 import type { CaptureView } from "../data";
-import { ConfirmEmailForm } from "./confirm-email-form";
 
 /** One captured post: what was read from it, and what happens next. */
 export function CaptureDetails({ capture }: { capture: CaptureView }) {
@@ -33,8 +32,6 @@ function NextStep({ capture }: { capture: CaptureView }) {
           <p className="text-ink-muted">This usually takes a few seconds. The page updates on its own.</p>
         </>
       );
-    case "awaiting_confirmation":
-      return <ConfirmEmailForm captureId={capture.id} email={capture.contactEmail ?? ""} />;
     case "processing":
       return (
         <>

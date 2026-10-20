@@ -130,7 +130,6 @@ export type Database = {
           company: string | null
           contact_email: string | null
           created_at: string
-          email_confirmed: boolean
           fingerprint: string | null
           form_url: string | null
           id: string
@@ -147,7 +146,6 @@ export type Database = {
           company?: string | null
           contact_email?: string | null
           created_at?: string
-          email_confirmed?: boolean
           fingerprint?: string | null
           form_url?: string | null
           id?: string
@@ -164,7 +162,6 @@ export type Database = {
           company?: string | null
           contact_email?: string | null
           created_at?: string
-          email_confirmed?: boolean
           fingerprint?: string | null
           form_url?: string | null
           id?: string
