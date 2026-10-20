@@ -26,8 +26,6 @@ function modelAnswer(parsed: unknown) {
   return { raw, parsed };
 }
 
-const textPages = (text: string) => ({ inputType: "text" as const, text });
-
 describe("the form's queued steps", () => {
   const database = getAdminClient();
   const applicationIds: string[] = [];
@@ -60,8 +58,10 @@ describe("the form's queued steps", () => {
     return data;
   }
 
-  test("reads each batch of pages once, and later pages add only new questions", async () => {
+  test("reads one page per step, each page once, and later pages add only new questions", async () => {
     const applicationId = await createForm();
+    const firstPage = { inputType: "text" as const, pageId: randomUUID(), text: "Name\nDocker?" };
+    const secondPage = { inputType: "text" as const, pageId: randomUUID(), text: "Docker?\nNotice period?" };
     invokeModel.mockResolvedValue(
       modelAnswer({
         role: "Senior Full Stack Developer",
@@ -74,19 +74,20 @@ describe("the form's queued steps", () => {
       }),
     );
 
-    const firstBatch = { applicationId, batchId: randomUUID(), pages: textPages("Name\nDocker?") };
-    await readForm(firstBatch);
-    await readForm(firstBatch);
+    await readForm({ applicationId, pages: [firstPage, secondPage] });
+    await readForm({ applicationId, pages: [firstPage, secondPage] });
 
+    // The first page is read once; each run hands the rest on.
     expect(invokeModel).toHaveBeenCalledTimes(1);
     expect(queued).toEqual([
-      { step: "answer_form", payload: { applicationId } },
-      { step: "answer_form", payload: { applicationId } },
+      { step: "read_form", payload: { applicationId, pages: [secondPage] } },
+      { step: "read_form", payload: { applicationId, pages: [secondPage] } },
     ]);
     const { data: job } = await database.from("applications").select("job_role, job_company, job_text").eq("id", applicationId).single();
     expect(job).toEqual({ job_role: "Senior Full Stack Developer", job_company: "Acme", job_text: "On-site in Lahore, Monday to Friday." });
 
-    // The next screenshot overlaps the last one, so the model lists the Docker question again.
+    // The second page overlaps the first, so the model lists the Docker question again.
+    queued.length = 0;
     invokeModel.mockResolvedValue(
       modelAnswer({
         role: "Other role",
@@ -98,10 +99,11 @@ describe("the form's queued steps", () => {
         ],
       }),
     );
-    await readForm({ applicationId, batchId: randomUUID(), pages: textPages("Docker?\nNotice period?") });
+    await readForm({ applicationId, pages: [secondPage] });
 
-    // The model was told what earlier pages gave.
+    // The model was told what the first page gave, and the last page hands the form to answering.
     expect(JSON.stringify(invokeModel.mock.calls[1][0])).toContain("1. Name *");
+    expect(queued).toEqual([{ step: "answer_form", payload: { applicationId } }]);
     expect((await loadQuestions(applicationId)).map(({ position, question, status }) => ({ position, question, status }))).toEqual([
       { position: 1, question: "Name *", status: "pending" },
       { position: 2, question: "Do you have Docker experience?", status: "pending" },
@@ -112,15 +114,35 @@ describe("the form's queued steps", () => {
     expect(jobAfter?.job_role).toBe("Senior Full Stack Developer");
   });
 
+  test("a page with only the job post is read once, and the job's text is kept page after page", async () => {
+    const applicationId = await createForm();
+    const postPage = { inputType: "text" as const, pageId: randomUUID(), text: "We are hiring. On-site in Lahore." };
+    const descriptionPage = { inputType: "text" as const, pageId: randomUUID(), text: "Requirements: Laravel." };
+    invokeModel.mockResolvedValue(
+      modelAnswer({ role: "Developer", company: "Acme", jobText: "We are hiring. On-site in Lahore.", questions: [] }),
+    );
+
+    await readForm({ applicationId, pages: [postPage] });
+    await readForm({ applicationId, pages: [postPage] });
+    invokeModel.mockResolvedValue(modelAnswer({ role: null, company: null, jobText: "Requirements: Laravel.", questions: [] }));
+    await readForm({ applicationId, pages: [descriptionPage] });
+
+    expect(invokeModel).toHaveBeenCalledTimes(2);
+    const { data } = await database.from("applications").select("job_text, read_page_ids").eq("id", applicationId).single();
+    expect(data).toEqual({
+      job_text: "We are hiring. On-site in Lahore.\n\nRequirements: Laravel.",
+      read_page_ids: [postPage.pageId, descriptionPage.pageId],
+    });
+  });
+
   test("answers once, checks once, sends unsupported answers to the owner, then marks the form ready", async () => {
     const applicationId = await createForm();
-    const batch_id = randomUUID();
     const rows = [
       { position: 1, question: "Name", options: [] },
       { position: 2, question: "Laravel experience?", options: ["Yes", "No"] },
       { position: 3, question: "Spoken English out of 10?", options: [] },
       { position: 4, question: "Attach your CV", options: [] },
-    ].map((row) => ({ ...row, application_id: applicationId, batch_id, status: "pending" }));
+    ].map((row) => ({ ...row, application_id: applicationId, status: "pending" }));
     const inserted = await database.from("form_answers").insert(rows);
     if (inserted.error) throw inserted.error;
 

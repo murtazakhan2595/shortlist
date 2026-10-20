@@ -70,9 +70,9 @@ These hold at every stage and override any individual requirement.
 | C1 | Accept a post as a screenshot or as pasted text, from a phone or a desktop browser. | 1 |
 | C2 | Appear in the Android share menu, so a screenshot can be shared straight to the app **(Q6)**. | 1 |
 | C3 | Extract role, company, contact email or form link, and the poster's name. | 1 |
-| C4 | For screenshots, show the extracted email address for confirmation before drafting. | 1 |
+| C4 | ~~For screenshots, show the extracted email address for confirmation before drafting.~~ Dropped by the owner on 20 October 2026: the address is seen in the Gmail draft before sending, and screenshots were read correctly in check E1. | 1 |
 | C5 | Recognise a post that has already been captured, including reshares of the same post. | 1 |
-| C6 | Produce the result within one minute: of capture for pasted text, of confirmation for screenshots. | 1 |
+| C6 | Produce the result within one minute of capture. | 1 |
 | C7 | Treat every captured post as wanted; no relevance scoring. | 1 |
 | C8 | Keep the post's link if the owner supplies it, for reference only. The system never opens a LinkedIn link. | 1 |
 
@@ -173,7 +173,7 @@ A check must pass before the system is trusted in daily use.
 
 | ID | What is measured | Test data | Pass bar |
 |---|---|---|---|
-| E1 | Extraction from captured posts | Saved LinkedIn posts | Email address exactly right on every pasted-text post; 95% on screenshots before confirmation |
+| E1 | Extraction from captured posts | Saved LinkedIn posts | Email address exactly right on every pasted-text post; 95% on screenshots |
 | E2 | Match quality | Automated listings marked apply or skip by the owner | At least 70% of each day's top N are ones the owner would apply to |
 | E3 | Truthfulness of drafts | A sample of 50 drafts checked by hand | No unsupported claims |
 | E4 | Draft correctness | Same sample | Right recipient, right role, right CV on every draft |

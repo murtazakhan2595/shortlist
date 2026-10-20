@@ -12,24 +12,20 @@ const nothing: ExtractedPost = {
 const withEmail = { ...nothing, contactEmail: "jobs@acme.example" };
 const withForm = { ...nothing, formUrl: "https://forms.gle/abc123" };
 
-test("an email from pasted text goes straight on to writing", () => {
-  expect(statusAfterReading(withEmail, "text")).toBe("processing");
-});
-
-test("an email read from a screenshot waits for the owner to confirm it (C4)", () => {
-  expect(statusAfterReading(withEmail, "screenshots")).toBe("awaiting_confirmation");
+test("an email goes straight on to writing, from pasted text or a screenshot", () => {
+  expect(statusAfterReading(withEmail)).toBe("processing");
 });
 
 test("an email wins over a form link", () => {
-  expect(statusAfterReading({ ...withEmail, formUrl: withForm.formUrl }, "text")).toBe("processing");
+  expect(statusAfterReading({ ...withEmail, formUrl: withForm.formUrl })).toBe("processing");
 });
 
 test("a form link without an email needs the form's screenshots", () => {
-  expect(statusAfterReading(withForm, "text")).toBe("needs_form");
+  expect(statusAfterReading(withForm)).toBe("needs_form");
 });
 
 test("a post with neither is reported to the owner", () => {
-  expect(statusAfterReading(nothing, "screenshots")).toBe("no_contact");
+  expect(statusAfterReading(nothing)).toBe("no_contact");
 });
 
 const textPost: PostInput = {

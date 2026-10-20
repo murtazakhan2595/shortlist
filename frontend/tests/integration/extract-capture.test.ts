@@ -102,7 +102,7 @@ describe("extractCapture", () => {
     expect(enqueueStep).toHaveBeenCalledWith("prepare_email_application", { captureId });
   });
 
-  test("sends screenshots to the model inside the request and waits for the owner to confirm the email", async () => {
+  test("sends screenshots to the model inside the request and hands their email to the writer", async () => {
     const imagePath = `captures/${randomUUID()}.png`;
     const upload = await database.storage.from("screenshots").upload(imagePath, ONE_PIXEL_PNG, { contentType: "image/png" });
     if (upload.error) throw upload.error;
@@ -119,9 +119,9 @@ describe("extractCapture", () => {
     expect(await loadCapture(captureId)).toMatchObject({
       contact_email: "hr@acme.example",
       raw_text: "We are hiring. Email hr@acme.example",
-      status: "awaiting_confirmation",
+      status: "processing",
     });
-    expect(enqueueStep).not.toHaveBeenCalled();
+    expect(enqueueStep).toHaveBeenCalledWith("prepare_email_application", { captureId });
   });
 
   test("a post with no way to apply ends its run", async () => {

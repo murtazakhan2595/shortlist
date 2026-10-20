@@ -23,7 +23,7 @@ The database tables, the server entry points and the model module's interface (P
 | Feature | Server Actions |
 |---|---|
 | `auth` | `signIn`, `signOut` |
-| `captures` | `createCaptureUploadUrl`, `submitCapture`, `confirmCaptureEmail` |
+| `captures` | `createCaptureUploadUrl`, `submitCapture` |
 | `forms` | `createFormUploadUrl`, `addFormPages`, `answerFormQuestion` |
 | `applications` | `updateApplicationStatus` |
 | `discovery` | `labelListing` |

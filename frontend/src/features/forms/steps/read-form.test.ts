@@ -10,7 +10,7 @@ test("a question an earlier page gave is not added again, whatever its case, spa
   expect(questionsToAdd(read, ["your name"])).toEqual([{ question: "Do you have Docker experience?", options: ["Yes", "No"] }]);
 });
 
-test("overlapping screenshots in one batch give each question once, and empty ones are dropped", () => {
+test("a page that lists a question twice gives it once, and empty ones are dropped", () => {
   const read = [
     { question: "Notice period?", options: [] },
     { question: "  ", options: [] },

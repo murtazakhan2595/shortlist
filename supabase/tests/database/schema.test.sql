@@ -1,7 +1,7 @@
 -- Rules the schema itself enforces, whoever is connected.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(11);
+select plan(10);
 
 select is_empty(
   $$ select tablename from pg_tables where schemaname = 'public' and not rowsecurity $$,
@@ -50,17 +50,10 @@ select throws_ok(
 );
 
 select throws_ok(
-  $$ insert into public.form_answers (application_id, position, question, status, batch_id)
-     select id, 1, 'Name', 'guessed', gen_random_uuid() from public.applications where fingerprint = 'acme|engineer' $$,
+  $$ insert into public.form_answers (application_id, position, question, status)
+     select id, 1, 'Name', 'guessed' from public.applications where fingerprint = 'acme|engineer' $$,
   '23514', null,
   'a form question is only in one of the known statuses'
-);
-
-select throws_ok(
-  $$ insert into public.form_answers (application_id, position, question, status)
-     select id, 1, 'Name', 'pending' from public.applications where fingerprint = 'acme|engineer' $$,
-  '23502', null,
-  'a form question records the batch of pages it was read from'
 );
 
 select lives_ok(

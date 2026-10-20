@@ -12,7 +12,7 @@ import type { Json, Tables } from "@/server/supabase/database.types";
 
 // Queue step: read a captured post and save what it says (PLAN.md item 2.1; C3).
 // Queued when a capture is submitted (item 2.4). Safe to run twice: a capture is read only once.
-// A post with an email from pasted text is handed to the writer.
+// A post with an email is handed to the writer.
 //
 // The model reads the post (readPost); code then checks what it can (checkExtraction), because a model
 // can return an email that looks right but is not in the post.
@@ -20,7 +20,7 @@ import type { Json, Tables } from "@/server/supabase/database.types";
 export const ExtractCapturePayloadSchema = z.object({ captureId: z.uuid() });
 
 type Capture = Tables<"captures">;
-type CaptureStatus = "processing" | "awaiting_confirmation" | "needs_form" | "no_contact";
+type CaptureStatus = "processing" | "needs_form" | "no_contact";
 
 export async function extractCapture(payload: Json): Promise<void> {
   const { captureId } = ExtractCapturePayloadSchema.parse(payload);
@@ -37,17 +37,17 @@ export async function extractCapture(payload: Json): Promise<void> {
 async function readAndSave(capture: Capture): Promise<CaptureStatus> {
   const post = await toPostInput(capture);
   const details = await readPost(post, { link: { runId: capture.run_id ?? undefined } });
-  const status = statusAfterReading(details, post.kind);
+  const status = statusAfterReading(details);
   await saveDetails(capture.id, details, status);
   return status;
 }
 
 /**
- * Where the capture goes next. An email from pasted text is checked against the post, so writing can
- * start; one read from a screenshot waits for the owner to confirm it (C4).
+ * Where the capture goes next. An email goes straight to the writer, from pasted text or a screenshot:
+ * the draft waits in Gmail, where the owner sees the address before sending (owner's decision, 20 October 2026).
  */
-export function statusAfterReading(details: ExtractedPost, kind: PostInput["kind"]): CaptureStatus {
-  if (details.contactEmail) return kind === "text" ? "processing" : "awaiting_confirmation";
+export function statusAfterReading(details: ExtractedPost): CaptureStatus {
+  if (details.contactEmail) return "processing";
   if (details.formUrl) return "needs_form";
   return "no_contact";
 }
@@ -162,8 +162,8 @@ export async function readPost(post: PostInput, options: ReadPostOptions = {}): 
 
 /**
  * The checks code can make on the model's answer. For pasted text, an email or link is kept only if
- * it appears in the post word for word. A screenshot cannot be checked this way, which is why the
- * owner confirms the email before anything is written (C4).
+ * it appears in the post word for word. A screenshot cannot be checked this way; its email is seen by the
+ * owner in the Gmail draft, before anything is sent.
  */
 export function checkExtraction(answer: ExtractedPost, post: PostInput): ExtractedPost {
   const inPost = (value: string) => post.kind === "screenshots" || post.text.toLowerCase().includes(value.toLowerCase());

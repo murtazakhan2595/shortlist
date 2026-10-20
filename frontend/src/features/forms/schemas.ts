@@ -52,9 +52,15 @@ export type FormQuestionAnswered = { formAnswerId: string; answerBankVersion: nu
 /** The payload of the steps that work on one form, after its pages are read. */
 export const FormPayloadSchema = z.object({ applicationId: z.uuid() });
 
-/** The payload of read_form: the pages just added, and the batch they are read as. */
-export const ReadFormPayloadSchema = FormPayloadSchema.extend({ batchId: z.uuid(), pages: FormPagesSchema });
-export type ReadFormPayload = z.infer<typeof ReadFormPayloadSchema>;
+/** One page to read: a screenshot, or all the pasted text. Its id is listed on the form once it is read. */
+export const FormPageSchema = z.discriminatedUnion("inputType", [
+  z.object({ inputType: z.literal("screenshot"), pageId: z.uuid(), imagePath: FormImagePathSchema }),
+  z.object({ inputType: z.literal("text"), pageId: z.uuid(), text: z.string().min(1).max(MAX_FORM_TEXT_LENGTH) }),
+]);
+export type FormPage = z.infer<typeof FormPageSchema>;
+
+/** The payload of read_form: the pages still to read, in order. Each step reads the first one. */
+export const ReadFormPayloadSchema = FormPayloadSchema.extend({ pages: z.array(FormPageSchema).min(1) });
 
 /** Where a question is: read, answered and checked one step at a time (see the form_answers migration). */
 export const FORM_ANSWER_STATUSES = ["pending", "checking", "answered", "needs_input", "asset_needed"] as const;
