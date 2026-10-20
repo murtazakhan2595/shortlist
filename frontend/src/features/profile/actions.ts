@@ -15,8 +15,15 @@ export async function saveDocument(request: SaveDocumentInput): Promise<Result<D
   if (!input.success) return fail("invalid_input", input.error.issues[0].message);
 
   const { db } = await requireOwner();
+  const { baseVersion, ...document } = input.data;
   try {
-    const { documentId, version } = await saveDocumentIfChanged(db, input.data);
+    const { status, documentId, version } = await saveDocumentIfChanged(db, document, baseVersion);
+    if (status === "conflict") {
+      return fail(
+        "conflict",
+        `This document changed after you opened it (it is now version ${version}). Copy your edit, reload the page, and make it again.`,
+      );
+    }
     return ok({ documentId, version });
   } catch (error) {
     return fail("internal", describeError(error));

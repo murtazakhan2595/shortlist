@@ -10,6 +10,7 @@ import { enqueueStep } from "@/server/queue/queue";
 import { STEP_NAMES } from "@/server/queue/step-names";
 import { createScreenshotUploadUrl } from "@/server/screenshots";
 import type { ServerClient } from "@/server/supabase/server";
+import { getForm } from "./data";
 import {
   type AddFormPagesInput,
   AddFormPagesInputSchema,
@@ -45,11 +46,7 @@ export async function addFormPages(request: AddFormPagesInput): Promise<Result<F
   const { db } = await requireOwner();
   const { applicationId, pages } = input.data;
   try {
-    const formId = applicationId ? await addToForm(db, applicationId, pages) : await startForm(db, pages);
-    if (!formId) return fail("not_found", "This form no longer exists");
-
-    await enqueueStep(STEP_NAMES.readForm, { applicationId: formId, pages: pagesToRead(pages) });
-    return ok({ applicationId: formId });
+    return applicationId ? await addToForm(db, applicationId, pages) : await startForm(db, pages);
   } catch (error) {
     return fail("internal", describeError(error));
   }
@@ -88,36 +85,68 @@ export async function answerFormQuestion(request: AnswerFormQuestionInput): Prom
  * A new form is an application on the form route. Its job is known only once its pages are read, so its
  * duplicate key is its own id: a form is not matched against other applications.
  */
-async function startForm(db: ServerClient, pages: FormPages): Promise<string> {
+async function startForm(db: ServerClient, pages: FormPages): Promise<Result<FormPagesAdded>> {
   const id = randomUUID();
   const { error } = await db
     .from("applications")
     .insert({ id, route: "form", fingerprint: `form:${id}`, ...pageColumns(pages, { imagePaths: [], text: null }) });
   if (error) throw new Error(`Could not start the form: ${error.message}`);
-  return id;
+
+  try {
+    await enqueueStep(STEP_NAMES.readForm, { applicationId: id, pages: pagesToRead(pages) });
+  } catch (error) {
+    // Nothing would ever read this form, so it is removed and the owner can simply send the pages again.
+    await db.from("applications").delete().eq("id", id);
+    throw error;
+  }
+  return ok({ applicationId: id });
 }
 
-/** Adds the pages to the form and sets it preparing again; null when there is no such form. */
-async function addToForm(db: ServerClient, applicationId: string, pages: FormPages): Promise<string | null> {
+const STILL_WORKING = "Shortlist is still working on this form. Add more pages once it is done.";
+
+/**
+ * Adds the pages to a form and sets it preparing again. Refused while its earlier pages are still being
+ * worked on: two chains of steps on one form would overwrite each other's work. A form whose step failed
+ * every attempt stays preparing, and takes the pages again to try again.
+ */
+async function addToForm(db: ServerClient, applicationId: string, pages: FormPages): Promise<Result<FormPagesAdded>> {
+  const view = await getForm(applicationId);
+  if (!view) return fail("not_found", "This form no longer exists");
+  if (view.status === "preparing" && !view.failure) return fail("conflict", STILL_WORKING);
+
   const { data: form, error: readError } = await db
     .from("applications")
     .select("status, form_image_paths, form_text")
     .eq("id", applicationId)
-    .eq("route", "form")
-    .maybeSingle();
+    .single();
   if (readError) throw new Error(`Could not load the form: ${readError.message}`);
-  if (!form) return null;
 
-  const { error } = await db
+  const { data: updated, error } = await db
     .from("applications")
     .update({
       ...pageColumns(pages, { imagePaths: form.form_image_paths, text: form.form_text }),
       // A status the owner set (sent, skipped) stays; a ready form has new questions to answer.
       status: form.status === "ready" ? "preparing" : form.status,
     })
-    .eq("id", applicationId);
+    .eq("id", applicationId)
+    // Only if no other request changed the form since it was read, so pages sent twice at once start one chain.
+    .eq("status", form.status)
+    .select("id")
+    .maybeSingle();
   if (error) throw new Error(`Could not add the pages: ${error.message}`);
-  return applicationId;
+  if (!updated) return fail("conflict", STILL_WORKING);
+
+  try {
+    await enqueueStep(STEP_NAMES.readForm, { applicationId, pages: pagesToRead(pages) });
+  } catch (error) {
+    // Nothing would read the new pages, so the form is put back as it was and the owner can add them again.
+    await db
+      .from("applications")
+      .update({ status: form.status, form_image_paths: form.form_image_paths, form_text: form.form_text })
+      .eq("id", applicationId);
+    throw error;
+  }
+  return ok({ applicationId });
 }
 
 /**

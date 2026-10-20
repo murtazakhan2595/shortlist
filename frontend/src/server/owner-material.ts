@@ -37,7 +37,7 @@ export async function loadOwnerMaterial(): Promise<OwnerMaterial> {
   const profile = ofKind("profile").map((document) => `## ${document.name}\n\n${document.content}`);
 
   if (profile.length === 0 || !answerBank || !writingGuide || cvFiles.data.length === 0) {
-    throw new Error("The owner's material is incomplete: run pnpm profile:load");
+    throw new Error("The owner's material is incomplete: add the missing documents or CVs on the Profile page");
   }
   return {
     profile: profile.join("\n\n"),

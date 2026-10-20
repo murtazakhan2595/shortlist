@@ -42,7 +42,12 @@ export function ProfileDocuments({ material }: { material: OwnerMaterialView }) 
                         </span>
                       </summary>
                       <div className="pb-5">
-                        <DocumentEditor kind={document.kind} name={document.name} content={document.content} />
+                        <DocumentEditor
+                          kind={document.kind}
+                          name={document.name}
+                          content={document.content}
+                          version={document.version}
+                        />
                       </div>
                     </details>
                   </li>

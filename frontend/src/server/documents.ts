@@ -7,13 +7,22 @@ import type { Database, Tables } from "@/server/supabase/database.types";
 
 export type DocumentToSave = Pick<Tables<"documents">, "kind" | "name" | "content">;
 
-export type SavedDocument = { status: "added" | "updated" | "unchanged"; documentId: string; version: number };
+/** "conflict": nothing was saved, because a newer version than the edit started from exists (its id and version). */
+export type SavedDocument = { status: "added" | "updated" | "unchanged" | "conflict"; documentId: string; version: number };
 
 /**
  * Saves the document as a new version unless its latest version already has the same content.
  * Takes the owner's client in the app and the admin client in scripts.
+ *
+ * baseVersion is the version an edit started from. If a newer version was saved since, for example an
+ * answer saved from a form while the owner edited the answer bank, nothing is saved, so that change is
+ * never silently dropped.
  */
-export async function saveDocumentIfChanged(db: SupabaseClient<Database>, document: DocumentToSave): Promise<SavedDocument> {
+export async function saveDocumentIfChanged(
+  db: SupabaseClient<Database>,
+  document: DocumentToSave,
+  baseVersion?: number,
+): Promise<SavedDocument> {
   const { data: current, error: readError } = await db
     .from("current_documents")
     .select("id, version, content")
@@ -24,6 +33,9 @@ export async function saveDocumentIfChanged(db: SupabaseClient<Database>, docume
 
   if (current?.id && current.version && current.content === document.content) {
     return { status: "unchanged", documentId: current.id, version: current.version };
+  }
+  if (baseVersion !== undefined && current?.id && current.version && current.version !== baseVersion) {
+    return { status: "conflict", documentId: current.id, version: current.version };
   }
 
   // Two saves at once would pick the same version; the unique (kind, name, version) rule stops the second.
@@ -40,7 +52,12 @@ export async function saveDocumentIfChanged(db: SupabaseClient<Database>, docume
 
 const ANSWER_BANK = { kind: "answer_bank", name: "main" } as const;
 const FORM_ANSWERS_HEADING = "## Answers given on forms";
-const FORM_ANSWERS_INTRO = "The owner's own answers to form questions, saved from the app.";
+const FORM_ANSWERS_INTRO =
+  "The owner's own answers to form questions, saved from the app. Each question is copied from a form; only the answer is the owner's.";
+
+// The answer bank is trusted material, but a question is read from a form, which is untrusted (principle 4).
+// Keeping it short leaves no room for a long hidden instruction to be carried into the bank.
+export const MAX_SAVED_QUESTION_LENGTH = 300;
 
 /** Adds the owner's answer to the answer bank as a new version, and returns that version. */
 export async function addToAnswerBank(db: SupabaseClient<Database>, question: string, answer: string): Promise<number> {
@@ -62,7 +79,7 @@ export async function addToAnswerBank(db: SupabaseClient<Database>, question: st
  * first time. A question answered before has its old answer replaced, so the bank never holds two.
  */
 export function withFormAnswer(answerBank: string, question: string, answer: string): string {
-  const questionLine = `- Question: ${oneLine(question)}`;
+  const questionLine = `- Question: ${shortened(oneLine(question))}`;
   const entry = `${questionLine}\n  Answer: ${oneLine(answer)}`;
 
   const headingAt = answerBank.indexOf(FORM_ANSWERS_HEADING);
@@ -82,4 +99,9 @@ export function withFormAnswer(answerBank: string, question: string, answer: str
 
 function oneLine(text: string): string {
   return text.trim().replace(/\s*\n\s*/g, " ");
+}
+
+function shortened(question: string): string {
+  if (question.length <= MAX_SAVED_QUESTION_LENGTH) return question;
+  return `${question.slice(0, MAX_SAVED_QUESTION_LENGTH).trimEnd()}…`;
 }

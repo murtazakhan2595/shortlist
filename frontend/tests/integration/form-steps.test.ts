@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { AIMessage } from "@langchain/core/messages";
 import { afterAll, beforeEach, describe, expect, test, vi } from "vitest";
-import { answerForm, checkFormAnswers } from "@/features/forms/steps/answer-form";
+import { answerForm, checkFormAnswers, QUESTIONS_PER_STEP } from "@/features/forms/steps/answer-form";
 import { readForm } from "@/features/forms/steps/read-form";
 import { getAdminClient } from "@/server/supabase/admin";
 
@@ -186,5 +186,40 @@ describe("the form's queued steps", () => {
     // Every call is costed against the form (B1).
     const { count } = await database.from("model_calls").select("id", { count: "exact", head: true }).eq("application_id", applicationId);
     expect(count).toBe(2);
+  });
+
+  test("a long form is answered and checked a batch of questions per step", async () => {
+    const applicationId = await createForm();
+    const total = QUESTIONS_PER_STEP + 2;
+    const positions = Array.from({ length: total }, (_, index) => index + 1);
+    const inserted = await database.from("form_answers").insert(
+      positions.map((position) => ({ application_id: applicationId, position, question: `Question ${position}?`, status: "pending" })),
+    );
+    if (inserted.error) throw inserted.error;
+    invokeModel.mockResolvedValue(
+      modelAnswer({ answers: positions.map((position) => ({ position, status: "answered", answer: `Answer ${position}`, note: null })) }),
+    );
+
+    // The first run answers one batch and queues itself for the rest; the second answers the rest.
+    await answerForm({ applicationId });
+    expect(JSON.stringify(invokeModel.mock.calls[0][0])).toContain(`${QUESTIONS_PER_STEP}. Question ${QUESTIONS_PER_STEP}?`);
+    expect(JSON.stringify(invokeModel.mock.calls[0][0])).not.toContain(`Question ${total}?`);
+    await answerForm({ applicationId });
+    expect(queued.map((step) => step.step)).toEqual(["answer_form", "check_form_answers"]);
+    expect((await loadQuestions(applicationId)).every((question) => question.status === "checking")).toBe(true);
+
+    // Checking works the same way, and the form is ready only after the last batch.
+    queued.length = 0;
+    invokeModel.mockReset();
+    invokeModel.mockResolvedValue(modelAnswer({ problems: [] }));
+    await checkFormAnswers({ applicationId });
+    const { data: midway } = await database.from("applications").select("status").eq("id", applicationId).single();
+    expect(midway?.status).toBe("preparing");
+    await checkFormAnswers({ applicationId });
+
+    expect(invokeModel).toHaveBeenCalledTimes(2);
+    expect(queued.map((step) => step.step)).toEqual(["check_form_answers"]);
+    const { data: form } = await database.from("applications").select("status").eq("id", applicationId).single();
+    expect(form?.status).toBe("ready");
   });
 });
