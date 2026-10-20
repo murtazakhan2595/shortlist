@@ -19,6 +19,8 @@ vi.mock("@/server/queue/queue", () => ({
   },
 }));
 
+const WHOLE_LOOP_TIMEOUT_MS = 60_000;
+
 function modelAnswer(parsed: unknown) {
   const raw = new AIMessage({
     content: JSON.stringify(parsed),
@@ -101,6 +103,7 @@ describe("the writer's queued steps", () => {
     }
   }
 
+  // Every stage saves a LangGraph checkpoint over the network, so the whole loop takes about 25 seconds from CI.
   test("writes, checks and saves an application, one stage per queued step", async () => {
     const email = `jobs-${randomUUID()}@acme.example`;
     const { captureId, runId } = await createCapture(email);
@@ -141,7 +144,7 @@ describe("the writer's queued steps", () => {
     await prepareEmailApplication({ captureId });
     await runQueuedSteps();
     expect(invokeModel).toHaveBeenCalledTimes(2);
-  });
+  }, WHOLE_LOOP_TIMEOUT_MS);
 
   test("a retry that finds the outcome already saved still closes the capture and queues the draft", async () => {
     const { captureId, runId } = await createCapture(`jobs-${randomUUID()}@acme.example`);
