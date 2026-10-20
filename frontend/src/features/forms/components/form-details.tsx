@@ -25,8 +25,25 @@ export function FormDetails({ form }: { form: FormView }) {
   );
 }
 
+const FAILED_AT = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Karachi" });
+
 function Progress({ form }: { form: FormView }) {
   const count = (status: string) => form.questions.filter((question) => question.status === status).length;
+
+  if (form.status === "preparing" && form.failure) {
+    return (
+      <>
+        <AutoRefresh />
+        <p role="alert" className="text-lg font-semibold text-danger">
+          Shortlist could not finish this form
+        </p>
+        <p className="text-ink-muted">
+          At {FAILED_AT.format(new Date(form.failure.failedAt))} a step failed three times: {form.failure.error}. Add the
+          pages again below to try again.
+        </p>
+      </>
+    );
+  }
 
   if (form.status === "preparing") {
     const waiting = count("pending") + count("checking");

@@ -106,7 +106,7 @@ export function FormPagesForm({ applicationId }: { applicationId?: string }) {
   );
 }
 
-/** Uploads the screenshots, then sends their paths as one batch of pages. */
+/** Uploads the screenshots, then sends their paths as the form's next pages. */
 async function submitScreenshots(files: File[], applicationId: string | undefined): Promise<Result<FormPagesAdded>> {
   if (files.length === 0) return fail("invalid_input", "Choose at least one screenshot");
   if (files.length > MAX_FORM_PAGES_PER_REQUEST) {

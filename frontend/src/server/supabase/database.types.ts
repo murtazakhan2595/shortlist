@@ -32,6 +32,7 @@ export type Database = {
           job_text: string | null
           listing_id: string | null
           presented_title: string | null
+          read_page_ids: string[]
           recipient_email: string | null
           route: string
           sent_at: string | null
@@ -56,6 +57,7 @@ export type Database = {
           job_text?: string | null
           listing_id?: string | null
           presented_title?: string | null
+          read_page_ids?: string[]
           recipient_email?: string | null
           route: string
           sent_at?: string | null
@@ -80,6 +82,7 @@ export type Database = {
           job_text?: string | null
           listing_id?: string | null
           presented_title?: string | null
+          read_page_ids?: string[]
           recipient_email?: string | null
           route?: string
           sent_at?: string | null
@@ -275,7 +278,6 @@ export type Database = {
         Row: {
           answer: string | null
           application_id: string
-          batch_id: string
           created_at: string
           id: string
           note: string | null
@@ -287,7 +289,6 @@ export type Database = {
         Insert: {
           answer?: string | null
           application_id: string
-          batch_id: string
           created_at?: string
           id?: string
           note?: string | null
@@ -299,7 +300,6 @@ export type Database = {
         Update: {
           answer?: string | null
           application_id?: string
-          batch_id?: string
           created_at?: string
           id?: string
           note?: string | null

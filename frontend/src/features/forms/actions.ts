@@ -15,6 +15,7 @@ import {
   AddFormPagesInputSchema,
   type AnswerFormQuestionInput,
   AnswerFormQuestionInputSchema,
+  type FormPage,
   type FormPages,
   type FormPagesAdded,
   type FormQuestionAnswered,
@@ -47,8 +48,7 @@ export async function addFormPages(request: AddFormPagesInput): Promise<Result<F
     const formId = applicationId ? await addToForm(db, applicationId, pages) : await startForm(db, pages);
     if (!formId) return fail("not_found", "This form no longer exists");
 
-    // Each addition is its own batch, so reading it twice can be spotted (read-form.ts).
-    await enqueueStep(STEP_NAMES.readForm, { applicationId: formId, batchId: randomUUID(), pages });
+    await enqueueStep(STEP_NAMES.readForm, { applicationId: formId, pages: pagesToRead(pages) });
     return ok({ applicationId: formId });
   } catch (error) {
     return fail("internal", describeError(error));
@@ -118,6 +118,15 @@ async function addToForm(db: ServerClient, applicationId: string, pages: FormPag
     .eq("id", applicationId);
   if (error) throw new Error(`Could not add the pages: ${error.message}`);
   return applicationId;
+}
+
+/**
+ * The pages for read_form, one screenshot each, so every model call stays short. Each gets its own id,
+ * so a page already read is not read again (read-form.ts).
+ */
+function pagesToRead(pages: FormPages): FormPage[] {
+  if (pages.inputType === "text") return [{ inputType: "text", pageId: randomUUID(), text: pages.text }];
+  return pages.imagePaths.map((imagePath) => ({ inputType: "screenshot", pageId: randomUUID(), imagePath }));
 }
 
 /** The form's stored pages with the new ones added after them. */
