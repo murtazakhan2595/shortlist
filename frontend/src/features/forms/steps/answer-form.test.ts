@@ -32,17 +32,17 @@ test("a choice the form does not offer goes to the owner; offered choices, ticke
   expect(settled[1]).toMatchObject({ status: "checking", answer: "aws; Docker" });
 });
 
-test("needs_input keeps the model's reason and drops any answer; an asset keeps what covers it", () => {
+test("needs_input keeps the model's draft and reason; an asset keeps what covers it", () => {
   const settled = settleAnswers(
     [question(1), question(2)],
     [
-      { position: 1, status: "needs_input", answer: "A guess", note: "No salary for on-site roles is stored." },
+      { position: 1, status: "needs_input", answer: "I expect [amount] a month.", note: "No salary for on-site roles is stored." },
       { position: 2, status: "asset_needed", answer: "full_stack CV", note: "Upload your CV." },
     ],
   );
 
   expect(settled).toEqual([
-    { id: "q1", status: "needs_input", answer: null, note: "No salary for on-site roles is stored." },
+    { id: "q1", status: "needs_input", answer: "I expect [amount] a month.", note: "No salary for on-site roles is stored." },
     { id: "q2", status: "asset_needed", answer: "full_stack CV", note: "Upload your CV." },
   ]);
 });
