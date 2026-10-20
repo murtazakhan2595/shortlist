@@ -19,7 +19,7 @@ import { buildWriterGraph, START_STATE, type WriterStateValues, writerOutcome } 
 // 2. advance_writer: runs the next stage of the writer's loop (writer.ts) and queues itself again, until
 //    the loop ends and the application is saved as ready or blocked. A ready one goes on to
 //    create_gmail_draft (gmail-draft.ts). One stage per call keeps every call
-//    within the 25-second budget; LangGraph saves the loop's state in Postgres between calls.
+//    within the 60-second budget; LangGraph saves the loop's state in Postgres between calls.
 //
 // Both are safe to run twice. A capture that already has its application only moves the writer on. A call
 // to advance_writer first claims a short lease on the application, and does nothing if it is taken; an
@@ -28,8 +28,8 @@ import { buildWriterGraph, START_STATE, type WriterStateValues, writerOutcome } 
 
 const CapturePayloadSchema = z.object({ captureId: z.uuid() });
 
-// Longer than one stage (25 seconds), shorter than the queue's 60 seconds before a retry.
-const LEASE_SECONDS = 45;
+// Longer than one stage (60 seconds), shorter than the queue's 90 seconds before a retry.
+const LEASE_SECONDS = 75;
 
 /** The email patterns for a captured post with an email (P7), named after the headings in
  * private/email-patterns.md. The others are for referrals and job-board notes. */

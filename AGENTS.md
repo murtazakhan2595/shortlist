@@ -46,7 +46,7 @@ The app must be movable from Vercel to AWS Amplify by configuration alone (PLAN.
 - No host packages (`@vercel/*` and similar) and no `vercel.json`.
 - Standard Next.js on the Node runtime: no edge routes, no `revalidatePath`, `revalidateTag` or `updateTag`.
 - No work after a response is sent (`after`, `waitUntil`). Background work is a queued step, triggered from Supabase.
-- One step per server call, within a 25-second budget. Requests and responses under 4.5 MB.
+- One step per server call, within a 60-second budget (Vercel allows 300; Amplify allows 30, so a move there means lowering it). Requests and responses under 4.5 MB.
 - The service-role database key is used only in server code and never reaches the browser.
 
 ## Architecture

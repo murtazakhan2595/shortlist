@@ -12,8 +12,9 @@ import { type ModelMessage, toLangChainMessages } from "./messages";
 // It reads the step's model from step_models, asks for an answer in the schema's shape,
 // records the call and its cost in model_calls (also when it fails), and returns the checked answer.
 
-// Leaves room inside the 25-second step budget (AGENTS.md, Portability).
-export const MODEL_CALL_TIMEOUT_MS = 20_000;
+// Leaves room inside the 60-second step budget (AGENTS.md, Portability). Reading a full-page screenshot
+// took 22 seconds, as the model writes about 30 tokens a second from an image.
+export const MODEL_CALL_TIMEOUT_MS = 50_000;
 
 export type ModelCallRequest<Schema extends z.ZodObject> = {
   step: ModelStep;

@@ -45,10 +45,10 @@ test("pauses while the app is in the background, and refreshes at once on return
   expect(refresh).toHaveBeenCalledTimes(1);
 });
 
-test("gives up after three minutes, and starts again when the owner comes back", () => {
+test("gives up after ten minutes, and starts again when the owner comes back", () => {
   render(<AutoRefresh />);
 
-  vi.advanceTimersByTime(4 * 60_000);
+  vi.advanceTimersByTime(11 * 60_000);
   refresh.mockClear();
   vi.advanceTimersByTime(10_000);
   expect(refresh).not.toHaveBeenCalled();

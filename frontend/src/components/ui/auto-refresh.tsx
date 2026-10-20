@@ -4,8 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 const REFRESH_EVERY_MS = 2_000;
-// Background work takes seconds to a minute; a step that keeps failing is retried for about two minutes.
-const GIVE_UP_AFTER_MS = 3 * 60_000;
+// A form of several pages takes a few minutes, one page per step; a failing step is retried for several more.
+const GIVE_UP_AFTER_MS = 10 * 60_000;
 
 /**
  * Re-renders the page from the server every two seconds while background work runs, so its result

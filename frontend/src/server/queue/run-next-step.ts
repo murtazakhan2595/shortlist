@@ -15,8 +15,8 @@ export type StepHandlers = Record<string, StepHandler>;
 
 export const MAX_ATTEMPTS = 3;
 
-// Longer than the 25-second step budget: a step is retried only if its worker died or overran.
-const VISIBILITY_SECONDS = 60;
+// Longer than the 60-second step budget: a step is retried only if its worker died or overran.
+const VISIBILITY_SECONDS = 90;
 
 // The wait before a retry grows with each attempt: 30 s, then 60 s.
 const RETRY_DELAY_SECONDS_PER_ATTEMPT = 30;
