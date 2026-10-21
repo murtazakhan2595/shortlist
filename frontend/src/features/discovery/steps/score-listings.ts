@@ -13,10 +13,12 @@ import type { Json, Tables } from "@/server/supabase/database.types";
 // 1. score_listing: one model call scores one kept listing against the owner's profile and tags it
 //    visa-sponsoring when the posting says so. The last listing of the run to be scored queues step 2.
 // 2. select_top_listings: ranks the run's scored listings, eligible ones before unclear ones, each by score,
-//    and keeps the top N (the daily target) that score at least MIN_SCORE_TO_KEEP. Then the run is finished.
+//    and keeps the top N (the daily target) that score at least MIN_SCORE_TO_KEEP. Each kept listing is
+//    handed to the applications feature for its CV and note (prepare_note_application, X2). Then the run
+//    is finished; the notes' costs still count towards it.
 //
-// Both are safe to run twice: a scored listing is not scored again (one score per listing), and choosing
-// the top listings again gives the same ranks.
+// Both are safe to run twice: a scored listing is not scored again (one score per listing), choosing the
+// top listings again gives the same ranks, and a listing gets one application however often it is queued.
 
 const ListingPayloadSchema = z.object({ listingId: z.uuid() });
 const RunPayloadSchema = z.object({ runId: z.uuid() });
@@ -228,6 +230,10 @@ export async function selectTopListings(payload: Json): Promise<void> {
       if (ranked.error) throw new Error(`Could not rank listing ${listingId}: ${ranked.error.message}`);
     }),
   );
+
+  // Queued together, waking the worker once, so the notes are written one after another.
+  await Promise.all(top.map((listingId) => enqueueStep(STEP_NAMES.prepareNoteApplication, { listingId }, { wake: false })));
+  if (top.length > 0) await wakeWorker();
 
   const counted = await db
     .from("runs")

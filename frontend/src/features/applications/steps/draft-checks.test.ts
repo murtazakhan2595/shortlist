@@ -3,6 +3,7 @@ import type { EmailDraft, WriterContext } from "../schemas";
 import { countWords, findDraftProblems } from "./draft-checks";
 
 const sources: WriterContext = {
+  route: "email",
   link: {},
   profile: "Full-stack developer. 3+ years with React, Next.js and TypeScript. Built a queue on PostgreSQL. 2,500 users.",
   answerBank: "Notice period: immediately. LinkedIn: linkedin.com/in/example-owner. Phone: +92 300 1234567.",
@@ -99,3 +100,18 @@ describe("findDraftProblems", () => {
 test("counts words separated by any white space", () => {
   expect(countWords("Hi team,\n\nI am  applying.")).toBe(5);
 });
+
+test("a note needs no subject line", () => {
+  const note: EmailDraft = {
+    cvVariant: "full_stack",
+    presentedTitle: "Full-Stack Developer",
+    emailPattern: "post-reply",
+    subject: "",
+    body: "I build React and Next.js products end to end and have shipped them to real users for years.",
+    signature: "",
+  };
+
+  expect(findDraftProblems(note, { ...sources, route: "note", recipientEmail: null })).toEqual([]);
+  expect(findDraftProblems(note, sources)).toContain("The subject line is empty.");
+});
+
