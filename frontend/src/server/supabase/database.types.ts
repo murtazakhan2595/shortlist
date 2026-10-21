@@ -345,6 +345,7 @@ export type Database = {
           source_id: string
           tags: string[]
           title: string
+          top_rank: number | null
           url: string
         }
         Insert: {
@@ -373,6 +374,7 @@ export type Database = {
           source_id: string
           tags?: string[]
           title: string
+          top_rank?: number | null
           url: string
         }
         Update: {
@@ -401,6 +403,7 @@ export type Database = {
           source_id?: string
           tags?: string[]
           title?: string
+          top_rank?: number | null
           url?: string
         }
         Relationships: [
@@ -547,7 +550,7 @@ export type Database = {
           {
             foreignKeyName: "scores_listing_id_fkey"
             columns: ["listing_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "listings"
             referencedColumns: ["id"]
           },

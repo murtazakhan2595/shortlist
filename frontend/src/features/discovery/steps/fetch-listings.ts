@@ -2,11 +2,11 @@ import "server-only";
 import { z } from "zod";
 import { fetchHimalayasJobs, HIMALAYAS_SOURCE, type HimalayasJob } from "@/server/himalayas";
 import { jobKey } from "@/server/job-key";
-import { finishRun } from "@/server/runs";
 import { getAdminClient } from "@/server/supabase/admin";
 import type { Json } from "@/server/supabase/database.types";
 import type { Eligibility, Listing } from "../schemas";
 import { eligibilityOf, loadFilterSettings } from "./eligibility";
+import { queueScoring } from "./score-listings";
 
 // Queue step fetch_listings, the daily run's first step (PLAN.md items 4.1 to 4.3 and 4.5). Queued every
 // night by start_daily_run (supabase/migrations/*_daily_run.sql). In one short call it:
@@ -15,9 +15,10 @@ import { eligibilityOf, loadFilterSettings } from "./eligibility";
 // 2. converts them to one format (D2) and decides each one's eligibility before any model call (D3, D4),
 // 3. saves the new ones (D2, X6). Excluded listings are saved too, so the filter's choices can be checked,
 // 4. deletes expired listings, as Himalayas' terms ask,
-// 5. records the run's counts and finishes it.
+// 5. records the run's counts and queues the kept listings to be scored (score-listings.ts).
 //
-// Safe to run twice: the second run saves nothing new, and the counts are read back from the saved rows.
+// Safe to run twice: the second run saves nothing new, the counts are read back from the saved rows, and
+// only listings without a score are queued.
 
 const FetchListingsPayloadSchema = z.object({ runId: z.uuid() });
 
@@ -39,7 +40,7 @@ export async function fetchListings(payload: Json): Promise<void> {
   await saveNewListings(listings);
   await deleteExpiredListings();
   await recordCounts(runId, jobs.length);
-  await finishRun(runId);
+  await queueScoring(runId);
 }
 
 /** Where this run starts reading: the last finished daily run's start, or a day back for the first run. */
