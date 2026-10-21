@@ -40,9 +40,15 @@ function privateFolder(): string {
   write("email-patterns.md", EMAIL_PATTERNS);
   write("voice-examples/01-scope.txt", "Hi Ken,\n");
   write("voice-examples/README.md", "Notes, not an example.");
-  for (const version of ["Full-Stack", "AI-Engineer", "AI-Full-Stack", "Engineering-Delivery-Manager"]) {
-    write(`cvs/out/Owner-CV-${version}.pdf`, "%PDF");
-    write(`cvs/out/Owner-CV-${version}-Letter.pdf`, "%PDF");
+  const cvFolders = {
+    "full-stack": "Full-Stack",
+    "ai-engineer": "AI-Engineer",
+    "ai-full-stack": "AI-Full-Stack",
+    "delivery-manager": "Engineering-Delivery-Manager",
+  };
+  for (const [folder, version] of Object.entries(cvFolders)) {
+    write(`cvs/${folder}/Owner-CV-${version}.pdf`, "%PDF");
+    write(`cvs/${folder}/Owner-CV-${version}-Letter.pdf`, "%PDF");
   }
   return directory;
 }

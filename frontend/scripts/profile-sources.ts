@@ -17,14 +17,13 @@ const SINGLE_FILE_DOCUMENTS: { file: string; kind: DocumentKind; name: string }[
 
 const VOICE_EXAMPLES_FOLDER = "voice-examples";
 const EMAIL_PATTERNS_FILE = "email-patterns.md";
-const CV_FOLDER = path.join("cvs", "out");
 
-// The A4 PDF of each CV the app chooses from (P2). The engineering delivery manager CV is kept for
-// manual use and not loaded, as the requirements cover three versions.
-const CV_FILE_ENDINGS: Record<CvVariant, string> = {
-  full_stack: "-CV-Full-Stack.pdf",
-  ai_engineer: "-CV-AI-Engineer.pdf",
-  ai_full_stack: "-CV-AI-Full-Stack.pdf",
+// The A4 PDF of each CV the app chooses from (P2), one folder per CV. The delivery manager CV is
+// kept for manual use and not loaded, as the requirements cover three versions.
+const CV_FILES: Record<CvVariant, { folder: string; ending: string }> = {
+  full_stack: { folder: "cvs/full-stack", ending: "-CV-Full-Stack.pdf" },
+  ai_engineer: { folder: "cvs/ai-engineer", ending: "-CV-AI-Engineer.pdf" },
+  ai_full_stack: { folder: "cvs/ai-full-stack", ending: "-CV-AI-Full-Stack.pdf" },
 };
 
 const PATTERNS_SECTION_HEADING = /^## 2\. Patterns/m;
@@ -97,11 +96,10 @@ export function readProfileDocuments(privateDirectory: string): ProfileDocument[
 }
 
 export function findCvSources(privateDirectory: string): CvSource[] {
-  const folder = path.join(privateDirectory, CV_FOLDER);
-  const files = existsSync(folder) ? readdirSync(folder) : [];
-
   return CV_VARIANTS.map((variant) => {
-    const ending = CV_FILE_ENDINGS[variant];
+    const { folder: relativeFolder, ending } = CV_FILES[variant];
+    const folder = path.join(privateDirectory, relativeFolder);
+    const files = existsSync(folder) ? readdirSync(folder) : [];
     const fileName = files.find((file) => file.endsWith(ending));
     if (!fileName) throw new Error(`No CV ending in ${ending} in ${folder}`);
     return { variant, fileName, filePath: path.join(folder, fileName) };
