@@ -17,7 +17,6 @@
     "test:db": "bash ../supabase/tests/run.sh",
     "test:e2e": "playwright test",
     "test:watch": "vitest",
-    "yield-check": "node --env-file-if-exists=.env.local scripts/himalayas-yield-check.ts",
     "db:types": "supabase gen types --linked --lang=typescript --schema public --workdir .. > src/server/supabase/database.types.ts",
     "model-check": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/model-check.ts",
     "queue-check": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/queue-check.ts",

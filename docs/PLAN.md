@@ -33,8 +33,8 @@ All work is done as a chain of short steps. Each step is one job on the queue an
 
 **Discovery path** (once a day, overnight):
 
-1. Supabase's scheduler calls a protected route on the app.
-2. That route fetches new listings, converts them to one format, removes duplicates, drops those that clearly exclude the owner, and puts one scoring step per listing on the queue.
+1. Supabase's scheduler calls a database function that records the run and queues its first step. There is no route for it (owner's decision, 21 October 2026): as a queued step, a failed fetch is retried.
+2. That step fetches new listings, converts them to one format, decides which clearly exclude the owner, saves the new ones once each (excluded ones too, so the filter can be checked), and deletes expired ones.
 3. The worker route runs one step per call. While steps are waiting it asks the database to call it again, and the scheduler also calls it every minute in case a call is missed. This repeats until the queue is empty.
 4. The top N listings each get a chosen CV and a short tailored note, by the same steps as a capture.
 
@@ -151,7 +151,7 @@ The tables, as built in sprint 1 (`supabase/migrations/`). Every table allows on
 | `documents` | The owner's plain-text material, versioned: profile, answer bank, voice examples, email patterns. An edit adds a version; the `current_documents` view shows the latest |
 | `cv_files` | Each CV variant (full-stack, AI engineer, AI full-stack), its stored file and which one is current |
 | `captures` | Posts the owner sent in: raw text or images, extracted fields, whether the email was confirmed, a fingerprint for spotting duplicates |
-| `listings` | Automated listings in the common format, with source, link, eligibility, tags, a fingerprint, and the owner's apply or skip mark |
+| `listings` | Automated listings in the common format, with source, link, the job's text, expiry, the run that found them, eligibility, tags, a fingerprint, and the owner's apply or skip mark. Expired listings are deleted, except marked ones and ones with an application |
 | `scores` | Score and reasons per listing, with the model call that produced them |
 | `applications` | One row per prepared application: route (email, note, form), CV, title and email pattern used, recipient, text, Gmail draft reference, status. Its fingerprint is unique, so a job gets one application (X6). A form also keeps its pages and the job read from them |
 | `form_answers` | Each question of a form, its choices, its answer, and where it stands: pending, checking, answered, needs the owner's input, or something to upload |
@@ -162,7 +162,7 @@ The tables, as built in sprint 1 (`supabase/migrations/`). Every table allows on
 Alongside the tables:
 
 - **Queues** (Supabase Queues): `steps` for real work, `steps_test` and `steps_db_test` for tests only.
-- **File buckets** (Supabase Storage, private): `cvs`, `screenshots`, `raw-listings`.
+- **File buckets** (Supabase Storage, private): `cvs`, `screenshots`, and `raw-listings`, which is unused: a listing's text is kept in its row (21 October 2026).
 - **Vault secrets:** `app_url` (where the worker is called) and `internal_api_secret`.
 - **Fixed lists live in code, not tables:** the model steps, providers, effort levels and model prices are in `frontend/src/lib/model-catalog.ts`.
 
@@ -332,7 +332,7 @@ Two lessons from the owner's playbook are built into this plan: guard side effec
 | Google asks for app verification | `gmail.compose` is a restricted permission. A personal app used only by its owner is expected to work with an "unverified app" warning; item 2.3 confirms this before more is built on Gmail |
 | A screenshot is misread or incomplete | Questions are shown before use (F2) and the email address is seen in the Gmail draft before sending; pasted text is the more exact alternative |
 | Drafts and answers read as generic | Voice examples (0.3), email patterns (0.9), and checks E3, E4 and E5 before real use |
-| Supabase free project is paused or outgrown | Free projects pause after a week without activity and allow 500 MB of database. The every-minute schedule keeps it active; bulky raw listings are stored as files, not rows |
+| Supabase free project is paused or outgrown | Free projects pause after a week without activity and allow 500 MB of database. The every-minute schedule keeps it active; expired listings are deleted every night, so the listings table stays small |
 | Reused code carries upstream bugs | Pin the source commit, port its tests, and check each endpoint live before relying on it. A failed fetch is not an expired listing |
 | A source changes its terms | Terms and limits live in one configuration file per source; each terms page is re-read before its connector is built |
 | A model's price or standing changes | Models are retired and repriced often; two candidates were already marked deprecated. Configuration makes a swap a one-line change; item 6.1 supplies the evidence |
@@ -342,7 +342,7 @@ Two lessons from the owner's playbook are built into this plan: guard side effec
 
 Checked against the providers' own pages on 13 October 2026:
 
-- **Himalayas API:** free, no key, 20 listings per request, refreshed every 24 hours, filters for country, worldwide, seniority and time zone. Terms: link back, mention Himalayas, do not submit its jobs to other job sites.
+- **Himalayas API:** free, 20 listings per request, refreshed every 24 hours, filters for country, worldwide, seniority and time zone. Re-read on 21 October 2026: an API key is now optional (60 requests a minute; without one, callers share one allowance); the default order is by recent activity, so Shortlist asks for `sort=recent`. Terms: apply through the supplied `applicationLink`, credit Himalayas with a visible link, do not pass its jobs to other job boards or aggregators, and remove jobs once they expire.
 - **Supabase free plan:** 500 MB database, 1 GB file storage, two active projects, paused after one week of inactivity.
 - **Supabase Cron:** runs SQL or makes an HTTP request, as often as every second. Supabase recommends no more than eight jobs at once and ten minutes per job.
 - **Vercel free plan:** functions run up to 300 seconds; 4.5 MB per request; scheduler once a day, within an hour of the set time; about one million function calls and four hours of active processing a month; personal, non-commercial use only.
