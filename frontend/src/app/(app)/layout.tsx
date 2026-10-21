@@ -13,6 +13,9 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
           <Wordmark size="small" />
         </Link>
         <nav className="flex items-center">
+          <Link href="/jobs" className={NAV_LINK}>
+            Jobs
+          </Link>
           <Link href="/forms" className={NAV_LINK}>
             Forms
           </Link>
