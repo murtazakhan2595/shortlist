@@ -1,18 +1,30 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, expect, test } from "vitest";
-import { deleteExpiredListings, himalayasListing, saveNewListings } from "@/features/discovery/steps/fetch-listings";
+import { afterAll, expect, test, vi } from "vitest";
+import {
+  deleteExpiredListings,
+  fetchListings,
+  himalayasListing,
+  saveNewListings,
+} from "@/features/discovery/steps/fetch-listings";
 import type { HimalayasJob } from "@/server/himalayas";
 import { getAdminClient } from "@/server/supabase/admin";
 
-// Saving converted listings through save_new_listings against the real database. The SQL rules themselves
-// are tested in supabase/tests/database/listings.test.sql; this checks the app's rows arrive whole.
+// The daily run's first step against the real database, with Himalayas replaced by a fake. The SQL rules
+// themselves are tested in supabase/tests/database/listings.test.sql; this checks the app's rows arrive whole.
+const himalayasJobs = vi.hoisted(() => ({ value: [] as unknown[] }));
+vi.mock("@/server/himalayas", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/server/himalayas")>()),
+  fetchHimalayasJobs: vi.fn(async () => himalayasJobs.value),
+}));
+
 const database = getAdminClient();
 const runId = randomUUID();
+const stepRunId = randomUUID();
 const company = `Integration Test ${randomUUID()}`;
 
 afterAll(async () => {
   await database.from("listings").delete().eq("company", company);
-  await database.from("runs").delete().eq("id", runId);
+  await database.from("runs").delete().in("id", [runId, stepRunId]);
 });
 
 function job(id: string, expiryDate: number | null): HimalayasJob {
@@ -65,3 +77,31 @@ test("saves new listings whole, saves nothing the second time, and deletes expir
   const { data: left } = await database.from("listings").select("title").eq("company", company);
   expect(left).toEqual([{ title: "Engineer open" }]);
 });
+
+test("the daily run's first step saves the night's listings with the filter's decisions, once, and finishes the run", async () => {
+  const run = await database.from("runs").insert({ id: stepRunId, kind: "daily" });
+  if (run.error) throw run.error;
+  const salesJob = { ...job("sales", null), title: "Account Manager", parentCategories: ["Sales"] };
+  himalayasJobs.value = [job("developer", null), salesJob];
+
+  await fetchListings({ runId: stepRunId });
+  await fetchListings({ runId: stepRunId });
+
+  const { data: saved } = await database
+    .from("listings")
+    .select("title, eligibility, eligibility_reason")
+    .eq("run_id", stepRunId)
+    .order("title");
+  expect(saved).toEqual([
+    { title: "Account Manager", eligibility: "excluded", eligibility_reason: "Not a technical role" },
+    { title: "Engineer developer", eligibility: "eligible", eligibility_reason: null },
+  ]);
+  const { data: finished } = await database
+    .from("runs")
+    .select("status, listings_fetched, listings_kept, finished_at")
+    .eq("id", stepRunId)
+    .single();
+  expect(finished).toMatchObject({ status: "succeeded", listings_fetched: 2, listings_kept: 1 });
+  expect(finished?.finished_at).not.toBeNull();
+});
+

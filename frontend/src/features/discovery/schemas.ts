@@ -6,8 +6,8 @@ import type { Tables } from "@/server/supabase/database.types";
 // Server Actions:
 //   labelListing(LabelListingInput) -> Result<ListingLabelled>
 //
-// Route handler (called by Supabase Cron, see AGENTS.md "Contracts"):
-//   POST /api/daily-run -> Result<DailyRunSummary>
+// The daily run has no route: Supabase Cron calls start_daily_run in the database, which queues the
+// fetch_listings step (steps/fetch-listings.ts).
 
 export const LabelListingInputSchema = z.object({
   listingId: z.uuid(),
@@ -16,13 +16,6 @@ export const LabelListingInputSchema = z.object({
 export type LabelListingInput = z.infer<typeof LabelListingInputSchema>;
 
 export type ListingLabelled = LabelListingInput;
-
-export type DailyRunSummary = {
-  runId: string;
-  listingsFetched: number;
-  listingsKept: number;
-  scoringStepsQueued: number;
-};
 
 // Types the discovery feature's files share.
 

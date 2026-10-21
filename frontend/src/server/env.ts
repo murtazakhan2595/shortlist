@@ -14,7 +14,7 @@ const ServerEnvSchema = z.object({
   // A direct Postgres connection, for LangGraph's saved state (the langgraph schema). On a serverless host,
   // use Supabase's transaction pooler (port 6543). Needed only by queue steps that run a graph.
   SUPABASE_DB_URL: z.url().optional(),
-  // The Bearer secret Supabase sends to /api/worker and /api/daily-run. Without it, those routes refuse every call.
+  // The Bearer secret Supabase sends to /api/worker. Without it, the worker refuses every call.
   INTERNAL_API_SECRET: z.string().min(32).optional(),
   // The Google Cloud OAuth client (a "Web application"), for Gmail drafts. Needed only by the Gmail code.
   GOOGLE_CLIENT_ID: z.string().endsWith(".apps.googleusercontent.com").optional(),

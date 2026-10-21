@@ -1,11 +1,76 @@
 import "server-only";
-import { HIMALAYAS_SOURCE, type HimalayasJob } from "@/server/himalayas";
+import { z } from "zod";
+import { fetchHimalayasJobs, HIMALAYAS_SOURCE, type HimalayasJob } from "@/server/himalayas";
 import { jobKey } from "@/server/job-key";
+import { finishRun } from "@/server/runs";
 import { getAdminClient } from "@/server/supabase/admin";
+import type { Json } from "@/server/supabase/database.types";
 import type { Eligibility, Listing } from "../schemas";
+import { eligibilityOf, loadFilterSettings } from "./eligibility";
 
-// The daily run's first step (PLAN.md items 4.1 and 4.2): new jobs are fetched, converted to one format,
-// and saved once each; expired ones are deleted.
+// Queue step fetch_listings, the daily run's first step (PLAN.md items 4.1 to 4.3 and 4.5). Queued every
+// night by start_daily_run (supabase/migrations/*_daily_run.sql). In one short call it:
+//
+// 1. fetches the jobs posted since the last run,
+// 2. converts them to one format (D2) and decides each one's eligibility before any model call (D3, D4),
+// 3. saves the new ones (D2, X6). Excluded listings are saved too, so the filter's choices can be checked,
+// 4. deletes expired listings, as Himalayas' terms ask,
+// 5. records the run's counts and finishes it.
+//
+// Safe to run twice: the second run saves nothing new, and the counts are read back from the saved rows.
+
+const FetchListingsPayloadSchema = z.object({ runId: z.uuid() });
+
+// The first run reads back a day. Later runs read back to the last run's start, less a margin for jobs
+// published while it ran; a job read twice is saved once.
+const FIRST_RUN_LOOKBACK_MS = 24 * 60 * 60 * 1000;
+const OVERLAP_MS = 60 * 60 * 1000;
+
+export async function fetchListings(payload: Json): Promise<void> {
+  const { runId } = FetchListingsPayloadSchema.parse(payload);
+
+  const [since, settings] = await Promise.all([fetchSince(runId), loadFilterSettings()]);
+  const jobs = await fetchHimalayasJobs(since);
+  const listings = jobs.map((job) => {
+    const listing = himalayasListing(job, runId);
+    return { ...listing, ...eligibilityOf(listing, settings) };
+  });
+
+  await saveNewListings(listings);
+  await deleteExpiredListings();
+  await recordCounts(runId, jobs.length);
+  await finishRun(runId);
+}
+
+/** Where this run starts reading: the last finished daily run's start, or a day back for the first run. */
+async function fetchSince(runId: string): Promise<Date> {
+  const { data, error } = await getAdminClient()
+    .from("runs")
+    .select("started_at")
+    .eq("kind", "daily")
+    .eq("status", "succeeded")
+    .neq("id", runId)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`Could not find the last daily run: ${error.message}`);
+  if (!data) return new Date(Date.now() - FIRST_RUN_LOOKBACK_MS);
+  return new Date(new Date(data.started_at).getTime() - OVERLAP_MS);
+}
+
+/** How many jobs were fetched, and how many new ones were kept for scoring (not excluded). */
+async function recordCounts(runId: string, fetched: number): Promise<void> {
+  const db = getAdminClient();
+  const kept = await db
+    .from("listings")
+    .select("id", { count: "exact", head: true })
+    .eq("run_id", runId)
+    .neq("eligibility", "excluded");
+  if (kept.error) throw new Error(`Could not count the run's listings: ${kept.error.message}`);
+
+  const saved = await db.from("runs").update({ listings_fetched: fetched, listings_kept: kept.count ?? 0 }).eq("id", runId);
+  if (saved.error) throw new Error(`Could not record the run's counts: ${saved.error.message}`);
+}
 
 // ---------------------------------------------------------------------------
 // One format for every source (D2)

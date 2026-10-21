@@ -683,6 +683,7 @@ export type Database = {
         }
         Returns: string
       }
+      start_daily_run: { Args: never; Returns: string }
       wake_worker: { Args: never; Returns: undefined }
     }
     Enums: {

@@ -1,6 +1,7 @@
 import { createGmailDraft } from "@/features/applications/steps/gmail-draft";
 import { advanceWriter, prepareEmailApplication } from "@/features/applications/steps/writer-steps";
 import { extractCapture } from "@/features/captures/steps/extract-capture";
+import { fetchListings } from "@/features/discovery/steps/fetch-listings";
 import { answerForm, checkFormAnswers } from "@/features/forms/steps/answer-form";
 import { readForm } from "@/features/forms/steps/read-form";
 import { QUEUE_CHECK_STEP, runQueueCheck } from "@/server/queue/queue-check";
@@ -17,4 +18,5 @@ export const STEP_HANDLERS: StepHandlers = {
   [STEP_NAMES.readForm]: readForm,
   [STEP_NAMES.answerForm]: answerForm,
   [STEP_NAMES.checkFormAnswers]: checkFormAnswers,
+  [STEP_NAMES.fetchListings]: fetchListings,
 };
