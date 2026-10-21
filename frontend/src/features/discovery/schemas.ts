@@ -21,11 +21,11 @@ export type ListingLabelled = LabelListingInput;
 
 /**
  * A job in the one format every source is converted to (D2): a listings row without the columns the
- * database fills, the owner's mark, and the filter's decision.
+ * database fills, the owner's mark, the filter's decision and the rank scoring gives it.
  */
 export type Listing = Omit<
   Tables<"listings">,
-  "id" | "created_at" | "label" | "labelled_at" | "eligibility" | "eligibility_reason"
+  "id" | "created_at" | "label" | "labelled_at" | "eligibility" | "eligibility_reason" | "top_rank"
 >;
 
 /** What the filter decides about a listing before any model call (D3, D4). */

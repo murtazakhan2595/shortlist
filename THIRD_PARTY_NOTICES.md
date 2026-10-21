@@ -11,6 +11,7 @@ MadsLorentzen/ai-job-search, pinned at commit `5d9e0977f01465166f25abf0826bd61e7
 | https://github.com/MadsLorentzen/ai-job-search/blob/5d9e0977f01465166f25abf0826bd61e7c8cac25/tools/job_key.py | `frontend/src/server/job-key.ts` | The duplicate key's slug and length cap, translated to TypeScript |
 | https://github.com/MadsLorentzen/ai-job-search/blob/5d9e0977f01465166f25abf0826bd61e7c8cac25/.claude/skills/job-application-assistant/03-writing-style.md | `frontend/src/features/applications/steps/draft-checks.ts` | The banned phrases, merged with the owner's own list |
 | https://github.com/MadsLorentzen/ai-job-search/blob/5d9e0977f01465166f25abf0826bd61e7c8cac25/.claude/commands/apply.md | `frontend/src/features/applications/steps/writer.ts` | The reviewer's factual grounding audit, adapted as the check prompt |
+| https://github.com/MadsLorentzen/ai-job-search/blob/5d9e0977f01465166f25abf0826bd61e7c8cac25/.claude/skills/job-application-assistant/04-job-evaluation.md | `frontend/src/features/discovery/steps/score-listings.ts` | The scoring rubric: three of its dimensions with their score bands, re-weighted, and "match on the function, not the title" |
 
 ## LangGraph.js
 

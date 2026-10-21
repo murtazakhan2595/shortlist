@@ -19,4 +19,8 @@ export const STEP_NAMES = {
   checkFormAnswers: "check_form_answers",
   /** discovery: fetch, filter and save the night's new listings; queued by start_daily_run (items 4.1 to 4.5). */
   fetchListings: "fetch_listings",
+  /** discovery: score one kept listing against the profile (item 4.4). */
+  scoreListing: "score_listing",
+  /** discovery: keep the run's top listings once all are scored, and finish the run (item 4.4). */
+  selectTopListings: "select_top_listings",
 } as const;
