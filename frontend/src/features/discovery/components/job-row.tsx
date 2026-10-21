@@ -109,6 +109,7 @@ function tagNames(tags: string[]): string[] {
 }
 
 function Note({ note }: { note: NonNullable<JobView["note"]> }) {
+  console.log("dsfs")
   if (note.status === "preparing") return <p className="text-sm text-ink-muted">Writing the note…</p>;
 
   if (note.status === "blocked") {
