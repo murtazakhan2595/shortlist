@@ -320,23 +320,27 @@ export type Database = {
       }
       listings: {
         Row: {
+          categories: string[]
           company: string
           countries: string[]
           created_at: string
+          description: string
           eligibility: string
           eligibility_reason: string | null
+          employment_type: string | null
+          expires_at: string | null
           fingerprint: string
           id: string
           label: string | null
           labelled_at: string | null
           location: string | null
           posted_at: string | null
-          raw_path: string | null
+          run_id: string | null
           salary_currency: string | null
           salary_max: number | null
           salary_min: number | null
           salary_period: string | null
-          seniority: string | null
+          seniority: string[]
           source: string
           source_id: string
           tags: string[]
@@ -344,23 +348,27 @@ export type Database = {
           url: string
         }
         Insert: {
+          categories?: string[]
           company: string
           countries?: string[]
           created_at?: string
+          description: string
           eligibility: string
           eligibility_reason?: string | null
+          employment_type?: string | null
+          expires_at?: string | null
           fingerprint: string
           id?: string
           label?: string | null
           labelled_at?: string | null
           location?: string | null
           posted_at?: string | null
-          raw_path?: string | null
+          run_id?: string | null
           salary_currency?: string | null
           salary_max?: number | null
           salary_min?: number | null
           salary_period?: string | null
-          seniority?: string | null
+          seniority?: string[]
           source: string
           source_id: string
           tags?: string[]
@@ -368,30 +376,42 @@ export type Database = {
           url: string
         }
         Update: {
+          categories?: string[]
           company?: string
           countries?: string[]
           created_at?: string
+          description?: string
           eligibility?: string
           eligibility_reason?: string | null
+          employment_type?: string | null
+          expires_at?: string | null
           fingerprint?: string
           id?: string
           label?: string | null
           labelled_at?: string | null
           location?: string | null
           posted_at?: string | null
-          raw_path?: string | null
+          run_id?: string | null
           salary_currency?: string | null
           salary_max?: number | null
           salary_min?: number | null
           salary_period?: string | null
-          seniority?: string | null
+          seniority?: string[]
           source?: string
           source_id?: string
           tags?: string[]
           title?: string
           url?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "listings_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "runs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       model_calls: {
         Row: {
@@ -616,6 +636,7 @@ export type Database = {
         Args: { message_id: number; queue_name: string }
         Returns: undefined
       }
+      delete_expired_listings: { Args: never; Returns: number }
       enqueue_step: {
         Args: {
           payload: Json
@@ -637,6 +658,7 @@ export type Database = {
         Returns: undefined
       }
       gmail_token: { Args: never; Returns: string }
+      job_slug: { Args: { name: string }; Returns: string }
       queue_length: { Args: { queue_name: string }; Returns: number }
       read_next_step: {
         Args: { queue_name: string; visibility_seconds: number }
@@ -652,6 +674,7 @@ export type Database = {
         Returns: undefined
       }
       save_gmail_token: { Args: { token: string }; Returns: undefined }
+      save_new_listings: { Args: { new_listings: Json }; Returns: string[] }
       set_current_cv: {
         Args: {
           cv_file_name: string

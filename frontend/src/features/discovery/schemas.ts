@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Tables } from "@/server/supabase/database.types";
 
 // Contracts for the discovery feature (PLAN.md item 1.3; D1, U7).
 //
@@ -22,3 +23,17 @@ export type DailyRunSummary = {
   listingsKept: number;
   scoringStepsQueued: number;
 };
+
+// Types the discovery feature's files share.
+
+/**
+ * A job in the one format every source is converted to (D2): a listings row without the columns the
+ * database fills, the owner's mark, and the filter's decision.
+ */
+export type Listing = Omit<
+  Tables<"listings">,
+  "id" | "created_at" | "label" | "labelled_at" | "eligibility" | "eligibility_reason"
+>;
+
+/** What the filter decides about a listing before any model call (D3, D4). */
+export type Eligibility = Pick<Tables<"listings">, "eligibility" | "eligibility_reason">;
