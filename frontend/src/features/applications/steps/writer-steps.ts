@@ -11,29 +11,34 @@ import type { Json } from "@/server/supabase/database.types";
 import { ApplicationPayloadSchema, type WriterContext } from "../schemas";
 import { buildWriterGraph, START_STATE, type WriterStateValues, writerOutcome } from "./writer";
 
-// The writer's two queue steps (PLAN.md items 2.2 and 2.6), in the order they run:
+// The writer's queue steps (PLAN.md items 2.2, 2.6 and 4.6), in the order they run:
 //
 // 1. prepare_email_application: a capture with an email gets its application row, unless the same job
-//    already has one (then the capture is a duplicate). Queued when a pasted post is read, or when the
-//    owner confirms a screenshot's email.
+//    already has one (then the capture is a duplicate). Queued when a post is read.
+//    prepare_note_application: a listing in its night's top N gets its application row, a note to paste
+//    when applying through its link (X2), unless the same job already has one. Queued by select_top_listings.
 // 2. advance_writer: runs the next stage of the writer's loop (writer.ts) and queues itself again, until
-//    the loop ends and the application is saved as ready or blocked. A ready one goes on to
-//    create_gmail_draft (gmail-draft.ts). One stage per call keeps every call
+//    the loop ends and the application is saved as ready or blocked. A ready email goes on to
+//    create_gmail_draft (gmail-draft.ts); a note is done. One stage per call keeps every call
 //    within the 60-second budget; LangGraph saves the loop's state in Postgres between calls.
 //
-// Both are safe to run twice. A capture that already has its application only moves the writer on. A call
+// All are safe to run twice. A capture or listing that already has its application only moves the writer on. A call
 // to advance_writer first claims a short lease on the application, and does nothing if it is taken; an
 // extra call only moves the loop one stage further. If a call dies, its lease runs out and the queue's
 // retry carries on from the last saved stage.
 
 const CapturePayloadSchema = z.object({ captureId: z.uuid() });
+const ListingPayloadSchema = z.object({ listingId: z.uuid() });
 
 // Longer than one stage (60 seconds), shorter than the queue's 90 seconds before a retry.
 const LEASE_SECONDS = 75;
 
-/** The email patterns for a captured post with an email (P7), named after the headings in
- * private/email-patterns.md. The others are for referrals and job-board notes. */
-const CAPTURE_EMAIL_PATTERNS = ["post-reply", "proof-first-cold-email"];
+/** The patterns each route may follow (P7), named after the headings in private/email-patterns.md.
+ * The referral pattern is not used by the writer. */
+const PATTERNS_BY_ROUTE: Record<WriterContext["route"], string[]> = {
+  email: ["post-reply", "proof-first-cold-email"],
+  note: ["job-board-note"],
+};
 
 // ---------------------------------------------------------------------------
 // 1. prepare_email_application
@@ -78,6 +83,40 @@ export async function prepareEmailApplication(payload: Json): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// 1. prepare_note_application
+// ---------------------------------------------------------------------------
+
+export async function prepareNoteApplication(payload: Json): Promise<void> {
+  const { listingId } = ListingPayloadSchema.parse(payload);
+  const db = getAdminClient();
+
+  const listing = await db.from("listings").select("fingerprint, top_rank").eq("id", listingId).maybeSingle();
+  if (listing.error) throw new Error(`Could not load listing ${listingId}: ${listing.error.message}`);
+  if (!listing.data?.top_rank) return;
+
+  // The listing's own duplicate key (D2, X6), so the same job gets one application from any source.
+  const { fingerprint } = listing.data;
+  const existing = await db.from("applications").select("id, listing_id").eq("fingerprint", fingerprint).maybeSingle();
+  if (existing.error) throw new Error(`Could not look for an earlier application: ${existing.error.message}`);
+  if (existing.data?.listing_id === listingId) {
+    await enqueueStep(STEP_NAMES.advanceWriter, { applicationId: existing.data.id });
+    return;
+  }
+  if (existing.data) return;
+
+  // If another run of this step inserts first, the unique fingerprint makes this fail, and the retry
+  // takes the branch above.
+  const created = await db
+    .from("applications")
+    .insert({ listing_id: listingId, route: "note", fingerprint })
+    .select("id")
+    .single();
+  if (created.error) throw new Error(`Could not start the application: ${created.error.message}`);
+
+  await enqueueStep(STEP_NAMES.advanceWriter, { applicationId: created.data.id });
+}
+
+// ---------------------------------------------------------------------------
 // 2. advance_writer
 // ---------------------------------------------------------------------------
 
@@ -99,37 +138,71 @@ export async function advanceWriter(payload: Json): Promise<void> {
 async function runNextStage(applicationId: string): Promise<boolean> {
   const application = await getAdminClient()
     .from("applications")
-    .select("status, recipient_email, captures (id, run_id, raw_text, role, company, poster_name)")
+    .select(
+      "status, recipient_email, captures (id, run_id, raw_text, role, company, poster_name), listings (run_id, title, company, location, description)",
+    )
     .eq("id", applicationId)
     .single();
   if (application.error) throw new Error(`Could not load application ${applicationId}: ${application.error.message}`);
-  const { status, recipient_email: recipientEmail, captures: capture } = application.data;
-  if (!capture?.raw_text || !recipientEmail) throw new Error(`Application ${applicationId} has no post text or recipient`);
+  const { status, recipient_email: recipientEmail, captures: capture, listings: listing } = application.data;
 
   let outcome = status;
   if (status === "preparing") {
-    const writer: WriterContext = {
-      ...(await loadWriterMaterial()),
-      link: { runId: capture.run_id ?? undefined, applicationId },
-      post: {
-        text: capture.raw_text,
-        role: capture.role,
-        company: capture.company,
-        posterName: capture.poster_name,
-        seenOn: "LinkedIn",
-      },
-      recipientEmail,
-    };
+    const writer = capture
+      ? await emailWriter(applicationId, capture, recipientEmail)
+      : await noteWriter(applicationId, listing);
     outcome = await runOneStage(applicationId, writer);
     if (outcome === "preparing") return false;
   }
+  // A note is done once saved. Also reached when a retry finds the outcome already saved, so a call that
+  // died here still hands off.
+  if (capture) await finishCapture(applicationId, outcome, capture);
+  return true;
+}
 
-  // Also reached when a retry finds the outcome already saved, so a call that died here still hands off.
+type CaptureForWriter = { id: string; run_id: string | null; raw_text: string | null; role: string | null; company: string | null; poster_name: string | null };
+type ListingForWriter = { run_id: string | null; title: string; company: string; location: string | null; description: string };
+
+async function emailWriter(applicationId: string, capture: CaptureForWriter, recipientEmail: string | null): Promise<WriterContext> {
+  if (!capture.raw_text || !recipientEmail) throw new Error(`Application ${applicationId} has no post text or recipient`);
+  return {
+    ...(await loadWriterMaterial("email")),
+    route: "email",
+    link: { runId: capture.run_id ?? undefined, applicationId },
+    post: {
+      text: capture.raw_text,
+      role: capture.role,
+      company: capture.company,
+      posterName: capture.poster_name,
+      seenOn: "LinkedIn",
+    },
+    recipientEmail,
+  };
+}
+
+async function noteWriter(applicationId: string, listing: ListingForWriter | null): Promise<WriterContext> {
+  if (!listing) throw new Error(`Application ${applicationId} has no capture or listing`);
+  return {
+    ...(await loadWriterMaterial("note")),
+    route: "note",
+    link: { runId: listing.run_id ?? undefined, applicationId },
+    post: {
+      text: `${listing.title} at ${listing.company}\nLocation: ${listing.location ?? "not stated"}\n\n${listing.description}`,
+      role: listing.title,
+      company: listing.company,
+      posterName: null,
+      seenOn: "Himalayas",
+    },
+    recipientEmail: null,
+  };
+}
+
+/** A ready email goes on to its Gmail draft; the capture is closed and its run finished. */
+async function finishCapture(applicationId: string, outcome: string, capture: CaptureForWriter): Promise<void> {
   if (outcome === "ready") await enqueueStep(STEP_NAMES.createGmailDraft, { applicationId });
   const done = await getAdminClient().from("captures").update({ status: "done" }).eq("id", capture.id).eq("status", "processing");
   if (done.error) throw new Error(`Could not close capture ${capture.id}: ${done.error.message}`);
   if (capture.run_id) await finishRun(capture.run_id);
-  return true;
 }
 
 /** Runs the loop's next stage, and saves the outcome once the loop has ended. Returns the application's status. */
@@ -163,8 +236,8 @@ async function saveOutcome(applicationId: string, writer: WriterContext, state: 
     .from("applications")
     .update({
       status: outcome,
-      subject: draft?.subject ?? null,
-      body: draft ? `${draft.body}\n\n${draft.signature}` : null,
+      subject: draft?.subject || null,
+      body: draft ? [draft.body, draft.signature].filter(Boolean).join("\n\n") : null,
       presented_title: draft?.presentedTitle ?? null,
       cv_file_id: cvFile?.data?.id ?? null,
       email_pattern_id: writer.patterns.find((pattern) => pattern.name === draft?.emailPattern)?.id ?? null,
@@ -193,10 +266,12 @@ async function releaseLease(applicationId: string): Promise<void> {
   if (error) throw new Error(`Could not release application ${applicationId}: ${error.message}`);
 }
 
-/** The owner's material, with the email patterns a captured post can use. */
-export async function loadWriterMaterial(): Promise<Omit<WriterContext, "link" | "post" | "recipientEmail">> {
+/** The owner's material, with the patterns the route can follow. */
+export async function loadWriterMaterial(
+  route: WriterContext["route"],
+): Promise<Omit<WriterContext, "route" | "link" | "post" | "recipientEmail">> {
   const { emailPatterns, ...material } = await loadOwnerMaterial();
-  const patterns = emailPatterns.filter((pattern) => CAPTURE_EMAIL_PATTERNS.includes(pattern.name));
-  if (patterns.length === 0) throw new Error("No email pattern for captured posts is stored: run pnpm profile:load");
+  const patterns = emailPatterns.filter((pattern) => PATTERNS_BY_ROUTE[route].includes(pattern.name));
+  if (patterns.length === 0) throw new Error(`No ${route} pattern is stored: add one on the Profile page`);
   return { ...material, patterns };
 }
