@@ -1,6 +1,6 @@
 # Shortlist: Build Plan
 
-Version 2.7, 20 October 2026. Agreed plan. Sprints 0 and 1 are done; sections 2, 3, 5, 8 and 9 describe what sprint 1 actually built. Sprint 3 records what it built under its table.
+Version 2.8, 22 October 2026. Agreed plan. Sprints 0 to 4 are done and sprint 5 is built; sections 2, 3, 5, 8 and 9 describe what sprint 1 actually built. Sprints 3, 4 and 5 record what they built under their tables.
 
 This document says **how** Shortlist gets built. **What** is being built, and how success is judged, is in [REQUIREMENTS.md](REQUIREMENTS.md). Requirement IDs (C1, D3, F4, E2 and so on) refer to that file.
 
@@ -157,7 +157,7 @@ The tables, as built in sprint 1 (`supabase/migrations/`). Every table allows on
 | `form_answers` | Each question of a form, its choices, its answer, and where it stands: pending, checking, answered, needs the owner's input, or something to upload |
 | `runs` | Each daily run, capture and evaluation run: timings and counts |
 | `model_calls` | Every model call: step, provider, model, effort, tokens, cost, time, error. Run and monthly costs are summed from here |
-| `failed_steps` | Queued steps that failed every attempt, with the last error |
+| `failed_steps` | Queued steps that failed every attempt, with the last error. A row is an open failure until the owner tries the step again or dismisses it |
 
 Alongside the tables:
 
@@ -303,6 +303,16 @@ Two lessons from the owner's playbook are built into this plan: guard side effec
 
 **Exit check:** every stage 1 requirement is met, and the owner has used the system for a week.
 
+**As built (22 October 2026).** Before the sprint, a code audit's findings were fixed (PR #30), and every page got one-tap navigation, with a bar at the bottom on a phone, as the installed app has no back button (#29).
+
+- **Daily list and statuses (5.1).** The home page lists the last seven days' applications by day, in Pakistan time, with where each came from, what was prepared, and a listing's score and tags. Sent, Skipped, Replied and Interview are one tap each; the first time an application counts as sent is kept for the reports. Above the list, "Needs your attention" collects every open failure, the nightly run's warning and the cap notice.
+- **Settings (5.2).** The nightly run's settings (jobs a night, monthly cap, lowest pay, excluded countries) and each step's model and effort, from the priced models only, are edited on the Settings page. Each takes effect from the next step that reads it.
+- **Reports (5.3).** A Reports page shows reply and interview rates per source and per email pattern, counted from the statuses marked on the home page; the last fourteen nightly runs with their counts and cost; and spending per month and step. Nothing is stored for reports.
+- **Spending cap (5.4).** Once the month's model spending reaches the cap, the nightly run fetches nothing, scores nothing and writes no notes; a note already queued is saved as blocked, saying why. Captures and forms are the owner's own requests and always run. The Jobs, Home and Settings pages say when the cap is reached.
+- **Hidden instructions (5.5).** Tests with a fake model that obeys hidden text in a post, a form and a listing show that it causes no action, the answer bank is never written, and a draft's recipient always comes from the capture. A post can still name any address: the owner sees it in the Gmail draft before sending.
+- **Failures (5.6).** A step that fails every attempt stays open in `failed_steps` and shows on the page of what it was working on (the capture, the form, or the job), with Try again, which queues it once more with the same payload, and Dismiss. A listing that cannot be scored no longer holds up the night: the worker's `giveUp` hook moves the run on to choosing its list. The app warns when a nightly run has not finished after six hours, failed, or no run started for over a day.
+- **CVs.** A new CV is uploaded on the Profile page; `pnpm profile:load` is removed, as running it saved old files over edits made in the app.
+
 ### Sprint 6: Evidence and showcase
 
 **Goal:** the repository is ready to show an employer.
@@ -338,7 +348,7 @@ Two lessons from the owner's playbook are built into this plan: guard side effec
 | Reused code carries upstream bugs | Pin the source commit, port its tests, and check each endpoint live before relying on it. A failed fetch is not an expired listing |
 | A source changes its terms | Terms and limits live in one configuration file per source; each terms page is re-read before its connector is built |
 | A model's price or standing changes | Models are retired and repriced often; two candidates were already marked deprecated. Configuration makes a swap a one-line change; item 6.1 supplies the evidence |
-| Spending runs over before the cap exists | Until item 5.4, the spending limit set on the provider key in item 0.6 is the safeguard |
+| Spending runs over the cap | Item 5.4 stops the nightly run at the monthly cap. Captures and forms still run, so the spending limit set on the provider key in item 0.6 stays the last safeguard |
 
 ## 9. Facts checked
 
