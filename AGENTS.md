@@ -147,7 +147,7 @@ Every work item ends with passing tests. Run from `frontend/`:
 
 Quality checks E1 to E5 (REQUIREMENTS.md section 7) run with `pnpm eval <check> --models <model>@<effort>,...`, which uses real models and costs money. Each check lives in `evals/checks.ts`; its cases are private, in `private/evals/<check>/cases/*.json`, never in the repository. Results tables (numbers only) go to `evals/results/<check>.md` and are committed.
 
-`pnpm profile:load` copies the owner's material from `private/` (profile, answer bank, voice examples, email patterns, CVs) into Supabase. Re-running it saves only what changed, as new versions.
+The owner's material (profile, answer bank, voice examples, email patterns, CVs) lives in Supabase and is edited on the Profile page; nothing is loaded from `private/`.
 
 After every migration, run `pnpm db:types` to regenerate `src/server/supabase/database.types.ts`; CI fails if it is out of date.
 

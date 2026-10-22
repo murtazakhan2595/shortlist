@@ -2,9 +2,18 @@
 
 import { describeError } from "@/lib/errors";
 import { fail, ok, type Result } from "@/lib/result";
+import { type PdfUploadRequest, PdfUploadRequestSchema, type SignedUpload } from "@/lib/uploads";
 import { requireOwner } from "@/server/auth/require-owner";
+import { createCvUploadUrl as createCvUpload, setCurrentCv } from "@/server/cvs";
 import { saveDocumentIfChanged } from "@/server/documents";
-import { type DocumentSaved, type SaveDocumentInput, SaveDocumentInputSchema } from "./schemas";
+import {
+  type CvFileSaved,
+  type DocumentSaved,
+  type SaveCvFileInput,
+  SaveCvFileInputSchema,
+  type SaveDocumentInput,
+  SaveDocumentInputSchema,
+} from "./schemas";
 
 // Server Actions for the owner's material (contracts in ./schemas.ts). Writes use the owner's client, so
 // the access rules apply too.
@@ -25,6 +34,34 @@ export async function saveDocument(request: SaveDocumentInput): Promise<Result<D
       );
     }
     return ok({ documentId, version });
+  } catch (error) {
+    return fail("internal", describeError(error));
+  }
+}
+
+/** A one-time link the browser uploads a new CV to, straight into private storage (P2). */
+export async function createCvUploadUrl(request: PdfUploadRequest): Promise<Result<SignedUpload>> {
+  const input = PdfUploadRequestSchema.safeParse(request);
+  if (!input.success) return fail("invalid_input", input.error.issues[0].message);
+
+  const { db } = await requireOwner();
+  try {
+    return ok(await createCvUpload(db));
+  } catch (error) {
+    return fail("internal", describeError(error));
+  }
+}
+
+/** Makes an uploaded CV the current one of its kind. Drafts already made keep the CV they were made with. */
+export async function saveCvFile(request: SaveCvFileInput): Promise<Result<CvFileSaved>> {
+  const input = SaveCvFileInputSchema.safeParse(request);
+  if (!input.success) return fail("invalid_input", input.error.issues[0].message);
+
+  const { db } = await requireOwner();
+  try {
+    const cvFileId = await setCurrentCv(db, input.data);
+    if (!cvFileId) return fail("not_found", "The CV was not uploaded. Choose the file again.");
+    return ok({ cvFileId });
   } catch (error) {
     return fail("internal", describeError(error));
   }
