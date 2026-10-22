@@ -85,6 +85,17 @@ describe("flags doubts, ranked lower", () => {
   });
 });
 
+test("an excluded country with brackets or dots in its name is matched as written", () => {
+  const settings = { ...SETTINGS, excludedCountries: ["Congo (DRC)", "St. Kitts [and Nevis"] };
+
+  expect(eligibilityOf({ ...LISTING, description: "We are based in Congo (DRC), hiring now." }, settings)).toEqual({
+    eligibility: "excluded",
+    eligibility_reason: "The employer is based in Congo (DRC)",
+  });
+  expect(eligibilityOf({ ...LISTING, description: "We are based in Congo xDRCx." }, settings).eligibility).toBe("eligible");
+  expect(eligibilityOf({ ...LISTING, description: "Located in St. Kitts [and Nevis." }, settings).eligibility).toBe("excluded");
+});
+
 test("reads the years of experience asked for", () => {
   expect(minimumYearsRequired("3-5 years of experience")).toBe(3);
   expect(minimumYearsRequired("7 years' experience in Python")).toBe(7);

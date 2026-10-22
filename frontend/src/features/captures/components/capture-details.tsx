@@ -44,7 +44,8 @@ function NextStep({ capture }: { capture: CaptureView }) {
         </>
       );
     case "done":
-      return <p className="text-lg font-semibold">Application prepared</p>;
+      // The application below says whether it is ready or blocked.
+      return <p className="text-lg font-semibold">Post read</p>;
     case "duplicate":
       return (
         <>

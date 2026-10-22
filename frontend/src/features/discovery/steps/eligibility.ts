@@ -1,4 +1,5 @@
 import "server-only";
+import { escapeRegExp } from "@/lib/regex";
 import { getAdminClient } from "@/server/supabase/admin";
 import type { Eligibility, Listing } from "../schemas";
 
@@ -131,7 +132,7 @@ function countryReason(listing: Listing, excludedCountries: string[]): string | 
   if (openOnlyToExcluded) return `Open only to ${listing.countries.join(", ")}`;
 
   for (const country of excludedCountries) {
-    if (new RegExp(`\\b(based|headquartered|located) in ${country}\\b`, "i").test(listing.description)) {
+    if (new RegExp(`\\b(based|headquartered|located) in ${escapeRegExp(country)}(?!\\w)`, "i").test(listing.description)) {
       return `The employer is based in ${country}`;
     }
   }

@@ -1,5 +1,7 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { expect, test } from "vitest";
-import { MAX_SAVED_QUESTION_LENGTH, withFormAnswer } from "./documents";
+import { addToAnswerBank, MAX_SAVED_QUESTION_LENGTH, withFormAnswer } from "./documents";
+import type { Database } from "./supabase/database.types";
 
 const BANK = "# Answer bank\n\n## 1. Contact\n\nName: Sam\n";
 
@@ -36,4 +38,57 @@ test("a long question from a form is cut short before it goes into the answer ba
   expect(savedQuestion.endsWith("…")).toBe(true);
   // The same long question answered again still replaces the old answer.
   expect(withFormAnswer(bank, question, "Web apps and AI.").match(/Tell us about yourself/g)).toHaveLength(1);
+});
+
+/**
+ * A stand-in for the database's answer bank: just the reads and inserts addToAnswerBank makes. beforeRead
+ * runs before each read, so a test can save a version in between, as the owner would on the Profile page.
+ */
+function fakeAnswerBank(first: string, beforeRead: (readNumber: number, save: (content: string) => void) => void) {
+  const versions = [first];
+  const save = (content: string) => versions.push(content);
+  let reads = 0;
+  const query = {
+    select: () => query,
+    eq: () => query,
+    maybeSingle: async () => {
+      beforeRead(++reads, save);
+      const version = versions.length;
+      return { data: { id: `v${version}`, version, content: versions[version - 1] }, error: null };
+    },
+  };
+  const db = {
+    from: () => ({
+      ...query,
+      insert: (row: { content: string; version: number }) => {
+        // As the unique (kind, name, version) rule would, a version that exists is refused.
+        if (row.version !== versions.length + 1) throw new Error("duplicate version");
+        save(row.content);
+        return { select: () => ({ single: async () => ({ data: { id: `v${row.version}` }, error: null }) }) };
+      },
+    }),
+  };
+  return { db: db as unknown as SupabaseClient<Database>, versions };
+}
+
+test("an answer saved while the owner edits the answer bank keeps both changes", async () => {
+  // The owner's edit lands between addToAnswerBank's read and its save.
+  const { db, versions } = fakeAnswerBank(BANK, (read, save) => {
+    if (read === 2) save(`${BANK}Phone: 0300\n`);
+  });
+
+  const version = await addToAnswerBank(db, "Notice period?", "Two weeks");
+
+  expect(version).toBe(3);
+  expect(versions[2]).toContain("Phone: 0300");
+  expect(versions[2]).toContain("Answer: Two weeks");
+});
+
+test("an answer bank that keeps changing is not overwritten; the owner is asked to try again", async () => {
+  const { db, versions } = fakeAnswerBank(BANK, (read, save) => {
+    if (read % 2 === 0) save(`${BANK}Edit ${read}\n`);
+  });
+
+  await expect(addToAnswerBank(db, "Notice period?", "Two weeks")).rejects.toThrow(/Try again/);
+  expect(versions.every((content) => !content.includes("Two weeks"))).toBe(true);
 });

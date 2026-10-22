@@ -59,19 +59,30 @@ const FORM_ANSWERS_INTRO =
 // Keeping it short leaves no room for a long hidden instruction to be carried into the bank.
 export const MAX_SAVED_QUESTION_LENGTH = 300;
 
-/** Adds the owner's answer to the answer bank as a new version, and returns that version. */
-export async function addToAnswerBank(db: SupabaseClient<Database>, question: string, answer: string): Promise<number> {
-  const { data, error } = await db
-    .from("current_documents")
-    .select("content")
-    .eq("kind", ANSWER_BANK.kind)
-    .eq("name", ANSWER_BANK.name)
-    .maybeSingle();
-  if (error) throw new Error(`Could not read the answer bank: ${error.message}`);
-  if (!data?.content) throw new Error("There is no answer bank to add to");
+// Enough for an edit saved on the Profile page at the same moment; more would mean something is wrong.
+const ANSWER_BANK_SAVE_ATTEMPTS = 2;
 
-  const saved = await saveDocumentIfChanged(db, { ...ANSWER_BANK, content: withFormAnswer(data.content, question, answer) });
-  return saved.version;
+/**
+ * Adds the owner's answer to the answer bank as a new version, and returns that version. The answer is
+ * added to the version just read; if another version was saved in between, it is added to that one instead,
+ * so neither change is lost.
+ */
+export async function addToAnswerBank(db: SupabaseClient<Database>, question: string, answer: string): Promise<number> {
+  for (let attempt = 1; attempt <= ANSWER_BANK_SAVE_ATTEMPTS; attempt++) {
+    const { data, error } = await db
+      .from("current_documents")
+      .select("content, version")
+      .eq("kind", ANSWER_BANK.kind)
+      .eq("name", ANSWER_BANK.name)
+      .maybeSingle();
+    if (error) throw new Error(`Could not read the answer bank: ${error.message}`);
+    if (!data?.content || !data.version) throw new Error("There is no answer bank to add to");
+
+    const content = withFormAnswer(data.content, question, answer);
+    const saved = await saveDocumentIfChanged(db, { ...ANSWER_BANK, content }, data.version);
+    if (saved.status !== "conflict") return saved.version;
+  }
+  throw new Error("The answer bank kept changing while the answer was saved. Try again.");
 }
 
 /**

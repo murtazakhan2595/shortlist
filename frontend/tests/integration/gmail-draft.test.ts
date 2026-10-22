@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { createGmailDraft, queueMissingDrafts } from "@/features/applications/steps/gmail-draft";
+import { claimLease, whileLeased } from "@/features/applications/steps/writer-steps";
 import type { DraftEmail } from "@/server/gmail/schemas";
 import { getAdminClient } from "@/server/supabase/admin";
 
@@ -83,6 +84,35 @@ describe("create_gmail_draft", () => {
     expect(email).toMatchObject({ to: "jobs@acme.example", subject: "Application for the Engineer role" });
     expect(email.attachment.fileName).toBe(cvFileName);
     expect(email.attachment.content.subarray(0, 5).toString()).toBe("%PDF-");
+  });
+
+  test("two copies at once make one draft: a copy that finds the application busy fails, to be retried", async () => {
+    const { applicationId } = await createReadyApplication();
+
+    const results = await Promise.allSettled([createGmailDraft({ applicationId }), createGmailDraft({ applicationId })]);
+    await createGmailDraft({ applicationId });
+
+    expect(gmail.created).toBe(1);
+    for (const result of results) {
+      if (result.status === "rejected") expect(String(result.reason)).toMatch(/is busy/);
+    }
+    const { data } = await database.from("applications").select("writer_lease_until").eq("id", applicationId).single();
+    expect(data?.writer_lease_until).toBeNull();
+  });
+
+  test("releasing a lease leaves alone one another worker claimed after it ran out", async () => {
+    const { applicationId } = await createReadyApplication();
+    const lease = await claimLease(applicationId);
+    if (!lease) throw new Error("The lease should be free");
+    const theirs = new Date(Date.now() + 60_000).toISOString();
+
+    await whileLeased(applicationId, lease, async () => {
+      await database.from("applications").update({ writer_lease_until: theirs }).eq("id", applicationId);
+    });
+
+    const { data } = await database.from("applications").select("writer_lease_until").eq("id", applicationId).single();
+    expect(new Date(data?.writer_lease_until ?? 0).getTime()).toBe(new Date(theirs).getTime());
+    expect(await claimLease(applicationId)).toBeNull();
   });
 
   test("a retry after Gmail made the draft, but before its id was saved, finds that draft instead of making another", async () => {

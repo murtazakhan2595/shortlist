@@ -57,10 +57,21 @@ describe("checkExtraction", () => {
     expect(checkExtraction(answer({ contactEmail: "Send your CV" }), textPost).contactEmail).toBeNull();
   });
 
-  test("keeps an email read from a screenshot, which the owner confirms before use", () => {
-    expect(checkExtraction(answer({ contactEmail: "hr@acme.example" }), screenshotPost).contactEmail).toBe(
-      "hr@acme.example",
-    );
+  test("keeps an email read from a screenshot when it is in the text read from it", () => {
+    const read = answer({ contactEmail: "hr@acme.example", postText: "We are hiring. Write to HR@acme.example." });
+
+    expect(checkExtraction(read, screenshotPost).contactEmail).toBe("hr@acme.example");
+  });
+
+  test("drops a screenshot's email or link that its text does not contain, or when no text was read", () => {
+    const elsewhere = answer({ contactEmail: "hr@acme.example", formUrl: "https://forms.gle/x", postText: "We are hiring." });
+    const noText = answer({ contactEmail: "hr@acme.example", formUrl: "https://forms.gle/x" });
+
+    for (const read of [elsewhere, noText]) {
+      const checked = checkExtraction(read, screenshotPost);
+      expect(checked.contactEmail).toBeNull();
+      expect(checked.formUrl).toBeNull();
+    }
   });
 
   test("never treats a LinkedIn link as a form (C8)", () => {

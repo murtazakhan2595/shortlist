@@ -39,7 +39,7 @@ export function ApplicationDraft({ application }: { application: ApplicationView
       {blocked && application.blockedReason && (
         <div className="flex flex-col gap-2">
           <p className="text-ink-muted">
-            It still made claims the profile does not support after three tries, so it was not used:
+            The last draft did not pass the checks, so it was not used:
           </p>
           <ul className="list-disc pl-5 text-sm">
             {application.blockedReason.split("\n").map((problem) => (

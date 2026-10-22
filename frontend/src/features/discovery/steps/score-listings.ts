@@ -28,8 +28,8 @@ export const MIN_SCORE_TO_KEEP = 45;
 
 /**
  * Queues score_listing for each of the run's kept listings that has no score yet, and wakes the worker
- * once, so they are scored one after another rather than all at once. With none left, it goes straight to
- * choosing the top listings.
+ * once, so they are scored a few at a time (each worker call takes one, and the every-minute schedule adds
+ * a worker) rather than all at once. With none left, it goes straight to choosing the top listings.
  */
 export async function queueScoring(runId: string): Promise<void> {
   const unscored = await unscoredListingIds(runId);
@@ -108,6 +108,13 @@ async function scoreAndSave(listingId: string, listing: ListingToScore): Promise
     link: { runId: listing.run_id ?? undefined },
   });
 
+  // Tagged before the score is saved: a retry finds the score and skips this function, so a tag saved
+  // after it could be lost.
+  if (output.offersVisaSponsorship && !listing.tags.includes("visa")) {
+    const tagged = await db.from("listings").update({ tags: [...listing.tags, "visa"] }).eq("id", listingId);
+    if (tagged.error) throw new Error(`Could not tag listing ${listingId}: ${tagged.error.message}`);
+  }
+
   // If another run of this step saved a score first, this one is dropped.
   const saved = await db
     .from("scores")
@@ -116,11 +123,6 @@ async function scoreAndSave(listingId: string, listing: ListingToScore): Promise
       { onConflict: "listing_id", ignoreDuplicates: true },
     );
   if (saved.error) throw new Error(`Could not save the score of listing ${listingId}: ${saved.error.message}`);
-
-  if (output.offersVisaSponsorship && !listing.tags.includes("visa")) {
-    const tagged = await db.from("listings").update({ tags: [...listing.tags, "visa"] }).eq("id", listingId);
-    if (tagged.error) throw new Error(`Could not tag listing ${listingId}: ${tagged.error.message}`);
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -231,7 +233,7 @@ export async function selectTopListings(payload: Json): Promise<void> {
     }),
   );
 
-  // Queued together, waking the worker once, so the notes are written one after another.
+  // Queued together, waking the worker once, so the notes are written a few at a time, not all at once.
   await Promise.all(top.map((listingId) => enqueueStep(STEP_NAMES.prepareNoteApplication, { listingId }, { wake: false })));
   if (top.length > 0) await wakeWorker();
 

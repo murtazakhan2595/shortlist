@@ -109,15 +109,23 @@ function tagNames(tags: string[]): string[] {
 }
 
 function Note({ note }: { note: NonNullable<JobView["note"]> }) {
-  console.log("dsfs")
   if (note.status === "preparing") return <p className="text-sm text-ink-muted">Writing the note…</p>;
 
   if (note.status === "blocked") {
     return (
-      <p className="text-sm">
-        <span className="font-semibold">No note:</span> after three tries it still claimed things your profile
-        does not support. Write this one yourself.
-      </p>
+      <div className="flex flex-col gap-1 text-sm">
+        <p>
+          <span className="font-semibold">No note:</span> the last draft did not pass the checks, so write this one
+          yourself.
+        </p>
+        {note.blockedReason && (
+          <ul className="list-disc pl-5 text-ink-muted">
+            {note.blockedReason.split("\n").map((problem) => (
+              <li key={problem}>{problem}</li>
+            ))}
+          </ul>
+        )}
+      </div>
     );
   }
 

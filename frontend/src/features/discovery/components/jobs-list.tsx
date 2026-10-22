@@ -1,12 +1,12 @@
 import { AutoRefresh } from "@/components/ui/auto-refresh";
 import { formatUsd } from "@/lib/format";
-import type { JobsList as JobsListData } from "../data";
+import type { JobsListView } from "../data";
 import { JobRow } from "./job-row";
 
 const RUN_DATE = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Karachi" });
 
 /** The night's list: the top jobs to apply to, then the rest that were scored, then what the filter dropped. */
-export function JobsList({ list }: { list: JobsListData | null }) {
+export function JobsList({ list }: { list: JobsListView | null }) {
   if (!list) {
     return (
       <p className="max-w-prose text-ink-muted">
@@ -23,8 +23,8 @@ export function JobsList({ list }: { list: JobsListData | null }) {
       <p className="text-ink-muted">
         {running && <AutoRefresh />}
         {running ? "Still working on the list from " : "Found on "}
-        {RUN_DATE.format(new Date(run.startedAt))}: {run.fetched} new {run.fetched === 1 ? "job" : "jobs"}, {run.kept} kept
-        after the filter, {top.length} on your list. Cost {formatUsd(run.costUsd)}.
+        {RUN_DATE.format(new Date(run.startedAt))}: {run.fetched} {run.fetched === 1 ? "job" : "jobs"} read, {run.kept} new
+        ones kept after the filter, {top.length} on your list. Cost {formatUsd(run.costUsd)}.
       </p>
 
       {top.length > 0 ? (

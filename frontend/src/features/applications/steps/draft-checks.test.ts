@@ -43,7 +43,26 @@ describe("findDraftProblems", () => {
   test("finds a number the profile does not give, but not one that is part of a bigger one", () => {
     const problems = findDraftProblems(draft({ body: `I have 5 years with React. I served 2,500 users. ${words(10)}` }), sources);
 
-    expect(problems).toEqual(["The number 5 does not appear in the profile, the answer bank or the post."]);
+    expect(problems).toEqual(["The number 5 does not appear in the profile or the answer bank."]);
+  });
+
+  test("refuses a number from the post in the body, where it reads as a claim, but allows it in the subject", () => {
+    const fromPost = draft({ subject: "React Developer, 2 years", body: `I have 2 years with React. ${words(10)}` });
+
+    expect(findDraftProblems(fromPost, sources)).toEqual(["The number 2 does not appear in the profile or the answer bank."]);
+    expect(findDraftProblems(draft({ subject: "React Developer, 2 years" }), sources)).toEqual([]);
+  });
+
+  test("allows a number that is part of the company's name", () => {
+    const tenPearls = { ...sources, post: { ...sources.post, company: "10Pearls" } };
+
+    expect(findDraftProblems(draft({ body: `I would like to join 10Pearls. ${words(10)}` }), tenPearls)).toEqual([]);
+  });
+
+  test("finds a number in the subject that is in no source", () => {
+    expect(findDraftProblems(draft({ subject: "React Developer, 7 years" }), sources)).toEqual([
+      "The number 7 in the subject does not appear in the profile, the answer bank or the post.",
+    ]);
   });
 
   test("finds a technology the owner has not used, even when the post asks for it", () => {
