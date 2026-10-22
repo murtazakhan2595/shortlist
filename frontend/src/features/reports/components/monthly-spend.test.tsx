@@ -21,6 +21,6 @@ test("shows the chosen month's total and steps, with a link to every month (B1)"
   expect(screen.getByText("$1.45")).toBeInTheDocument();
   expect(screen.getByText(/in October 2026, 102 model calls/)).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "October 2026" })).toHaveAttribute("aria-current", "page");
-  expect(screen.getByRole("link", { name: "November 2026" })).toHaveAttribute("href", "/settings?month=2026-11");
+  expect(screen.getByRole("link", { name: "November 2026" })).toHaveAttribute("href", "/reports?month=2026-11");
   expect(screen.getAllByRole("row")).toHaveLength(3);
 });
