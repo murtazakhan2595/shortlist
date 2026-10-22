@@ -1,5 +1,6 @@
 import type { OwnerMaterialView } from "../data";
 import { DOCUMENT_KINDS, type DocumentKind } from "../schemas";
+import { CvFiles } from "./cv-files";
 import { DocumentEditor } from "./document-editor";
 
 const SECTIONS: Record<DocumentKind, { title: string; description: string }> = {
@@ -63,16 +64,12 @@ export function ProfileDocuments({ material }: { material: OwnerMaterialView }) 
           <h2 id="cvs-heading" className="text-lg font-semibold">
             CVs
           </h2>
-          <p className="text-sm text-ink-muted">The CV for each kind of role. Each email and form uses the one that fits the job.</p>
+          <p className="text-sm text-ink-muted">
+            The CV for each kind of role. Each email and note uses the one that fits the job. A new one is used from the
+            next draft; drafts already made keep theirs.
+          </p>
         </div>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
-          {material.cvs.map((cv) => (
-            <div key={cv.variant} className="contents">
-              <dt className="text-ink-muted">{cv.variant.replaceAll("_", " ")}</dt>
-              <dd className="break-all">{cv.fileName}</dd>
-            </div>
-          ))}
-        </dl>
+        <CvFiles cvs={material.cvs} />
       </section>
     </div>
   );
