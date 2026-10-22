@@ -9,7 +9,7 @@ returns jsonb
 language sql
 as $$
   select jsonb_build_object(
-    'source', 'test', 'source_id', source_id, 'url', 'https://example.com/' || source_id,
+    'source', 'pgtap-listings', 'source_id', source_id, 'url', 'https://example.com/' || source_id,
     'title', title, 'company', company, 'location', null, 'countries', '{}'::text[],
     'salary_min', null, 'salary_max', null, 'salary_currency', null, 'salary_period', null,
     'seniority', '{}'::text[], 'employment_type', 'Full Time', 'categories', '{}'::text[], 'tags', '{remote}'::text[],
@@ -50,7 +50,7 @@ select is(
 );
 
 select is(
-  (select count(*)::integer from public.listings where source = 'test' and source_id in ('1', '2')),
+  (select count(*)::integer from public.listings where source = 'pgtap-listings' and source_id in ('1', '2')),
   1,
   'keeps one of the two spellings of the same job'
 );
@@ -65,15 +65,17 @@ select is(
   3,
   'saves listings of different jobs at the same company'
 );
-update public.listings set label = 'skip' where source = 'test' and source_id = '7';
+update public.listings set label = 'skip' where source = 'pgtap-listings' and source_id = '7';
 insert into public.applications (route, fingerprint, listing_id)
-select 'note', 'test:applied', id from public.listings where source = 'test' and source_id = '8';
+select 'note', 'test:applied', id from public.listings where source = 'pgtap-listings' and source_id = '8';
 
-select is(public.delete_expired_listings(), 1, 'deletes only the expired listing that is not marked or applied for');
+-- The function deletes across the whole table, which other tests running at the same time share, so its
+-- count can include their rows; which of this test's own rows are left is what is checked.
+select ok(public.delete_expired_listings() >= 1, 'deletes expired listings');
 select results_eq(
-  $$ select source_id from public.listings where source = 'test' and source_id not in ('1', '2') order by source_id $$,
+  $$ select source_id from public.listings where source = 'pgtap-listings' and source_id not in ('1', '2') order by source_id $$,
   $$ values ('3'), ('7'), ('8') $$,
-  'keeps open listings, marked ones and ones with an application'
+  'deletes only the expired listing that is not marked or applied for, and keeps open ones'
 );
 
 select ok(
