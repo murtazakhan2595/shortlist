@@ -1,6 +1,6 @@
 # Shortlist: Build Plan
 
-Version 2.8, 22 October 2026. Agreed plan. Sprints 0 to 4 are done and sprint 5 is built; sections 2, 3, 5, 8 and 9 describe what sprint 1 actually built. Sprints 3, 4 and 5 record what they built under their tables.
+Version 2.8, 22 October 2026. Agreed plan. Sprints 0 to 5 are done; sections 2, 3, 5, 8 and 9 describe what sprint 1 actually built. Sprints 3, 4 and 5 record what they built under their tables.
 
 This document says **how** Shortlist gets built. **What** is being built, and how success is judged, is in [REQUIREMENTS.md](REQUIREMENTS.md). Requirement IDs (C1, D3, F4, E2 and so on) refer to that file.
 
@@ -303,7 +303,7 @@ Two lessons from the owner's playbook are built into this plan: guard side effec
 
 **Exit check:** every stage 1 requirement is met, and the owner has used the system for a week.
 
-**As built (22 October 2026).** Before the sprint, a code audit's findings were fixed (PR #30), and every page got one-tap navigation, with a bar at the bottom on a phone, as the installed app has no back button (#29).
+**As built (22 October 2026).** Sprint 5 is done (owner, 22 October 2026). Its exit check, a week of use, carries over as the owner's ongoing task, as sprint 4's did. Before the sprint, a code audit's findings were fixed (PR #30), and every page got one-tap navigation, with a bar at the bottom on a phone, as the installed app has no back button (#29).
 
 - **Daily list and statuses (5.1).** The home page lists the last seven days' applications by day, in Pakistan time, with where each came from, what was prepared, and a listing's score and tags. Sent, Skipped, Replied and Interview are one tap each; the first time an application counts as sent is kept for the reports. Above the list, "Needs your attention" collects every open failure, the nightly run's warning and the cap notice.
 - **Settings (5.2).** The nightly run's settings (jobs a night, monthly cap, lowest pay, excluded countries) and each step's model and effort, from the priced models only, are edited on the Settings page. Each takes effect from the next step that reads it.
