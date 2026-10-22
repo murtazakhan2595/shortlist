@@ -164,9 +164,14 @@ export async function readPost(post: PostInput, options: ReadPostOptions = {}): 
  * The checks code can make on the model's answer. For pasted text, an email or link is kept only if
  * it appears in the post word for word. A screenshot cannot be checked this way; its email is seen by the
  * owner in the Gmail draft, before anything is sent.
+ *
+ * Posts often use "bold" or "italic" letters made of special Unicode characters, such as 𝗷𝗼𝗯𝘀@𝗮𝗰𝗺𝗲.𝗰𝗼𝗺.
+ * The model reads them as plain letters, so the post is compared, and every value kept, in plain letters
+ * (Unicode NFKC normalisation).
  */
 export function checkExtraction(answer: ExtractedPost, post: PostInput): ExtractedPost {
-  const inPost = (value: string) => post.kind === "screenshots" || post.text.toLowerCase().includes(value.toLowerCase());
+  const postText = post.kind === "text" ? plainLetters(post.text).toLowerCase() : "";
+  const inPost = (value: string) => post.kind === "screenshots" || postText.includes(value.toLowerCase());
 
   const contactEmail = tidy(answer.contactEmail);
   const formUrl = tidy(answer.formUrl);
@@ -183,8 +188,13 @@ export function checkExtraction(answer: ExtractedPost, post: PostInput): Extract
 }
 
 function tidy(value: string | null): string | null {
-  const trimmed = value?.trim();
+  const trimmed = value && plainLetters(value).trim();
   return trimmed ? trimmed : null;
+}
+
+/** "𝗙𝘂𝗹𝗹 𝗦𝘁𝗮𝗰𝗸" -> "Full Stack": look-alike Unicode letters and digits become the plain ones. */
+function plainLetters(text: string): string {
+  return text.normalize("NFKC");
 }
 
 function isEmail(value: string): boolean {

@@ -76,6 +76,19 @@ describe("checkExtraction", () => {
     expect(checkExtraction(withText, textPost).postText).toBeNull();
   });
 
+  test("keeps an email written in bold Unicode letters, and gives every value in plain letters", () => {
+    const boldPost: PostInput = { kind: "text", text: "Send your CV to 𝗵𝗶𝗿𝗶𝗻𝗴@𝗷𝗼𝗯𝘀.𝗲𝘅𝗮𝗺𝗽𝗹𝗲.𝗰𝗼𝗺 today." };
+
+    const fromPlain = checkExtraction(answer({ contactEmail: "hiring@jobs.example.com", role: "𝗙𝘂𝗹𝗹 𝗦𝘁𝗮𝗰𝗸 𝗗𝗲𝘃𝗲𝗹𝗼𝗽𝗲𝗿" }), boldPost);
+    const fromBold = checkExtraction(answer({ contactEmail: "𝗵𝗶𝗿𝗶𝗻𝗴@𝗷𝗼𝗯𝘀.𝗲𝘅𝗮𝗺𝗽𝗹𝗲.𝗰𝗼𝗺" }), boldPost);
+
+    expect(fromPlain.contactEmail).toBe("hiring@jobs.example.com");
+    expect(fromPlain.role).toBe("Full Stack Developer");
+    expect(fromBold.contactEmail).toBe("hiring@jobs.example.com");
+    // Still word for word: a different address in bold letters is not this one.
+    expect(checkExtraction(answer({ contactEmail: "hr@jobs.example.com" }), boldPost).contactEmail).toBeNull();
+  });
+
   test("turns blank answers into null and trims the rest", () => {
     const checked = checkExtraction(answer({ role: "  Full-Stack Engineer ", company: "   " }), textPost);
 
