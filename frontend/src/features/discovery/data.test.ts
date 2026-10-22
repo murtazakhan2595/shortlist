@@ -12,5 +12,5 @@ test("a run still going within the night, or finished within the day, needs noth
 test("warns when the run has not finished, failed, or no newer run started", () => {
   expect(runWarning({ status: "running", started_at: startedAt }, hoursLater(7))).toMatch(/not finished after 6 hours/);
   expect(runWarning({ status: "failed", started_at: startedAt }, hoursLater(1))).toMatch(/failed/);
-  expect(runWarning({ status: "succeeded", started_at: startedAt }, hoursLater(27))).toMatch(/No run has started since/);
+  expect(runWarning({ status: "succeeded", started_at: startedAt }, hoursLater(27))).toMatch(/No nightly run has started for over a day/);
 });

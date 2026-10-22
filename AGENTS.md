@@ -27,7 +27,7 @@ The database tables, the server entry points and the model module's interface (P
 | `forms` | `createFormUploadUrl`, `addFormPages`, `answerFormQuestion` |
 | `applications` | `updateApplicationStatus` |
 | `discovery` | `labelListing` |
-| `failed-steps` | `retryFailedStep` |
+| `failed-steps` | `retryFailedStep`, `dismissFailedStep` |
 | `profile` | `saveDocument`, `createCvUploadUrl`, `saveCvFile` |
 | `settings` | `updateSettings`, `updateStepModel` |
 

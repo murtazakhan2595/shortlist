@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, expect, test, vi } from "vitest";
-import { findOpenFailures, retryFailedStep } from "@/server/queue/failed-steps";
+import { dismissFailedStep, findOpenFailures, retryFailedStep } from "@/server/queue/failed-steps";
 import { getAdminClient } from "@/server/supabase/admin";
 
 // Failed steps against the real database. Queueing is replaced, so no step really runs again.
@@ -76,4 +76,14 @@ test("if the step cannot be queued, the failure stays open to try again", async 
   await expect(retryFailedStep(database, failureId)).rejects.toThrow("The queue is down");
 
   expect((await findOpenFailures(database, [applicationId])).map((failure) => failure.id)).toContain(failureId);
+});
+
+test("dismissing closes the failure once, without queueing anything", async () => {
+  const failureId = await addFailure("read_form", { applicationId });
+
+  expect(await dismissFailedStep(database, failureId)).toBe(true);
+  expect(await dismissFailedStep(database, failureId)).toBe(false);
+
+  expect(queued.steps).toEqual([]);
+  expect((await findOpenFailures(database, [applicationId])).map((failure) => failure.id)).not.toContain(failureId);
 });

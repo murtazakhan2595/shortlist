@@ -6,7 +6,11 @@ import { FailureNotice } from "./failure-notice";
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 const retryFailedStep = vi.fn();
-vi.mock("../actions", () => ({ retryFailedStep: (input: unknown) => retryFailedStep(input) }));
+const dismissFailedStep = vi.fn();
+vi.mock("../actions", () => ({
+  retryFailedStep: (input: unknown) => retryFailedStep(input),
+  dismissFailedStep: (input: unknown) => dismissFailedStep(input),
+}));
 
 const failure = {
   id: "0f8fad5b-d9cb-469f-a165-70867728950e",
@@ -19,6 +23,7 @@ const failure = {
 beforeEach(() => {
   refresh.mockClear();
   retryFailedStep.mockReset();
+  dismissFailedStep.mockReset();
 });
 
 test("says what failed, in plain words, and why", () => {
@@ -50,4 +55,16 @@ test("a failure already tried again in another tab just refreshes; any other err
   await userEvent.click(screen.getByRole("button", { name: "Try again" }));
   expect(await screen.findByText("Could not queue step")).toBeInTheDocument();
   expect(refresh).toHaveBeenCalledTimes(1);
+});
+
+test("Dismiss closes the failure without trying again; a link opens what it was working on", async () => {
+  dismissFailedStep.mockResolvedValue({ ok: true, data: { failedStepId: failure.id } });
+  render(<FailureNotice failure={failure} href="/forms/abc" />);
+
+  await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+
+  expect(dismissFailedStep).toHaveBeenCalledWith({ failedStepId: failure.id });
+  expect(retryFailedStep).not.toHaveBeenCalled();
+  expect(refresh).toHaveBeenCalled();
+  expect(screen.getByRole("link", { name: "Open it" })).toHaveAttribute("href", "/forms/abc");
 });

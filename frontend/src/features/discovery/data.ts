@@ -131,11 +131,25 @@ export async function getJobsList(): Promise<JobsListView | null> {
 export function runWarning(run: { status: string; started_at: string }, now: Date): string | null {
   const hoursSinceStart = (now.getTime() - new Date(run.started_at).getTime()) / 3_600_000;
   if (run.status === "running" && hoursSinceStart > RUN_FINISHES_WITHIN_HOURS) {
-    return `This run has not finished after ${RUN_FINISHES_WITHIN_HOURS} hours. Try any failed step below again.`;
+    return `The nightly run has not finished after ${RUN_FINISHES_WITHIN_HOURS} hours. Try its failed steps again.`;
   }
-  if (run.status === "failed") return "This run failed. Try any failed step below again.";
+  if (run.status === "failed") return "The nightly run failed. Try its failed steps again.";
   if (hoursSinceStart > RUN_STARTS_EVERY_HOURS) {
-    return "No run has started since this one. The nightly schedule in Supabase may have stopped.";
+    return "No nightly run has started for over a day. The schedule in Supabase may have stopped.";
   }
   return null;
+}
+
+/** Why the latest daily run needs the owner's attention, or null, also before the first run (5.6). */
+export async function getLatestRunWarning(): Promise<string | null> {
+  const { db } = await requireOwner();
+  const { data, error } = await db
+    .from("runs")
+    .select("status, started_at")
+    .eq("kind", "daily")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`Could not load the latest daily run: ${error.message}`);
+  return data ? runWarning(data, new Date()) : null;
 }

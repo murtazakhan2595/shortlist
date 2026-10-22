@@ -53,6 +53,24 @@ export async function findOpenFailures(db: SupabaseClient<Database>, ids: string
   return data.map(toOpenFailure);
 }
 
+/** Every open failure, newest first. Takes the owner's client. */
+export async function findAllOpenFailures(db: SupabaseClient<Database>): Promise<OpenFailure[]> {
+  const { data, error } = await db
+    .from("failed_steps")
+    .select("id, step, error, failed_at, payload")
+    .eq("queue", QUEUE)
+    .order("failed_at", { ascending: false });
+  if (error) throw new Error(`Could not load the failed steps: ${error.message}`);
+  return data.map(toOpenFailure);
+}
+
+/** Closes a failure without trying the step again. Returns false if it was already closed. Takes the owner's client. */
+export async function dismissFailedStep(db: SupabaseClient<Database>, failedStepId: string): Promise<boolean> {
+  const { data, error } = await db.from("failed_steps").delete().eq("id", failedStepId).eq("queue", QUEUE).select("id");
+  if (error) throw new Error(`Could not dismiss the failed step: ${error.message}`);
+  return data.length > 0;
+}
+
 const PayloadSchema = z.record(z.string(), z.json());
 
 /**

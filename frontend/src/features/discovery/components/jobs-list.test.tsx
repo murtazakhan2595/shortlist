@@ -47,13 +47,13 @@ test("a job whose note failed shows the failure in place of the note", () => {
 test("the run's own failures and its warning are shown at the top", () => {
   const stuck = {
     ...list,
-    run: { ...list.run, status: "running", warning: "This run has not finished after 6 hours." },
+    run: { ...list.run, status: "running", warning: "The nightly run has not finished after 6 hours." },
     failures: [failure("f2", "fetch_listings")],
   };
 
   render(<JobsList list={stuck} renderFailure={renderFailure} />);
 
-  expect(screen.getByRole("alert")).toHaveTextContent("This run has not finished after 6 hours.");
+  expect(screen.getByRole("alert")).toHaveTextContent("The nightly run has not finished after 6 hours.");
   expect(screen.getByText("Failed: fetch_listings")).toBeInTheDocument();
   expect(screen.getByText(/40 jobs read, 12 new/)).toBeInTheDocument();
 });
