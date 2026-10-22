@@ -18,6 +18,7 @@ const LINKS: NavLink[] = [
   { href: "/jobs", label: "Jobs", onTabBar: true },
   { href: "/capture", label: "Capture", alsoCovers: ["/captures"], onTabBar: true },
   { href: "/forms", label: "Forms", onTabBar: true },
+  { href: "/reports", label: "Reports", onTabBar: false },
   { href: "/profile", label: "Profile", onTabBar: false },
   { href: "/settings", label: "Settings", onTabBar: false },
 ];

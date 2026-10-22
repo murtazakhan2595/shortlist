@@ -4,10 +4,9 @@ import { z } from "zod";
 import { SignOutButton } from "@/features/auth/components/sign-out-button";
 import { CapReached } from "@/features/settings/components/cap-reached";
 import { GmailConnection } from "@/features/settings/components/gmail-connection";
-import { MonthlySpend } from "@/features/settings/components/monthly-spend";
 import { RunSettingsForm } from "@/features/settings/components/run-settings-form";
 import { StepModels } from "@/features/settings/components/step-models";
-import { getGmailConnected, getMonthlySpend, getRunSettings, getSpendingCap, getStepModels } from "@/features/settings/data";
+import { getGmailConnected, getRunSettings, getSpendingCap, getStepModels } from "@/features/settings/data";
 import { GMAIL_CONNECT_RESULTS } from "@/server/gmail/schemas";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -23,6 +22,7 @@ export default function SettingsPage({ searchParams }: PageProps<"/settings">) {
       {/* Each is read per request, so it streams in behind a boundary (Cache Components). */}
       <Section id="run-heading" title="Nightly run">
         <Suspense fallback={LOADING}>
+          <Cap />
           <RunSettings />
         </Suspense>
       </Section>
@@ -31,9 +31,6 @@ export default function SettingsPage({ searchParams }: PageProps<"/settings">) {
           <Models />
         </Suspense>
       </Section>
-      <Suspense fallback={LOADING}>
-        <Spend searchParams={searchParams} />
-      </Suspense>
       <div className="border-t border-rule pt-6">
         <Suspense fallback={LOADING}>
           <Gmail searchParams={searchParams} />
@@ -74,13 +71,6 @@ async function Gmail({ searchParams }: { searchParams: SearchParams }) {
   return <GmailConnection connected={connected} result={result.success ? result.data : undefined} />;
 }
 
-async function Spend({ searchParams }: { searchParams: SearchParams }) {
-  const { month } = await searchParams;
-  const [spend, cap] = await Promise.all([getMonthlySpend(typeof month === "string" ? month : undefined), getSpendingCap()]);
-  return (
-    <>
-      <CapReached cap={cap} />
-      <MonthlySpend spend={spend} />
-    </>
-  );
+async function Cap() {
+  return <CapReached cap={await getSpendingCap()} />;
 }

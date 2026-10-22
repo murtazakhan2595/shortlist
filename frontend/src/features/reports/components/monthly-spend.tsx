@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { formatUsd } from "@/lib/format";
-import type { MonthlySpend as MonthlySpendData } from "../data";
+import type { MonthlySpendView } from "../data";
 
 const MONTH_NAME = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
 
@@ -10,7 +10,7 @@ function monthName(month: string): string {
 }
 
 /** What the model calls cost in one month, in total and per step, with a link to each month (B1). */
-export function MonthlySpend({ spend }: { spend: MonthlySpendData }) {
+export function MonthlySpend({ spend }: { spend: MonthlySpendView }) {
   return (
     <section aria-labelledby="spend-heading" className="flex flex-col gap-4 border-t border-rule pt-6">
       <h2 id="spend-heading" className="text-lg font-semibold">
@@ -21,7 +21,7 @@ export function MonthlySpend({ spend }: { spend: MonthlySpendData }) {
         {spend.months.map((month) => (
           <Link
             key={month}
-            href={`/settings?month=${month}`}
+            href={`/reports?month=${month}`}
             aria-current={month === spend.month ? "page" : undefined}
             className="rounded-md border border-rule px-3 py-1 text-sm text-ink-muted hover:text-ink aria-[current=page]:border-ink aria-[current=page]:font-semibold aria-[current=page]:text-ink"
           >

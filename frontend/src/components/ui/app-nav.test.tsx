@@ -28,7 +28,7 @@ function linkNames(nav: HTMLElement): string[] {
 test("every page is reachable from the header, and the daily ones from the tab bar", () => {
   const { header, tabBar } = renderNav("/forms");
 
-  expect(linkNames(header)).toEqual(["Home", "Jobs", "Capture", "Forms", "Profile", "Settings"]);
+  expect(linkNames(header)).toEqual(["Home", "Jobs", "Capture", "Forms", "Reports", "Profile", "Settings"]);
   expect(linkNames(tabBar)).toEqual(["Home", "Jobs", "Capture", "Forms"]);
   expect(within(tabBar).getByRole("link", { name: "Capture" })).toHaveAttribute("href", "/capture");
 });
