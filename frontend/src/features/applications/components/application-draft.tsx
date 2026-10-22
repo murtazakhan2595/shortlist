@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { AutoRefresh } from "@/components/ui/auto-refresh";
 import { formatUsd } from "@/lib/format";
 import type { ApplicationView } from "../data";
@@ -6,8 +7,11 @@ import type { ApplicationView } from "../data";
 // Gmail's drafts folder. A link to one draft needs its message id in Gmail's own format, which the API does not give.
 const GMAIL_DRAFTS_URL = "https://mail.google.com/mail/#drafts";
 
-/** The email the writer prepared, or why it was stopped, and whether it is in Gmail yet. */
-export function ApplicationDraft({ application }: { application: ApplicationView }) {
+/**
+ * The email the writer prepared, or why it was stopped, and whether it is in Gmail yet. failureNotice is
+ * shown in place of "Saving to Gmail" if saving it failed every attempt.
+ */
+export function ApplicationDraft({ application, failureNotice }: { application: ApplicationView; failureNotice?: ReactNode }) {
   if (application.status === "preparing") return null;
 
   const blocked = application.status === "blocked";
@@ -25,6 +29,8 @@ export function ApplicationDraft({ application }: { application: ApplicationView
               Open Gmail drafts
             </a>
           </p>
+        ) : failureNotice ? (
+          failureNotice
         ) : (
           <p className="text-ink-muted">
             <AutoRefresh />

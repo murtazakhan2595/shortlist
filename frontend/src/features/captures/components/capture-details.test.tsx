@@ -16,6 +16,7 @@ const capture: CaptureView = {
   formUrl: null,
   postUrl: null,
   createdAt: "2026-10-19T00:00:00Z",
+  failure: null,
 };
 
 test("while the post is being read, says so and shows nothing read yet", () => {
@@ -51,4 +52,17 @@ test("says when a post gives no way to apply", () => {
   render(<CaptureDetails capture={{ ...capture, status: "no_contact", contactEmail: null }} />);
 
   expect(screen.getByText("No email or application link found")).toBeInTheDocument();
+});
+
+test("a step that failed for good replaces the progress, and stops the page refreshing itself", () => {
+  render(<CaptureDetails capture={capture} failureNotice={<p>Writing the draft failed</p>} />);
+
+  expect(screen.getByText("Writing the draft failed")).toBeInTheDocument();
+  expect(screen.queryByText("Writing the application…")).not.toBeInTheDocument();
+});
+
+test("a failure notice is not shown once the post is done", () => {
+  render(<CaptureDetails capture={{ ...capture, status: "done" }} failureNotice={<p>Saving the draft to Gmail failed</p>} />);
+
+  expect(screen.queryByText("Saving the draft to Gmail failed")).not.toBeInTheDocument();
 });

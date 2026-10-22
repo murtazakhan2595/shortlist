@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { requireOwner } from "@/server/auth/require-owner";
+import { findOpenFailures, type OpenFailure } from "@/server/queue/failed-steps";
 
 // Data Access Layer for applications: the feature's reads, each starting with the owner check.
 
@@ -20,6 +21,8 @@ export type ApplicationView = {
   /** What every model call for this application cost, from reading the post to the last check (B1). */
   costUsd: number;
   modelCalls: number;
+  /** A step writing the draft or saving it to Gmail that failed every attempt, until tried again. */
+  failure: OpenFailure | null;
 };
 
 /** The application prepared from a capture, or null if there is none yet. */
@@ -39,10 +42,13 @@ export async function getApplicationForCapture(captureId: string): Promise<Appli
 
   // The capture's run holds every call, reading the post included; application_id covers calls made without a run.
   const runId = data.captures?.run_id;
-  const calls = await db
-    .from("model_calls")
-    .select("cost_usd")
-    .or(runId ? `application_id.eq.${data.id},run_id.eq.${runId}` : `application_id.eq.${data.id}`);
+  const [calls, failures] = await Promise.all([
+    db
+      .from("model_calls")
+      .select("cost_usd")
+      .or(runId ? `application_id.eq.${data.id},run_id.eq.${runId}` : `application_id.eq.${data.id}`),
+    findOpenFailures(db, [data.id]),
+  ]);
   if (calls.error) throw new Error(`Could not load the cost of application ${data.id}: ${calls.error.message}`);
 
   return {
@@ -57,5 +63,6 @@ export async function getApplicationForCapture(captureId: string): Promise<Appli
     inGmail: data.gmail_draft_id !== null,
     costUsd: calls.data.reduce((total, call) => total + call.cost_usd, 0),
     modelCalls: calls.data.length,
+    failure: failures[0] ?? null,
   };
 }

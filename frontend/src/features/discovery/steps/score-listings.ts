@@ -12,6 +12,8 @@ import type { Json, Tables } from "@/server/supabase/database.types";
 //
 // 1. score_listing: one model call scores one kept listing against the owner's profile and tags it
 //    visa-sponsoring when the posting says so. The last listing of the run to be scored queues step 2.
+//    A listing that cannot be scored, after every attempt, is left out (scoringGaveUp), so the rest of
+//    the run still gets its list; the owner sees the failure and can try it again.
 // 2. select_top_listings: ranks the run's scored listings, eligible ones before unclear ones, each by score,
 //    and keeps the top N (the daily target) that score at least MIN_SCORE_TO_KEEP. Each kept listing is
 //    handed to the applications feature for its CV and note (prepare_note_application, X2). Then the run
@@ -41,15 +43,35 @@ export async function queueScoring(runId: string): Promise<void> {
   await wakeWorker();
 }
 
-/** The run's listings that are not excluded and have no score yet. */
+/** The run's listings that are not excluded and have no score yet, except those whose scoring failed for good. */
 async function unscoredListingIds(runId: string): Promise<string[]> {
-  const { data, error } = await getAdminClient()
-    .from("listings")
-    .select("id, scores (id)")
-    .eq("run_id", runId)
-    .neq("eligibility", "excluded");
+  const db = getAdminClient();
+  const { data, error } = await db.from("listings").select("id, scores (id)").eq("run_id", runId).neq("eligibility", "excluded");
   if (error) throw new Error(`Could not find the run's unscored listings: ${error.message}`);
-  return data.filter((listing) => !listing.scores).map((listing) => listing.id);
+  const unscored = data.filter((listing) => !listing.scores).map((listing) => listing.id);
+  if (unscored.length === 0) return [];
+
+  // An open failure only: one the owner tried again is removed (server/queue/failed-steps.ts).
+  const failed = await db
+    .from("failed_steps")
+    .select("listing_id:payload->>listingId")
+    .eq("queue", "steps")
+    .eq("step", STEP_NAMES.scoreListing)
+    .in("payload->>listingId", unscored);
+  if (failed.error) throw new Error(`Could not read the failed scoring steps: ${failed.error.message}`);
+  const failedIds = new Set(failed.data.map((row) => row.listing_id));
+  return unscored.filter((id) => !failedIds.has(id));
+}
+
+/**
+ * Queues select_top_listings once every listing of the run is scored, or has failed for good. Only while
+ * the run is running: a listing scored on a retry after its run finished just gets its score.
+ */
+async function selectIfAllScored(runId: string): Promise<void> {
+  const { data: run, error } = await getAdminClient().from("runs").select("status").eq("id", runId).single();
+  if (error) throw new Error(`Could not load run ${runId}: ${error.message}`);
+  if (run.status !== "running") return;
+  if ((await unscoredListingIds(runId)).length === 0) await enqueueStep(STEP_NAMES.selectTopListings, { runId });
 }
 
 // ---------------------------------------------------------------------------
@@ -88,9 +110,15 @@ export async function scoreListing(payload: Json): Promise<void> {
   if (!listing) return;
 
   if (!listing.scores) await scoreAndSave(listingId, listing);
-  if (listing.run_id && (await unscoredListingIds(listing.run_id)).length === 0) {
-    await enqueueStep(STEP_NAMES.selectTopListings, { runId: listing.run_id });
-  }
+  if (listing.run_id) await selectIfAllScored(listing.run_id);
+}
+
+/** After a listing's last failed attempt: if it was the last one waiting, the run goes on without it. */
+export async function scoringGaveUp(payload: Json): Promise<void> {
+  const { listingId } = ListingPayloadSchema.parse(payload);
+  const { data, error } = await getAdminClient().from("listings").select("run_id").eq("id", listingId).maybeSingle();
+  if (error) throw new Error(`Could not load listing ${listingId}: ${error.message}`);
+  if (data?.run_id) await selectIfAllScored(data.run_id);
 }
 
 async function scoreAndSave(listingId: string, listing: ListingToScore): Promise<void> {

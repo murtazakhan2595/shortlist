@@ -1,18 +1,20 @@
+import type { ReactNode } from "react";
 import { AutoRefresh } from "@/components/ui/auto-refresh";
 import { formatUsd } from "@/lib/format";
 import type { FormView } from "../data";
 import { FormQuestions } from "./form-questions";
 import { formTitle } from "./recent-forms";
 
-/** One form: the job it is for, where answering stands, and every question with its answer. */
-export function FormDetails({ form }: { form: FormView }) {
+/**
+ * One form: the job it is for, where answering stands, and every question with its answer. failureNotice
+ * is shown in place of the progress when a step failed every attempt.
+ */
+export function FormDetails({ form, failureNotice }: { form: FormView; failureNotice?: ReactNode }) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-2xl font-bold">{formTitle(form)}</h1>
-        <section aria-live="polite">
-          <Progress form={form} />
-        </section>
+        <section aria-live="polite">{form.failure ? failureNotice : <Progress form={form} />}</section>
       </div>
 
       {form.questions.length > 0 && <FormQuestions questions={form.questions} />}
@@ -25,25 +27,8 @@ export function FormDetails({ form }: { form: FormView }) {
   );
 }
 
-const FAILED_AT = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Karachi" });
-
 function Progress({ form }: { form: FormView }) {
   const count = (status: string) => form.questions.filter((question) => question.status === status).length;
-
-  if (form.status === "preparing" && form.failure) {
-    return (
-      <>
-        <AutoRefresh />
-        <p role="alert" className="text-lg font-semibold text-danger">
-          Shortlist could not finish this form
-        </p>
-        <p className="text-ink-muted">
-          At {FAILED_AT.format(new Date(form.failure.failedAt))} a step failed three times: {form.failure.error}. Add the
-          pages again below to try again.
-        </p>
-      </>
-    );
-  }
 
   if (form.status === "preparing") {
     const waiting = count("pending") + count("checking");

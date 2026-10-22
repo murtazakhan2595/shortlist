@@ -5,11 +5,19 @@ import type { Json } from "@/server/supabase/database.types";
 import type { QueueName } from "./queue";
 import type { WorkerRunSummary } from "./schemas";
 
-// Runs one queued step (PLAN.md item 1.8; AGENTS.md, Architecture rule 7).
-// A step that throws is retried later; after MAX_ATTEMPTS it is recorded in failed_steps.
+// Runs one queued step (PLAN.md items 1.8 and 5.6; AGENTS.md, Architecture rule 7).
+// A step that throws is retried later; after MAX_ATTEMPTS it is recorded in failed_steps, where the owner
+// sees it and can try it again (failed-steps.ts).
 
-/** Runs one step. Must be safe to run twice, because a step can be retried after doing part of its work. */
-export type StepHandler = (payload: Json) => Promise<void>;
+export type StepHandler = {
+  /** Runs the step. Must be safe to run twice, because a step can be retried after doing part of its work. */
+  run: (payload: Json) => Promise<void>;
+  /**
+   * Runs once the step has failed every attempt, for work that must not wait on it: for example, the
+   * daily run still ranks its other listings when one cannot be scored. Must also be safe to run twice.
+   */
+  giveUp?: (payload: Json) => Promise<void>;
+};
 
 export type StepHandlers = Record<string, StepHandler>;
 
@@ -37,12 +45,13 @@ export async function runNextStep(handlers: StepHandlers, options: RunOptions = 
   const handler = handlers[step.step];
   try {
     if (!handler) throw new Error(`No handler for step "${step.step}"`);
-    await handler(step.payload);
+    await handler.run(step.payload);
   } catch (error) {
     // An unknown step will never succeed, so it is not retried.
     const isLastAttempt = !handler || step.attempts >= MAX_ATTEMPTS;
     if (isLastAttempt) {
       await failStep(queue, step, describeError(error));
+      await handler?.giveUp?.(step.payload);
     } else {
       const delayPerAttempt = options.retryDelaySecondsPerAttempt ?? RETRY_DELAY_SECONDS_PER_ATTEMPT;
       await retryStepLater(queue, step, delayPerAttempt * step.attempts);

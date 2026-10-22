@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+import type { OpenFailure } from "@/server/queue/failed-steps";
 import { AutoRefresh } from "@/components/ui/auto-refresh";
 import { formatUsd } from "@/lib/format";
 import type { JobsListView } from "../data";
@@ -5,8 +7,13 @@ import { JobRow } from "./job-row";
 
 const RUN_DATE = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Karachi" });
 
-/** The night's list: the top jobs to apply to, then the rest that were scored, then what the filter dropped. */
-export function JobsList({ list }: { list: JobsListView | null }) {
+type RenderFailure = (failure: OpenFailure) => ReactNode;
+
+/**
+ * The night's list: the top jobs to apply to, then the rest that were scored, then what the filter dropped.
+ * renderFailure shows a step that failed every attempt: the run's own at the top, a job's on the job.
+ */
+export function JobsList({ list, renderFailure }: { list: JobsListView | null; renderFailure: RenderFailure }) {
   if (!list) {
     return (
       <p className="max-w-prose text-ink-muted">
@@ -18,10 +25,19 @@ export function JobsList({ list }: { list: JobsListView | null }) {
 
   const { run, top, alsoScored, dropped } = list;
   const running = run.status === "running";
+  // A step of the run that failed for good needs the owner, so the page stops checking for progress on its own.
+  const stuck = list.failures.length > 0 || run.warning !== null;
   return (
     <div className="flex flex-col gap-8">
+      {run.warning && (
+        <p role="alert" className="font-semibold text-danger">
+          {run.warning}
+        </p>
+      )}
+      {list.failures.length > 0 && <div className="flex flex-col gap-3">{list.failures.map(renderFailure)}</div>}
+
       <p className="text-ink-muted">
-        {running && <AutoRefresh />}
+        {running && !stuck && <AutoRefresh />}
         {running ? "Still working on the list from " : "Found on "}
         {RUN_DATE.format(new Date(run.startedAt))}: {run.fetched} {run.fetched === 1 ? "job" : "jobs"} read, {run.kept} new
         ones kept after the filter, {top.length} on your list. Cost {formatUsd(run.costUsd)}.
@@ -30,7 +46,7 @@ export function JobsList({ list }: { list: JobsListView | null }) {
       {top.length > 0 ? (
         <ol className="flex flex-col border-b border-rule">
           {top.map((job) => (
-            <JobRow key={job.id} job={job} />
+            <JobRow key={job.id} job={job} failureNotice={job.failure && renderFailure(job.failure)} />
           ))}
         </ol>
       ) : (
@@ -45,7 +61,7 @@ export function JobsList({ list }: { list: JobsListView | null }) {
           </p>
           <ul className="flex flex-col pt-2">
             {alsoScored.map((job) => (
-              <JobRow key={job.id} job={job} />
+              <JobRow key={job.id} job={job} failureNotice={job.failure && renderFailure(job.failure)} />
             ))}
           </ul>
         </details>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { JobsList } from "@/features/discovery/components/jobs-list";
+import { FailureNotice } from "@/features/failed-steps/components/failure-notice";
 import { getJobsList } from "@/features/discovery/data";
 
 export const metadata: Metadata = { title: "Jobs" };
@@ -18,5 +19,7 @@ export default function JobsPage() {
 }
 
 async function List() {
-  return <JobsList list={await getJobsList()} />;
+  return (
+    <JobsList list={await getJobsList()} renderFailure={(failure) => <FailureNotice key={failure.id} failure={failure} />} />
+  );
 }

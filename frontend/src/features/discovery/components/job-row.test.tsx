@@ -23,6 +23,7 @@ const JOB: JobView = {
   reasons: "Strengths:\n- React",
   label: null,
   note: { status: "ready", body: "I build React apps.", cvVariant: "ai_full_stack", blockedReason: null },
+  failure: null,
 };
 
 function renderRow(job: JobView = JOB) {

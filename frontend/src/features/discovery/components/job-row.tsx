@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { type ReactNode, useState, useTransition } from "react";
 import { CopyButton } from "@/components/ui/copy-button";
 import { labelListing } from "../actions";
 import type { JobView } from "../data";
@@ -17,9 +17,10 @@ const MARK_STYLES: Record<Label, { on: string; off: string }> = {
 
 /**
  * One job on the list, marked by hand as on a printed shortlist: apply puts a tick by it, skip strikes it
- * through (U7). The mark shows at once and is saved in the background.
+ * through (U7). The mark shows at once and is saved in the background. failureNotice shows a step for this
+ * job that failed every attempt (job.failure), in place of its note.
  */
-export function JobRow({ job }: { job: JobView }) {
+export function JobRow({ job, failureNotice }: { job: JobView; failureNotice?: ReactNode }) {
   const router = useRouter();
   const [label, setLabel] = useState(job.label);
   const [error, setError] = useState<string>();
@@ -64,7 +65,7 @@ export function JobRow({ job }: { job: JobView }) {
           </details>
         )}
 
-        {job.note && <Note note={job.note} />}
+        {job.failure ? failureNotice : job.note && <Note note={job.note} />}
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
           <div className="flex gap-2" role="group" aria-label={`Mark ${job.title}`}>
