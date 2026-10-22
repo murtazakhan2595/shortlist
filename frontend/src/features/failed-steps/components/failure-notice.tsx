@@ -1,6 +1,6 @@
 import type { OpenFailure } from "@/server/queue/failed-steps";
 import { STEP_NAMES } from "@/server/queue/step-names";
-import { TryAgainButton } from "./try-again-button";
+import { FailureActions } from "./failure-actions";
 
 // What each step was doing, in the owner's words.
 const DOING: Record<string, string> = {
@@ -25,8 +25,11 @@ const FAILED_AT = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Asia/Karachi",
 });
 
-/** A step that failed every attempt: what it was doing, why it failed, and a button to try it again. */
-export function FailureNotice({ failure }: { failure: OpenFailure }) {
+/**
+ * A step that failed every attempt: what it was doing, why it failed, and buttons to try it again or
+ * dismiss it. With href, also a link to the page of what it was working on.
+ */
+export function FailureNotice({ failure, href }: { failure: OpenFailure; href?: string }) {
   return (
     <div role="alert" className="flex flex-col gap-2 rounded-md border border-danger p-4">
       <p className="font-semibold text-danger">{DOING[failure.step] ?? failure.step} failed</p>
@@ -34,7 +37,7 @@ export function FailureNotice({ failure }: { failure: OpenFailure }) {
         Stopped after its last retry, at {FAILED_AT.format(new Date(failure.failedAt))}:{" "}
         <span className="break-words">{failure.error}</span>
       </p>
-      <TryAgainButton failedStepId={failure.id} />
+      <FailureActions failedStepId={failure.id} href={href} />
     </div>
   );
 }

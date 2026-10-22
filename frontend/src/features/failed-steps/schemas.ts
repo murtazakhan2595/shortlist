@@ -4,7 +4,8 @@ import { z } from "zod";
 // owner sees on the page of what they were working on, and can try again.
 //
 // Server Actions:
-//   retryFailedStep(RetryFailedStepInput) -> Result<RetryFailedStepInput>
+//   retryFailedStep(FailedStepInput)   -> Result<FailedStepInput>
+//   dismissFailedStep(FailedStepInput) -> Result<FailedStepInput>
 
-export const RetryFailedStepInputSchema = z.object({ failedStepId: z.uuid() });
-export type RetryFailedStepInput = z.infer<typeof RetryFailedStepInputSchema>;
+export const FailedStepInputSchema = z.object({ failedStepId: z.uuid() });
+export type FailedStepInput = z.infer<typeof FailedStepInputSchema>;

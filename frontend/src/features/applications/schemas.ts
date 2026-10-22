@@ -17,6 +17,9 @@ export type UpdateApplicationStatusInput = z.infer<typeof UpdateApplicationStatu
 
 export type ApplicationStatusUpdated = UpdateApplicationStatusInput;
 
+/** How far back the daily list on the home page goes (U1). */
+export const DAILY_LIST_DAYS = 7;
+
 // Types the writer's files share (PLAN.md item 2.2).
 
 /**
