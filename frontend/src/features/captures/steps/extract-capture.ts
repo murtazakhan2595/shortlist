@@ -34,12 +34,13 @@ export async function extractCapture(payload: Json): Promise<void> {
   if (status === "no_contact" && capture.run_id) await finishRun(capture.run_id);
 }
 
-async function readAndSave(capture: Capture): Promise<CaptureStatus> {
+/** Reads the post and saves what it says. Returns the capture's status as saved. */
+async function readAndSave(capture: Capture): Promise<string> {
   const post = await toPostInput(capture);
   const details = await readPost(post, { link: { runId: capture.run_id ?? undefined } });
-  const status = statusAfterReading(details);
-  await saveDetails(capture.id, details, status);
-  return status;
+  const saved = await saveDetails(capture.id, details, statusAfterReading(details));
+  // Another run of this step saved first: its reading counts, not this one's.
+  return saved ?? (await loadCapture(capture.id)).status;
 }
 
 /**
@@ -66,8 +67,9 @@ async function toPostInput(capture: Capture): Promise<PostInput> {
   return { kind: "screenshots", images: await Promise.all(capture.image_paths.map(downloadScreenshot)) };
 }
 
-async function saveDetails(captureId: string, details: ExtractedPost, status: CaptureStatus): Promise<void> {
-  const { error } = await getAdminClient()
+/** Saves the details, unless the capture was read already. Returns the saved status, or null if nothing was saved. */
+async function saveDetails(captureId: string, details: ExtractedPost, status: CaptureStatus): Promise<string | null> {
+  const { data, error } = await getAdminClient()
     .from("captures")
     .update({
       role: details.role,
@@ -81,8 +83,11 @@ async function saveDetails(captureId: string, details: ExtractedPost, status: Ca
     })
     .eq("id", captureId)
     // Only a capture that has not been read yet, so a second run of this step changes nothing.
-    .eq("status", "received");
+    .eq("status", "received")
+    .select("status")
+    .maybeSingle();
   if (error) throw new Error(`Could not save capture ${captureId}: ${error.message}`);
+  return data?.status ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -123,7 +128,7 @@ export const ExtractedPostSchema = z.object({
     .string()
     .nullable()
     .describe(
-      "For screenshots only: the post's full text, word for word, in reading order, without the page around it. Null for pasted text.",
+      "For screenshots only: the post's full text, word for word, in reading order, without the page around it. Include any comment, caption or image text in the screenshots that gives a contact email or apply link, word for word. Null for pasted text.",
     ),
 });
 export type ExtractedPost = z.infer<typeof ExtractedPostSchema>;
@@ -161,17 +166,20 @@ export async function readPost(post: PostInput, options: ReadPostOptions = {}): 
 }
 
 /**
- * The checks code can make on the model's answer. For pasted text, an email or link is kept only if
- * it appears in the post word for word. A screenshot cannot be checked this way; its email is seen by the
- * owner in the Gmail draft, before anything is sent.
+ * The checks code can make on the model's answer. An email or link is kept only if it appears word for word
+ * in the post: the pasted text, or for screenshots the text the model read from them. A screenshot's
+ * reading can still be wrong, so its email is also seen by the owner in the Gmail draft before anything is
+ * sent. A screenshot read without its text has nothing to check against, so it gives no email or link, and
+ * the writer is never handed a post it cannot read.
  *
  * Posts often use "bold" or "italic" letters made of special Unicode characters, such as 𝗷𝗼𝗯𝘀@𝗮𝗰𝗺𝗲.𝗰𝗼𝗺.
  * The model reads them as plain letters, so the post is compared, and every value kept, in plain letters
  * (Unicode NFKC normalisation).
  */
 export function checkExtraction(answer: ExtractedPost, post: PostInput): ExtractedPost {
-  const postText = post.kind === "text" ? plainLetters(post.text).toLowerCase() : "";
-  const inPost = (value: string) => post.kind === "screenshots" || postText.includes(value.toLowerCase());
+  const screenshotText = post.kind === "screenshots" ? tidy(answer.postText) : null;
+  const postText = plainLetters(post.kind === "text" ? post.text : (screenshotText ?? "")).toLowerCase();
+  const inPost = (value: string) => postText.includes(value.toLowerCase());
 
   const contactEmail = tidy(answer.contactEmail);
   const formUrl = tidy(answer.formUrl);
@@ -183,7 +191,7 @@ export function checkExtraction(answer: ExtractedPost, post: PostInput): Extract
     contactEmail: contactEmail && isEmail(contactEmail) && inPost(contactEmail) ? contactEmail : null,
     formUrl: formUrl && isFormLink(formUrl) && inPost(formUrl) ? formUrl : null,
     // Pasted text is already stored as it was given; only a screenshot's text needs reading.
-    postText: post.kind === "screenshots" ? tidy(answer.postText) : null,
+    postText: screenshotText,
   };
 }
 

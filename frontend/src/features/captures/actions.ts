@@ -33,18 +33,21 @@ export async function submitCapture(request: SubmitCaptureInput): Promise<Result
 
   const { db } = await requireOwner();
   try {
-    const captureId = await saveCapture(db, input.data);
-    await enqueueStep(STEP_NAMES.extractCapture, { captureId });
-    return ok({ captureId });
+    return ok({ captureId: await saveAndQueueCapture(db, input.data) });
   } catch (error) {
     return fail("internal", describeError(error));
   }
 }
 
-/** Each capture is its own run, so every model call made for it can be linked and costed (B1). */
-async function saveCapture(db: ServerClient, input: SubmitCaptureInput): Promise<string> {
+/**
+ * Saves the capture in a run of its own, so every model call made for it can be linked and costed (B1),
+ * and queues it to be read. If a later part fails, the earlier ones are removed: nothing would ever read the
+ * capture, and the owner can simply send it again.
+ */
+async function saveAndQueueCapture(db: ServerClient, input: SubmitCaptureInput): Promise<string> {
   const run = await db.from("runs").insert({ kind: "capture" }).select("id").single();
   if (run.error) throw new Error(`Could not start the capture's run: ${run.error.message}`);
+  const runId = run.data.id;
 
   const post =
     input.inputType === "text"
@@ -53,9 +56,21 @@ async function saveCapture(db: ServerClient, input: SubmitCaptureInput): Promise
 
   const capture = await db
     .from("captures")
-    .insert({ ...post, post_url: input.postUrl ?? null, run_id: run.data.id })
+    .insert({ ...post, post_url: input.postUrl ?? null, run_id: runId })
     .select("id")
     .single();
-  if (capture.error) throw new Error(`Could not save the capture: ${capture.error.message}`);
-  return capture.data.id;
+  if (capture.error) {
+    await db.from("runs").delete().eq("id", runId);
+    throw new Error(`Could not save the capture: ${capture.error.message}`);
+  }
+
+  const captureId = capture.data.id;
+  try {
+    await enqueueStep(STEP_NAMES.extractCapture, { captureId });
+  } catch (error) {
+    await db.from("captures").delete().eq("id", captureId);
+    await db.from("runs").delete().eq("id", runId);
+    throw error;
+  }
+  return captureId;
 }

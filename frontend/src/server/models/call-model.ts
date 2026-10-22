@@ -48,6 +48,12 @@ export async function callModel<Schema extends z.ZodObject>(
     costUsd: calculateCostUsd(attempt.usage, price),
     durationMs,
     error: attempt.ok ? null : describeError(attempt.error),
+  }).catch((recordError: unknown) => {
+    // A successful call is not used unrecorded: its cost must count toward the monthly cap (B1, B2).
+    if (attempt.ok) throw recordError;
+    // A failed call's own error says more, so that one is passed on; the lost cost row is logged.
+    console.error("A failed model call could not be recorded:", describeError(recordError));
+    throw attempt.error;
   });
 
   if (!attempt.ok) throw attempt.error;

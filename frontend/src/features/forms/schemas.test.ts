@@ -7,6 +7,12 @@ test("an owner's answer is saved to the answer bank unless they say otherwise", 
   expect(AnswerFormQuestionInputSchema.parse(input).saveToAnswerBank).toBe(true);
 });
 
+test("a Markdown link is not taken for a guess in brackets", () => {
+  const input = { formAnswerId: "0f8fad5b-d9cb-469f-a165-70867728950e", answer: "See [my GitHub](https://github.com/example)." };
+
+  expect(AnswerFormQuestionInputSchema.safeParse(input).success).toBe(true);
+});
+
 test("an answer that still has a draft's guess in [brackets] is refused", () => {
   const input = { formAnswerId: "0f8fad5b-d9cb-469f-a165-70867728950e", answer: "My laptop has [16 GB RAM]." };
 

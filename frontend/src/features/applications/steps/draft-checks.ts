@@ -5,6 +5,7 @@
 // Ported from: https://github.com/MadsLorentzen/ai-job-search/blob/5d9e0977f01465166f25abf0826bd61e7c8cac25/.claude/skills/job-application-assistant/03-writing-style.md (MIT)
 // merged with the owner's own list (private/email-patterns.md section 4).
 
+import { escapeRegExp } from "@/lib/regex";
 import type { EmailDraft, WriterContext } from "../schemas";
 
 /** Matched anywhere, ignoring case, from the start of a word. */
@@ -58,9 +59,15 @@ export function findDraftProblems(draft: EmailDraft, writer: WriterContext): str
   const text = `${draft.subject}\n${draft.body}\n${draft.signature}`;
   const aboutOwner = normalise(`${writer.profile}\n${writer.answerBank}`);
   const everything = `${aboutOwner}\n${normalise(writer.post.text)}`;
-  // A technology from the post is allowed only as part of the role's name ("your Vue Developer role");
-  // the model check catches a claim made around it.
-  const techSources = `${aboutOwner}\n${normalise(writer.post.role ?? "")}`;
+  // A number or technology from the post is allowed in the body only as part of the role's name ("your Vue
+  // Developer role", "Engineer 2"), and a number also as part of the company's or poster's name ("10Pearls"):
+  // anywhere else it would read as a claim about the owner ("5 years"). The subject may quote the post. The
+  // model check catches a claim made around a name.
+  const claimSources = `${aboutOwner}\n${normalise(writer.post.role ?? "")}`;
+  const numberSources = `${claimSources}\n${normalise(`${writer.post.company ?? ""}\n${writer.post.posterName ?? ""}`)}`;
+  const bodyText = `${draft.body}\n${draft.signature}`;
+  const bodyNumbers = numbersMissingFrom(bodyText, numberSources);
+  const subjectNumbers = numbersMissingFrom(draft.subject, everything).filter((number) => !bodyNumbers.includes(number));
   const pattern = writer.patterns.find((candidate) => candidate.name === draft.emailPattern);
 
   return [
@@ -69,13 +76,12 @@ export function findDraftProblems(draft: EmailDraft, writer: WriterContext): str
       (phrase) => `Remove the banned phrase "${phrase}".`,
     ),
     ...BANNED_PATTERNS.filter(({ pattern }) => pattern.test(text)).map(({ description }) => `Remove ${description}.`),
-    ...unique(text.matchAll(NUMBER), (number) => number.replace(/,/g, ""))
-      .filter((number) => !containsWhole(everything, number))
-      .map((number) => `The number ${number} does not appear in the profile, the answer bank or the post.`),
+    ...bodyNumbers.map((number) => `The number ${number} does not appear in the profile or the answer bank.`),
+    ...subjectNumbers.map((number) => `The number ${number} in the subject does not appear in the profile, the answer bank or the post.`),
     ...unique(text.matchAll(LINK), (link) => link.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/[.,;:]+$/, ""))
       .filter((link) => !everything.includes(link.toLowerCase()))
       .map((link) => `The link ${link} does not appear in the profile, the answer bank or the post.`),
-    ...TECH_TERMS.filter((term) => containsTerm(`${draft.body}\n${draft.signature}`, term, "") && !containsTerm(techSources, term, "i")).map(
+    ...TECH_TERMS.filter((term) => containsTerm(bodyText, term, "") && !containsTerm(claimSources, term, "i")).map(
       (term) => `"${term}" is not in the profile or the answer bank, so the draft cannot claim it.`,
     ),
   ];
@@ -100,6 +106,11 @@ function lengthProblems(draft: EmailDraft, route: WriterContext["route"], patter
   return problems;
 }
 
+/** Every number in the text that is not in the sources, each once, without thousands commas. */
+function numbersMissingFrom(text: string, sources: string): string[] {
+  return unique(text.matchAll(NUMBER), (number) => number.replace(/,/g, "")).filter((number) => !containsWhole(sources, number));
+}
+
 function unique(matches: Iterable<RegExpMatchArray>, clean: (match: string) => string): string[] {
   return [...new Set([...matches].map(([match]) => clean(match)))];
 }
@@ -120,8 +131,4 @@ function containsWhole(text: string, number: string): boolean {
  */
 function containsTerm(text: string, term: string, flags: "" | "i"): boolean {
   return new RegExp(`(^|[^A-Za-z0-9.#+])${escapeRegExp(term)}(?![A-Za-z0-9#+]|\\.[A-Za-z])`, flags).test(text);
-}
-
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
 }

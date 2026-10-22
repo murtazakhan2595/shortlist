@@ -9,7 +9,7 @@ import { ToggleGroup } from "@/components/ui/toggle-group";
 import { fail, type Result } from "@/lib/result";
 import { uploadImages } from "@/lib/uploads";
 import { createCaptureUploadUrl, submitCapture } from "../actions";
-import { MAX_SCREENSHOTS_PER_CAPTURE, type SubmitCaptureInput } from "../schemas";
+import { type CaptureSubmitted, MAX_SCREENSHOTS_PER_CAPTURE, type SubmitCaptureInput } from "../schemas";
 import { useSharedPost } from "./use-shared-post";
 
 const ACCEPTED_IMAGES = "image/png,image/jpeg,image/webp";
@@ -129,7 +129,7 @@ export function CaptureForm() {
 }
 
 /** Uploads the screenshots, then submits their paths as one capture. */
-async function submitScreenshots(files: File[], postUrl: string | undefined): Promise<Result<{ captureId: string }>> {
+async function submitScreenshots(files: File[], postUrl: string | undefined): Promise<Result<CaptureSubmitted>> {
   if (files.length === 0) return fail("invalid_input", "Choose at least one screenshot");
   if (files.length > MAX_SCREENSHOTS_PER_CAPTURE) {
     return fail("invalid_input", `Choose up to ${MAX_SCREENSHOTS_PER_CAPTURE} screenshots`);

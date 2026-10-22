@@ -1,13 +1,18 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { AutoRefresh } from "@/components/ui/auto-refresh";
 import type { CaptureView } from "../data";
 
-/** One captured post: what was read from it, and what happens next. */
-export function CaptureDetails({ capture }: { capture: CaptureView }) {
+/**
+ * One captured post: what was read from it, and what happens next. failureNotice is shown in place of the
+ * progress while the post is read or its email written, if a step doing that failed every attempt.
+ */
+export function CaptureDetails({ capture, failureNotice }: { capture: CaptureView; failureNotice?: ReactNode }) {
+  const stuck = failureNotice && (capture.status === "received" || capture.status === "processing");
   return (
     <div className="flex flex-col gap-8">
       <section aria-live="polite" className="flex flex-col gap-4">
-        <NextStep capture={capture} />
+        {stuck ? failureNotice : <NextStep capture={capture} />}
       </section>
 
       {capture.status !== "received" && (
@@ -44,7 +49,8 @@ function NextStep({ capture }: { capture: CaptureView }) {
         </>
       );
     case "done":
-      return <p className="text-lg font-semibold">Application prepared</p>;
+      // The application below says whether it is ready or blocked.
+      return <p className="text-lg font-semibold">Post read</p>;
     case "duplicate":
       return (
         <>

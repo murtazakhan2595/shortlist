@@ -1,13 +1,21 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { buttonVariants } from "@/components/ui/button";
-import { requireOwner } from "@/server/auth/require-owner";
+import { DailyList } from "@/features/applications/components/daily-list";
+import { getRecentApplications } from "@/features/applications/data";
+import { getLatestRunWarning } from "@/features/discovery/data";
+import { FailureNotice } from "@/features/failed-steps/components/failure-notice";
+import { getOpenFailures } from "@/features/failed-steps/data";
+import { CapReached } from "@/features/settings/components/cap-reached";
+import { getSpendingCap } from "@/features/settings/data";
 
+// The morning routine (PLAN.md item 5.1): what needs the owner first, then each day's applications with
+// what was prepared, marked sent, skipped, replied or interview with one tap.
 export default function HomePage() {
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-3 px-5 py-8">
+    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-5 py-8">
       <h1 className="text-2xl font-bold">Your applications</h1>
-      <div className="my-2 flex flex-col gap-3 sm:flex-row">
+      <div className="flex flex-col gap-3 sm:flex-row">
         <Link href="/capture" className={`${buttonVariants()} sm:w-auto`}>
           Capture a post
         </Link>
@@ -15,7 +23,10 @@ export default function HomePage() {
           Answer a form
         </Link>
       </div>
-      {/* The owner check reads the session, so it streams in behind a boundary (Cache Components). */}
+      {/* Read per request, so they stream in behind boundaries (Cache Components). */}
+      <Suspense fallback={null}>
+        <NeedsAttention />
+      </Suspense>
       <Suspense fallback={<p className="text-ink-muted">Loading…</p>}>
         <Applications />
       </Suspense>
@@ -23,11 +34,30 @@ export default function HomePage() {
   );
 }
 
-async function Applications() {
-  await requireOwner();
+async function NeedsAttention() {
+  const [failures, warning, cap] = await Promise.all([getOpenFailures(), getLatestRunWarning(), getSpendingCap()]);
+  if (failures.length === 0 && !warning && !cap.reached) return null;
   return (
-    <p className="max-w-prose text-ink-muted">
-      Nothing prepared yet. Posts you capture, and each morning&apos;s list of jobs, will appear here.
-    </p>
+    <section aria-labelledby="attention-heading" className="flex flex-col gap-3">
+      <h2 id="attention-heading" className="text-lg font-semibold">
+        Needs your attention
+      </h2>
+      <CapReached cap={cap} />
+      {warning && (
+        <p role="alert" className="text-danger">
+          <span className="font-semibold">{warning}</span>{" "}
+          <Link href="/jobs" className="underline">
+            Open Jobs
+          </Link>
+        </p>
+      )}
+      {failures.map((failure) => (
+        <FailureNotice key={failure.id} failure={failure} href={failure.href} />
+      ))}
+    </section>
   );
+}
+
+async function Applications() {
+  return <DailyList applications={await getRecentApplications()} now={new Date()} />;
 }

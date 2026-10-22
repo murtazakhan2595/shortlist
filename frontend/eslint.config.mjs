@@ -39,6 +39,14 @@ const eslintConfig = defineConfig([
       "import/no-restricted-paths": ["error", { zones: importDirectionZones }],
     },
   },
+  // The app logs only warnings and errors on purpose; a console.log is debugging left behind.
+  // Scripts print their results, so they may use it.
+  {
+    files: ["src/**"],
+    rules: {
+      "no-console": ["error", { allow: ["info", "warn", "error"] }],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

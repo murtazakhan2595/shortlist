@@ -5,6 +5,7 @@ import { loadOwnerMaterial } from "@/server/owner-material";
 import { enqueueStep, wakeWorker } from "@/server/queue/queue";
 import { STEP_NAMES } from "@/server/queue/step-names";
 import { finishRun } from "@/server/runs";
+import { loadSpendingCap } from "@/server/spending";
 import { getAdminClient } from "@/server/supabase/admin";
 import type { Json, Tables } from "@/server/supabase/database.types";
 
@@ -12,6 +13,8 @@ import type { Json, Tables } from "@/server/supabase/database.types";
 //
 // 1. score_listing: one model call scores one kept listing against the owner's profile and tags it
 //    visa-sponsoring when the posting says so. The last listing of the run to be scored queues step 2.
+//    A listing that cannot be scored, after every attempt, is left out (scoringGaveUp), so the rest of
+//    the run still gets its list; the owner sees the failure and can try it again.
 // 2. select_top_listings: ranks the run's scored listings, eligible ones before unclear ones, each by score,
 //    and keeps the top N (the daily target) that score at least MIN_SCORE_TO_KEEP. Each kept listing is
 //    handed to the applications feature for its CV and note (prepare_note_application, X2). Then the run
@@ -19,6 +22,9 @@ import type { Json, Tables } from "@/server/supabase/database.types";
 //
 // Both are safe to run twice: a scored listing is not scored again (one score per listing), choosing the
 // top listings again gives the same ranks, and a listing gets one application however often it is queued.
+//
+// Once this month's spending reaches the cap (B2), no more listings are scored: the run goes straight on
+// to choosing its list from those already scored, and no notes are queued.
 
 const ListingPayloadSchema = z.object({ listingId: z.uuid() });
 const RunPayloadSchema = z.object({ runId: z.uuid() });
@@ -28,8 +34,8 @@ export const MIN_SCORE_TO_KEEP = 45;
 
 /**
  * Queues score_listing for each of the run's kept listings that has no score yet, and wakes the worker
- * once, so they are scored one after another rather than all at once. With none left, it goes straight to
- * choosing the top listings.
+ * once, so they are scored a few at a time (each worker call takes one, and the every-minute schedule adds
+ * a worker) rather than all at once. With none left, it goes straight to choosing the top listings.
  */
 export async function queueScoring(runId: string): Promise<void> {
   const unscored = await unscoredListingIds(runId);
@@ -41,15 +47,39 @@ export async function queueScoring(runId: string): Promise<void> {
   await wakeWorker();
 }
 
-/** The run's listings that are not excluded and have no score yet. */
+/** The run's listings that are not excluded and have no score yet, except those whose scoring failed for good. */
 async function unscoredListingIds(runId: string): Promise<string[]> {
-  const { data, error } = await getAdminClient()
-    .from("listings")
-    .select("id, scores (id)")
-    .eq("run_id", runId)
-    .neq("eligibility", "excluded");
+  const db = getAdminClient();
+  const { data, error } = await db.from("listings").select("id, scores (id)").eq("run_id", runId).neq("eligibility", "excluded");
   if (error) throw new Error(`Could not find the run's unscored listings: ${error.message}`);
-  return data.filter((listing) => !listing.scores).map((listing) => listing.id);
+  const unscored = data.filter((listing) => !listing.scores).map((listing) => listing.id);
+  if (unscored.length === 0) return [];
+
+  // An open failure only: one the owner tried again is removed (server/queue/failed-steps.ts).
+  const failed = await db
+    .from("failed_steps")
+    .select("listing_id:payload->>listingId")
+    .eq("queue", "steps")
+    .eq("step", STEP_NAMES.scoreListing)
+    .in("payload->>listingId", unscored);
+  if (failed.error) throw new Error(`Could not read the failed scoring steps: ${failed.error.message}`);
+  const failedIds = new Set(failed.data.map((row) => row.listing_id));
+  return unscored.filter((id) => !failedIds.has(id));
+}
+
+/**
+ * Queues select_top_listings once every listing of the run is scored, or has failed for good. Only while
+ * the run is running: a listing scored on a retry after its run finished just gets its score.
+ */
+async function selectIfAllScored(runId: string): Promise<void> {
+  if ((await unscoredListingIds(runId)).length === 0) await selectWhileRunning(runId);
+}
+
+/** Queues select_top_listings, unless the run has finished. */
+async function selectWhileRunning(runId: string): Promise<void> {
+  const { data: run, error } = await getAdminClient().from("runs").select("status").eq("id", runId).single();
+  if (error) throw new Error(`Could not load run ${runId}: ${error.message}`);
+  if (run.status === "running") await enqueueStep(STEP_NAMES.selectTopListings, { runId });
 }
 
 // ---------------------------------------------------------------------------
@@ -87,10 +117,20 @@ export async function scoreListing(payload: Json): Promise<void> {
   // Deleted since it was queued, as an expired listing is.
   if (!listing) return;
 
-  if (!listing.scores) await scoreAndSave(listingId, listing);
-  if (listing.run_id && (await unscoredListingIds(listing.run_id)).length === 0) {
-    await enqueueStep(STEP_NAMES.selectTopListings, { runId: listing.run_id });
+  if (!listing.scores && (await loadSpendingCap(db)).reached) {
+    if (listing.run_id) await selectWhileRunning(listing.run_id);
+    return;
   }
+  if (!listing.scores) await scoreAndSave(listingId, listing);
+  if (listing.run_id) await selectIfAllScored(listing.run_id);
+}
+
+/** After a listing's last failed attempt: if it was the last one waiting, the run goes on without it. */
+export async function scoringGaveUp(payload: Json): Promise<void> {
+  const { listingId } = ListingPayloadSchema.parse(payload);
+  const { data, error } = await getAdminClient().from("listings").select("run_id").eq("id", listingId).maybeSingle();
+  if (error) throw new Error(`Could not load listing ${listingId}: ${error.message}`);
+  if (data?.run_id) await selectIfAllScored(data.run_id);
 }
 
 async function scoreAndSave(listingId: string, listing: ListingToScore): Promise<void> {
@@ -108,6 +148,13 @@ async function scoreAndSave(listingId: string, listing: ListingToScore): Promise
     link: { runId: listing.run_id ?? undefined },
   });
 
+  // Tagged before the score is saved: a retry finds the score and skips this function, so a tag saved
+  // after it could be lost.
+  if (output.offersVisaSponsorship && !listing.tags.includes("visa")) {
+    const tagged = await db.from("listings").update({ tags: [...listing.tags, "visa"] }).eq("id", listingId);
+    if (tagged.error) throw new Error(`Could not tag listing ${listingId}: ${tagged.error.message}`);
+  }
+
   // If another run of this step saved a score first, this one is dropped.
   const saved = await db
     .from("scores")
@@ -116,11 +163,6 @@ async function scoreAndSave(listingId: string, listing: ListingToScore): Promise
       { onConflict: "listing_id", ignoreDuplicates: true },
     );
   if (saved.error) throw new Error(`Could not save the score of listing ${listingId}: ${saved.error.message}`);
-
-  if (output.offersVisaSponsorship && !listing.tags.includes("visa")) {
-    const tagged = await db.from("listings").update({ tags: [...listing.tags, "visa"] }).eq("id", listingId);
-    if (tagged.error) throw new Error(`Could not tag listing ${listingId}: ${tagged.error.message}`);
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -231,9 +273,11 @@ export async function selectTopListings(payload: Json): Promise<void> {
     }),
   );
 
-  // Queued together, waking the worker once, so the notes are written one after another.
-  await Promise.all(top.map((listingId) => enqueueStep(STEP_NAMES.prepareNoteApplication, { listingId }, { wake: false })));
-  if (top.length > 0) await wakeWorker();
+  // Queued together, waking the worker once, so the notes are written a few at a time, not all at once.
+  // None at the cap: the list is still ranked, and the owner writes the notes.
+  const notes = (await loadSpendingCap(db)).reached ? [] : top;
+  await Promise.all(notes.map((listingId) => enqueueStep(STEP_NAMES.prepareNoteApplication, { listingId }, { wake: false })));
+  if (notes.length > 0) await wakeWorker();
 
   const counted = await db
     .from("runs")

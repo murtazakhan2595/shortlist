@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { AIMessage } from "@langchain/core/messages";
 import { afterAll, expect, test, vi } from "vitest";
-import { scoreListing, selectTopListings } from "@/features/discovery/steps/score-listings";
+import { scoreListing, scoringGaveUp, selectTopListings } from "@/features/discovery/steps/score-listings";
 import { getAdminClient } from "@/server/supabase/admin";
 
 // The scoring steps against the real database and the owner's real profile, with a fake model.
@@ -14,6 +14,9 @@ vi.mock("@/server/queue/queue", () => ({
   enqueueStep: async (step: string, payload: unknown) => queued.push({ step, payload }),
   wakeWorker: async () => {},
 }));
+
+// The monthly cap is not reached here; spending-cap.test.ts covers the cap.
+vi.mock("@/server/spending", () => ({ loadSpendingCap: async () => ({ spentUsd: 0, capUsd: 50, reached: false }) }));
 
 function modelAnswer(parsed: unknown) {
   const raw = new AIMessage({
@@ -29,27 +32,31 @@ function rating(score: number, offersVisaSponsorship = false) {
 
 const database = getAdminClient();
 const runId = randomUUID();
+const secondRunId = randomUUID();
 
 afterAll(async () => {
-  await database.from("model_calls").delete().eq("run_id", runId);
-  await database.from("listings").delete().eq("run_id", runId);
-  await database.from("runs").delete().eq("id", runId);
+  for (const id of [runId, secondRunId]) {
+    await database.from("failed_steps").delete().eq("payload->>runId", id);
+    await database.from("model_calls").delete().eq("run_id", id);
+    await database.from("listings").delete().eq("run_id", id);
+    await database.from("runs").delete().eq("id", id);
+  }
 });
 
-async function addListing(name: string, eligibility: string): Promise<string> {
+async function addListing(name: string, eligibility: string, run = runId): Promise<string> {
   const { data, error } = await database
     .from("listings")
     .insert({
       source: "test",
-      source_id: `${name}-${runId}`,
+      source_id: `${name}-${run}`,
       url: "https://example.com/job",
       title: `${name} engineer`,
-      company: `Scoring Test ${runId}`,
+      company: `Scoring Test ${run}`,
       description: "Build web apps with React and Node.",
       eligibility,
-      fingerprint: `${name}-${runId}`,
+      fingerprint: `${name}-${run}`,
       tags: ["remote"],
-      run_id: runId,
+      run_id: run,
     })
     .select("id")
     .single();
@@ -100,4 +107,38 @@ test("scores each listing once, then keeps the best ones, eligible before unclea
   // Every model call is costed against the run (B1).
   const { count } = await database.from("model_calls").select("id", { count: "exact", head: true }).eq("run_id", runId);
   expect(count).toBe(3);
+});
+
+test("a listing that cannot be scored does not hold up the run, and one scored on a retry after the run just gets its score", async () => {
+  const run = await database.from("runs").insert({ id: secondRunId, kind: "daily" });
+  if (run.error) throw run.error;
+  const scored = await addListing("scored", "eligible", secondRunId);
+  const broken = await addListing("broken", "eligible", secondRunId);
+  queued.length = 0;
+
+  invokeModel.mockResolvedValueOnce(modelAnswer(rating(80)));
+  await scoreListing({ listingId: scored });
+  expect(queued).toEqual([]);
+
+  // The worker records the broken listing's last failure, then gives up on it. The row names the run so
+  // this test can delete it; a real step's payload names only the listing.
+  const failure = await database
+    .from("failed_steps")
+    .insert({ queue: "steps", message_id: 0, step: "score_listing", payload: { listingId: broken, runId: secondRunId }, attempts: 3, error: "test" })
+    .select("id")
+    .single();
+  if (failure.error) throw failure.error;
+  await scoringGaveUp({ listingId: broken });
+  expect(queued).toEqual([{ step: "select_top_listings", payload: { runId: secondRunId } }]);
+
+  await selectTopListings({ runId: secondRunId });
+  queued.length = 0;
+
+  // The owner tries it again later: the failure is closed and the listing scored, and the finished run is left as it is.
+  await database.from("failed_steps").delete().eq("id", failure.data.id);
+  invokeModel.mockResolvedValueOnce(modelAnswer(rating(90)));
+  await scoreListing({ listingId: broken });
+  expect(queued).toEqual([]);
+  const { data } = await database.from("listings").select("top_rank, scores (score)").eq("id", broken).single();
+  expect(data).toEqual({ top_rank: null, scores: { score: 90 } });
 });

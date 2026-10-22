@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { AIMessage } from "@langchain/core/messages";
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { z } from "zod";
@@ -114,5 +115,17 @@ describe("callModel", () => {
     const failed = (await recordedCalls()).at(-1);
     expect(failed).toMatchObject({ input_tokens: 0, output_tokens: 0, cost_usd: 0 });
     expect(failed?.error).toContain("TimeoutError");
+  });
+  test("when the call cannot be recorded, a successful answer is not used, and a failed call keeps its own error", async () => {
+    // Linked to a run that does not exist, so the row is refused.
+    const unrecordable = { ...request, link: { runId: randomUUID() } };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    invokeModel.mockResolvedValue(modelAnswer({ score: 82 }));
+    await expect(callModel(unrecordable)).rejects.toThrow(/Could not record the model call/);
+
+    invokeModel.mockRejectedValue(new Error("The provider is down"));
+    await expect(callModel(unrecordable)).rejects.toThrow("The provider is down");
+    expect(console.error).toHaveBeenCalledWith("A failed model call could not be recorded:", expect.any(String));
   });
 });

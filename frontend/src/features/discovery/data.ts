@@ -1,5 +1,6 @@
 import "server-only";
 import { requireOwner } from "@/server/auth/require-owner";
+import { findOpenFailures, type OpenFailure } from "@/server/queue/failed-steps";
 
 // Data Access Layer for discovery: the feature's reads, each starting with the owner check.
 
@@ -11,7 +12,6 @@ export type JobView = {
   location: string | null;
   /** The Himalayas page: where to apply, and the credit its terms ask for (D7). */
   url: string;
-  source: string;
   tags: string[];
   eligibility: string;
   eligibilityReason: string | null;
@@ -21,29 +21,39 @@ export type JobView = {
   label: "apply" | "skip" | null;
   /** The prepared note (X2), once the writer has finished it. */
   note: { status: string; body: string | null; cvVariant: string | null; blockedReason: string | null } | null;
+  /** Scoring this job, or starting or writing its note, failed every attempt (5.6). */
+  failure: OpenFailure | null;
 };
 
+/** One run's list is a night's work: one taking longer than this has stopped somewhere. */
+const RUN_FINISHES_WITHIN_HOURS = 6;
+/** The schedule starts a run every 24 hours; a little longer allows for a late start. */
+const RUN_STARTS_EVERY_HOURS = 26;
+
 /** The latest daily run and its listings: the top N, the rest that were scored, and those the filter dropped. */
-export type JobsList = {
+export type JobsListView = {
   run: {
     startedAt: string;
     status: string;
     fetched: number;
     kept: number;
-    scored: number;
     costUsd: number;
+    /** Why the owner should look: the run did not finish, or no run started on time. Null when all is well (5.6). */
+    warning: string | null;
   };
+  /** Steps of the run itself (fetching, choosing the list) that failed every attempt. A job's own are on the job. */
+  failures: OpenFailure[];
   top: JobView[];
   alsoScored: JobView[];
   dropped: JobView[];
 };
 
 /** The latest daily run's list, or null before the first run. */
-export async function getJobsList(): Promise<JobsList | null> {
+export async function getJobsList(): Promise<JobsListView | null> {
   const { db } = await requireOwner();
   const run = await db
     .from("runs")
-    .select("id, started_at, status, listings_fetched, listings_kept, listings_scored")
+    .select("id, started_at, status, listings_fetched, listings_kept")
     .eq("kind", "daily")
     .order("started_at", { ascending: false })
     .limit(1)
@@ -55,7 +65,7 @@ export async function getJobsList(): Promise<JobsList | null> {
     db
       .from("listings")
       .select(
-        "id, title, company, location, url, source, tags, eligibility, eligibility_reason, top_rank, label, scores (score, reasons), applications (status, body, blocked_reason, cv_files (variant))",
+        "id, title, company, location, url, tags, eligibility, eligibility_reason, top_rank, label, scores (score, reasons), applications (id, status, body, blocked_reason, cv_files (variant))",
       )
       .eq("run_id", run.data.id),
     db.from("model_calls").select("cost_usd").eq("run_id", run.data.id),
@@ -63,15 +73,24 @@ export async function getJobsList(): Promise<JobsList | null> {
   if (listings.error) throw new Error(`Could not load the run's listings: ${listings.error.message}`);
   if (calls.error) throw new Error(`Could not load the run's cost: ${calls.error.message}`);
 
+  // Failures name the run (fetching, choosing the list), a listing (scoring, starting its note) or its
+  // note's application (writing it).
+  const runId = run.data.id;
+  const failures = await findOpenFailures(db, [
+    runId,
+    ...listings.data.map((listing) => listing.id),
+    ...listings.data.flatMap((listing) => listing.applications.map((application) => application.id)),
+  ]);
+
   const jobs: JobView[] = listings.data.map((listing) => {
     const [application] = listing.applications;
+    const ownIds = [listing.id, ...listing.applications.map((own) => own.id)];
     return {
       id: listing.id,
       title: listing.title,
       company: listing.company,
       location: listing.location,
       url: listing.url,
-      source: listing.source,
       tags: listing.tags,
       eligibility: listing.eligibility,
       eligibilityReason: listing.eligibility_reason,
@@ -87,6 +106,7 @@ export async function getJobsList(): Promise<JobsList | null> {
             blockedReason: application.blocked_reason,
           }
         : null,
+      failure: failures.find((failure) => failure.targetIds.some((id) => ownIds.includes(id))) ?? null,
     };
   });
 
@@ -97,11 +117,39 @@ export async function getJobsList(): Promise<JobsList | null> {
       status: run.data.status,
       fetched: run.data.listings_fetched,
       kept: run.data.listings_kept,
-      scored: run.data.listings_scored,
       costUsd: calls.data.reduce((total, call) => total + call.cost_usd, 0),
+      warning: runWarning(run.data, new Date()),
     },
+    failures: failures.filter((failure) => failure.targetIds.includes(runId)),
     top: jobs.filter((job) => job.topRank !== null).sort((a, b) => (a.topRank ?? 0) - (b.topRank ?? 0)),
     alsoScored: jobs.filter((job) => job.topRank === null && job.eligibility !== "excluded").sort(byScore),
     dropped: jobs.filter((job) => job.eligibility === "excluded"),
   };
+}
+
+/** Why the latest daily run needs the owner's attention, or null (PLAN.md item 5.6). */
+export function runWarning(run: { status: string; started_at: string }, now: Date): string | null {
+  const hoursSinceStart = (now.getTime() - new Date(run.started_at).getTime()) / 3_600_000;
+  if (run.status === "running" && hoursSinceStart > RUN_FINISHES_WITHIN_HOURS) {
+    return `The nightly run has not finished after ${RUN_FINISHES_WITHIN_HOURS} hours. Try its failed steps again.`;
+  }
+  if (run.status === "failed") return "The nightly run failed. Try its failed steps again.";
+  if (hoursSinceStart > RUN_STARTS_EVERY_HOURS) {
+    return "No nightly run has started for over a day. The schedule in Supabase may have stopped.";
+  }
+  return null;
+}
+
+/** Why the latest daily run needs the owner's attention, or null, also before the first run (5.6). */
+export async function getLatestRunWarning(): Promise<string | null> {
+  const { db } = await requireOwner();
+  const { data, error } = await db
+    .from("runs")
+    .select("status, started_at")
+    .eq("kind", "daily")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`Could not load the latest daily run: ${error.message}`);
+  return data ? runWarning(data, new Date()) : null;
 }

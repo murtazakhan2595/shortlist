@@ -17,6 +17,7 @@ const ready: ApplicationView = {
   inGmail: true,
   costUsd: 0.04193,
   modelCalls: 3,
+  failure: null,
 };
 
 test("shows the prepared email with its recipient, subject, CV and pattern", () => {
@@ -55,4 +56,11 @@ test("says when the email is in Gmail, and while it is still being saved there (
   rerender(<ApplicationDraft application={{ ...ready, inGmail: false }} />);
   expect(screen.getByText(/Saving to Gmail/)).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
+});
+
+test("a Gmail draft that failed for good is shown in place of 'Saving to Gmail'", () => {
+  render(<ApplicationDraft application={{ ...ready, inGmail: false }} failureNotice={<p>Saving the draft to Gmail failed</p>} />);
+
+  expect(screen.getByText("Saving the draft to Gmail failed")).toBeInTheDocument();
+  expect(screen.queryByText(/Saving to Gmail…/)).not.toBeInTheDocument();
 });

@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { jobKey } from "@/server/job-key";
 import { loadOwnerMaterial } from "@/server/owner-material";
@@ -6,8 +7,9 @@ import { getCheckpointer } from "@/server/queue/checkpointer";
 import { enqueueStep } from "@/server/queue/queue";
 import { STEP_NAMES } from "@/server/queue/step-names";
 import { finishRun } from "@/server/runs";
+import { loadSpendingCap } from "@/server/spending";
 import { getAdminClient } from "@/server/supabase/admin";
-import type { Json } from "@/server/supabase/database.types";
+import type { Json, Tables } from "@/server/supabase/database.types";
 import { ApplicationPayloadSchema, type WriterContext } from "../schemas";
 import { buildWriterGraph, START_STATE, type WriterStateValues, writerOutcome } from "./writer";
 
@@ -25,13 +27,22 @@ import { buildWriterGraph, START_STATE, type WriterStateValues, writerOutcome } 
 // All are safe to run twice. A capture or listing that already has its application only moves the writer on. A call
 // to advance_writer first claims a short lease on the application, and does nothing if it is taken; an
 // extra call only moves the loop one stage further. If a call dies, its lease runs out and the queue's
-// retry carries on from the last saved stage.
+// retry carries on from the last saved stage. create_gmail_draft takes the same lease (gmail-draft.ts).
+//
+// A note is part of the nightly run, so it stops once this month's spending reaches the cap (B2): it is
+// saved as blocked, saying so. An email for a capture is the owner's own request and is always written.
 
 const CapturePayloadSchema = z.object({ captureId: z.uuid() });
 const ListingPayloadSchema = z.object({ listingId: z.uuid() });
 
 // Longer than one stage (60 seconds), shorter than the queue's 90 seconds before a retry.
 const LEASE_SECONDS = 75;
+
+export const STOPPED_AT_CAP = "Stopped: this month's model spending reached your cap. Raise it in Settings, or write this one yourself.";
+
+// A long job description is cut, as for scoring (score-listings.ts), so one listing cannot make every
+// write and check call slow or dear.
+const MAX_DESCRIPTION_LENGTH = 15_000;
 
 /** The patterns each route may follow (P7), named after the headings in private/email-patterns.md.
  * The referral pattern is not used by the writer. */
@@ -48,14 +59,12 @@ export async function prepareEmailApplication(payload: Json): Promise<void> {
   const { captureId } = CapturePayloadSchema.parse(payload);
   const db = getAdminClient();
 
-  const capture = await db.from("captures").select("status, contact_email, role, run_id").eq("id", captureId).single();
+  const capture = await db.from("captures").select("status, contact_email, role, raw_text, run_id").eq("id", captureId).single();
   if (capture.error) throw new Error(`Could not load capture ${captureId}: ${capture.error.message}`);
-  const { status, contact_email: contactEmail, role, run_id: runId } = capture.data;
+  const { status, contact_email: contactEmail, role, raw_text: postText, run_id: runId } = capture.data;
   if (status !== "processing" || !contactEmail) return;
 
-  // The duplicate key (C5, X6) uses the contact email in the company's place, as captures often do not
-  // name the company. A reshare of the same post, to the same address for the same role, gets the same key.
-  const fingerprint = jobKey(contactEmail, role ?? "");
+  const fingerprint = captureFingerprint(contactEmail, role, postText ?? "");
   const existing = await db.from("applications").select("id, capture_id").eq("fingerprint", fingerprint).maybeSingle();
   if (existing.error) throw new Error(`Could not look for an earlier application: ${existing.error.message}`);
 
@@ -80,6 +89,18 @@ export async function prepareEmailApplication(payload: Json): Promise<void> {
   if (created.error) throw new Error(`Could not start the application: ${created.error.message}`);
 
   await enqueueStep(STEP_NAMES.advanceWriter, { applicationId: created.data.id });
+}
+
+/**
+ * The duplicate key (C5, X6) uses the contact email in the company's place, as captures often do not name
+ * the company. A reshare of the same post, to the same address for the same role, gets the same key.
+ * Without a role, the post's own text stands in for it, so two different jobs at one address are not
+ * taken for one.
+ */
+export function captureFingerprint(contactEmail: string, role: string | null, postText: string): string {
+  if (role) return jobKey(contactEmail, role);
+  const words = postText.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
+  return jobKey(contactEmail, `post-${createHash("sha1").update(words).digest("hex").slice(0, 12)}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -122,20 +143,19 @@ export async function prepareNoteApplication(payload: Json): Promise<void> {
 
 export async function advanceWriter(payload: Json): Promise<void> {
   const { applicationId } = ApplicationPayloadSchema.parse(payload);
-  if (!(await claimLease(applicationId))) return;
+  const lease = await claimLease(applicationId);
+  if (!lease) return;
 
-  let finished: boolean;
-  try {
-    finished = await runNextStage(applicationId);
-  } finally {
-    // Released before the next call is queued, so that call never finds the lease still held.
-    await releaseLease(applicationId);
-  }
-  if (!finished) await enqueueStep(STEP_NAMES.advanceWriter, { applicationId });
+  // The next step is queued once the lease is released, so it never finds the lease still held.
+  const next = await whileLeased(applicationId, lease, () => runNextStage(applicationId));
+  if (next) await enqueueStep(next, { applicationId });
 }
 
-/** Runs one stage, or saves the outcome once the loop has ended. True when nothing is left to do. */
-async function runNextStage(applicationId: string): Promise<boolean> {
+/**
+ * Runs one stage, or saves the outcome once the loop has ended. Returns the step that comes next for the
+ * application: another stage, the Gmail draft of a ready email, or none.
+ */
+async function runNextStage(applicationId: string): Promise<string | null> {
   const application = await getAdminClient()
     .from("applications")
     .select(
@@ -147,21 +167,26 @@ async function runNextStage(applicationId: string): Promise<boolean> {
   const { status, recipient_email: recipientEmail, captures: capture, listings: listing } = application.data;
 
   let outcome = status;
+  if (status === "preparing" && !capture && (await loadSpendingCap(getAdminClient())).reached) {
+    await stopAtCap(applicationId);
+    return null;
+  }
   if (status === "preparing") {
     const writer = capture
       ? await emailWriter(applicationId, capture, recipientEmail)
       : await noteWriter(applicationId, listing);
     outcome = await runOneStage(applicationId, writer);
-    if (outcome === "preparing") return false;
+    if (outcome === "preparing") return STEP_NAMES.advanceWriter;
   }
   // A note is done once saved. Also reached when a retry finds the outcome already saved, so a call that
   // died here still hands off.
-  if (capture) await finishCapture(applicationId, outcome, capture);
-  return true;
+  if (!capture) return null;
+  await finishCapture(capture);
+  return outcome === "ready" ? STEP_NAMES.createGmailDraft : null;
 }
 
-type CaptureForWriter = { id: string; run_id: string | null; raw_text: string | null; role: string | null; company: string | null; poster_name: string | null };
-type ListingForWriter = { run_id: string | null; title: string; company: string; location: string | null; description: string };
+type CaptureForWriter = Pick<Tables<"captures">, "id" | "run_id" | "raw_text" | "role" | "company" | "poster_name">;
+type ListingForWriter = Pick<Tables<"listings">, "run_id" | "title" | "company" | "location" | "description">;
 
 async function emailWriter(applicationId: string, capture: CaptureForWriter, recipientEmail: string | null): Promise<WriterContext> {
   if (!capture.raw_text || !recipientEmail) throw new Error(`Application ${applicationId} has no post text or recipient`);
@@ -187,7 +212,7 @@ async function noteWriter(applicationId: string, listing: ListingForWriter | nul
     route: "note",
     link: { runId: listing.run_id ?? undefined, applicationId },
     post: {
-      text: `${listing.title} at ${listing.company}\nLocation: ${listing.location ?? "not stated"}\n\n${listing.description}`,
+      text: `${listing.title} at ${listing.company}\nLocation: ${listing.location ?? "not stated"}\n\n${listing.description.slice(0, MAX_DESCRIPTION_LENGTH)}`,
       role: listing.title,
       company: listing.company,
       posterName: null,
@@ -197,9 +222,18 @@ async function noteWriter(applicationId: string, listing: ListingForWriter | nul
   };
 }
 
-/** A ready email goes on to its Gmail draft; the capture is closed and its run finished. */
-async function finishCapture(applicationId: string, outcome: string, capture: CaptureForWriter): Promise<void> {
-  if (outcome === "ready") await enqueueStep(STEP_NAMES.createGmailDraft, { applicationId });
+/** Saves a note as blocked because the monthly cap was reached. */
+async function stopAtCap(applicationId: string): Promise<void> {
+  const { error } = await getAdminClient()
+    .from("applications")
+    .update({ status: "blocked", blocked_reason: STOPPED_AT_CAP })
+    .eq("id", applicationId)
+    .eq("status", "preparing");
+  if (error) throw new Error(`Could not stop application ${applicationId}: ${error.message}`);
+}
+
+/** The capture is closed and its run finished. */
+async function finishCapture(capture: CaptureForWriter): Promise<void> {
   const done = await getAdminClient().from("captures").update({ status: "done" }).eq("id", capture.id).eq("status", "processing");
   if (done.error) throw new Error(`Could not close capture ${capture.id}: ${done.error.message}`);
   if (capture.run_id) await finishRun(capture.run_id);
@@ -249,21 +283,43 @@ async function saveOutcome(applicationId: string, writer: WriterContext, state: 
   return outcome;
 }
 
-async function claimLease(applicationId: string): Promise<boolean> {
+// ---------------------------------------------------------------------------
+// The lease: one worker at a time on an application
+// ---------------------------------------------------------------------------
+
+/** Claims the application for LEASE_SECONDS. Returns the lease, or null if another worker holds it. */
+export async function claimLease(applicationId: string): Promise<string | null> {
   const now = new Date();
   const { data, error } = await getAdminClient()
     .from("applications")
     .update({ writer_lease_until: new Date(now.getTime() + LEASE_SECONDS * 1000).toISOString() })
     .eq("id", applicationId)
     .or(`writer_lease_until.is.null,writer_lease_until.lt.${now.toISOString()}`)
-    .select("id");
+    .select("writer_lease_until")
+    .maybeSingle();
   if (error) throw new Error(`Could not claim application ${applicationId}: ${error.message}`);
-  return data.length > 0;
+  return data?.writer_lease_until ?? null;
 }
 
-async function releaseLease(applicationId: string): Promise<void> {
-  const { error } = await getAdminClient().from("applications").update({ writer_lease_until: null }).eq("id", applicationId);
+/**
+ * Runs the work, then releases the lease. Only this lease is released: one that ran out and was claimed by
+ * another worker stays theirs. If the work fails, its error is the one passed on, even if releasing fails too.
+ */
+export async function whileLeased<T>(applicationId: string, lease: string, work: () => Promise<T>): Promise<T> {
+  const release = () =>
+    getAdminClient().from("applications").update({ writer_lease_until: null }).eq("id", applicationId).eq("writer_lease_until", lease);
+
+  let result: T;
+  try {
+    result = await work();
+  } catch (error) {
+    // Left unreleased if this fails, the lease runs out on its own; the work's error says more.
+    await release();
+    throw error;
+  }
+  const { error } = await release();
   if (error) throw new Error(`Could not release application ${applicationId}: ${error.message}`);
+  return result;
 }
 
 /** The owner's material, with the patterns the route can follow. */

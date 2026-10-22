@@ -5,19 +5,30 @@ import { STEP_NAMES } from "@/server/queue/step-names";
 import { getAdminClient } from "@/server/supabase/admin";
 import type { Json } from "@/server/supabase/database.types";
 import { ApplicationPayloadSchema } from "../schemas";
+import { claimLease, whileLeased } from "./writer-steps";
 
 // create_gmail_draft (PLAN.md item 2.3, X1): a ready application becomes a draft in the owner's Gmail,
 // with the chosen CV attached. Queued by advance_writer when the writer's loop ends with a ready email.
 // The owner reads the draft in Gmail and sends it; nothing here sends (hard rule 1).
 //
-// Safe to run twice (AGENTS.md rule 7). A step that finds gmail_draft_id set does nothing. If a call dies
-// after Gmail made the draft but before its id was saved, the retry finds that draft by its recipient and
-// subject instead of making a second one.
+// Safe to run twice (AGENTS.md rule 7). A step that finds gmail_draft_id set does nothing. Two copies
+// running at once would both find no draft and make two, so the step first claims the application's lease
+// (writer-steps.ts); a copy that finds it taken fails and is retried, by when the draft's id is saved. If a
+// call dies after Gmail made the draft but before its id was saved, the retry finds that draft by its
+// recipient and subject instead of making a second one.
 
 const CV_BUCKET = "cvs";
 
 export async function createGmailDraft(payload: Json): Promise<void> {
   const { applicationId } = ApplicationPayloadSchema.parse(payload);
+  const lease = await claimLease(applicationId);
+  // Thrown, not skipped: the copy holding the lease (another copy of this step, or a duplicate call of the
+  // writer) may stop before saving a draft, and then this one must still make it.
+  if (!lease) throw new Error(`Application ${applicationId} is busy; the draft is tried again shortly`);
+  await whileLeased(applicationId, lease, () => draftOnce(applicationId));
+}
+
+async function draftOnce(applicationId: string): Promise<void> {
   const db = getAdminClient();
 
   const application = await db

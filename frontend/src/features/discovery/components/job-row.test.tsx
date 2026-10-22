@@ -15,7 +15,6 @@ const JOB: JobView = {
   company: "Acme",
   location: "Worldwide",
   url: "https://himalayas.app/companies/acme/jobs/full-stack-engineer",
-  source: "himalayas",
   tags: ["remote", "visa"],
   eligibility: "eligible",
   eligibilityReason: null,
@@ -24,6 +23,7 @@ const JOB: JobView = {
   reasons: "Strengths:\n- React",
   label: null,
   note: { status: "ready", body: "I build React apps.", cvVariant: "ai_full_stack", blockedReason: null },
+  failure: null,
 };
 
 function renderRow(job: JobView = JOB) {
@@ -84,14 +84,21 @@ test("a mark that was not saved goes back, and says why", async () => {
   expect(screen.getByRole("button", { name: "Apply" })).toHaveAttribute("aria-pressed", "false");
 });
 
-test("an unclear job says what to check, and a stopped note says to write it yourself", () => {
+test("an unclear job says what to check, and a stopped note says why and to write it yourself", () => {
   renderRow({
     ...JOB,
     eligibility: "unclear",
     eligibilityReason: "Mentions work authorisation or where you must live",
-    note: { status: "blocked", body: null, cvVariant: null, blockedReason: "x" },
+    note: {
+      status: "blocked",
+      body: null,
+      cvVariant: null,
+      blockedReason: "The body has 140 words; the job-board-note pattern needs 40 to 90.\nRemove the banned phrase \"leverage\".",
+    },
   });
 
   expect(screen.getByText(/Mentions work authorisation/)).toBeInTheDocument();
   expect(screen.getByText(/Write this one yourself/)).toBeInTheDocument();
+  expect(screen.getByText(/The body has 140 words/)).toBeInTheDocument();
+  expect(screen.getByText(/Remove the banned phrase/)).toBeInTheDocument();
 });

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { OwnerMaterial } from "@/server/owner-material";
 
 // Contracts for the applications feature (PLAN.md item 1.3; U2, Q7).
 //
@@ -15,6 +16,9 @@ export const UpdateApplicationStatusInputSchema = z.object({
 export type UpdateApplicationStatusInput = z.infer<typeof UpdateApplicationStatusInputSchema>;
 
 export type ApplicationStatusUpdated = UpdateApplicationStatusInput;
+
+/** How far back the daily list on the home page goes (U1). */
+export const DAILY_LIST_DAYS = 7;
 
 // Types the writer's files share (PLAN.md item 2.2).
 
@@ -33,8 +37,11 @@ export type EmailDraft = {
   signature: string;
 };
 
-/** Everything a draft is written from: the post and the owner's material, loaded at every stage. */
-export type WriterContext = {
+/**
+ * Everything a draft is written from: the post and the owner's material, loaded at every stage. The
+ * material is the owner's (OwnerMaterial), with only the email patterns this route may follow.
+ */
+export type WriterContext = Omit<OwnerMaterial, "emailPatterns"> & {
   /**
    * "email": an email for a captured post with a contact address. "note": a short note the owner pastes
    * into the application of a listing that has only an apply link (X2, Q5).
@@ -45,13 +52,7 @@ export type WriterContext = {
   post: { text: string; role: string | null; company: string | null; posterName: string | null; seenOn: string };
   /** Always the address from the capture, never one a model wrote (principle 4). Null for a note. */
   recipientEmail: string | null;
-  profile: string;
-  answerBank: string;
-  writingGuide: string;
-  voiceExamples: string[];
-  patterns: { id: string; name: string; content: string }[];
-  /** The CV variants with a current file, to choose from (P2). */
-  cvVariants: string[];
+  patterns: OwnerMaterial["emailPatterns"];
 };
 
 /** The payload of the queue steps that work on one application. */

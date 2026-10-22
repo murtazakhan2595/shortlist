@@ -10,7 +10,6 @@ import { enqueueStep } from "@/server/queue/queue";
 import { STEP_NAMES } from "@/server/queue/step-names";
 import { createScreenshotUploadUrl } from "@/server/screenshots";
 import type { ServerClient } from "@/server/supabase/server";
-import { getForm } from "./data";
 import {
   type AddFormPagesInput,
   AddFormPagesInputSchema,
@@ -102,39 +101,34 @@ async function startForm(db: ServerClient, pages: FormPages): Promise<Result<For
   return ok({ applicationId: id });
 }
 
-const STILL_WORKING = "Shortlist is still working on this form. Add more pages once it is done.";
+const NOT_READY = "Shortlist is still working on this form. Add more pages once it is done.";
 
 /**
- * Adds the pages to a form and sets it preparing again. Refused while its earlier pages are still being
- * worked on: two chains of steps on one form would overwrite each other's work. A form whose step failed
- * every attempt stays preparing, and takes the pages again to try again.
+ * Adds the pages to a ready form and sets it preparing again. Refused otherwise: while earlier pages are
+ * worked on, two chains of steps on one form would overwrite each other's work, and a form whose step
+ * failed is tried again instead (failed-steps), so its waiting pages are not lost.
  */
 async function addToForm(db: ServerClient, applicationId: string, pages: FormPages): Promise<Result<FormPagesAdded>> {
-  const view = await getForm(applicationId);
-  if (!view) return fail("not_found", "This form no longer exists");
-  if (view.status === "preparing" && !view.failure) return fail("conflict", STILL_WORKING);
-
   const { data: form, error: readError } = await db
     .from("applications")
     .select("status, form_image_paths, form_text")
     .eq("id", applicationId)
-    .single();
+    .eq("route", "form")
+    .maybeSingle();
   if (readError) throw new Error(`Could not load the form: ${readError.message}`);
+  if (!form) return fail("not_found", "This form no longer exists");
+  if (form.status !== "ready") return fail("conflict", NOT_READY);
 
   const { data: updated, error } = await db
     .from("applications")
-    .update({
-      ...pageColumns(pages, { imagePaths: form.form_image_paths, text: form.form_text }),
-      // A status the owner set (sent, skipped) stays; a ready form has new questions to answer.
-      status: form.status === "ready" ? "preparing" : form.status,
-    })
+    .update({ ...pageColumns(pages, { imagePaths: form.form_image_paths, text: form.form_text }), status: "preparing" })
     .eq("id", applicationId)
-    // Only if no other request changed the form since it was read, so pages sent twice at once start one chain.
-    .eq("status", form.status)
+    // Only if it is still ready: of pages sent twice at once, one request wins and starts one chain.
+    .eq("status", "ready")
     .select("id")
     .maybeSingle();
   if (error) throw new Error(`Could not add the pages: ${error.message}`);
-  if (!updated) return fail("conflict", STILL_WORKING);
+  if (!updated) return fail("conflict", NOT_READY);
 
   try {
     await enqueueStep(STEP_NAMES.readForm, { applicationId, pages: pagesToRead(pages) });
@@ -142,7 +136,7 @@ async function addToForm(db: ServerClient, applicationId: string, pages: FormPag
     // Nothing would read the new pages, so the form is put back as it was and the owner can add them again.
     await db
       .from("applications")
-      .update({ status: form.status, form_image_paths: form.form_image_paths, form_text: form.form_text })
+      .update({ status: "ready", form_image_paths: form.form_image_paths, form_text: form.form_text })
       .eq("id", applicationId);
     throw error;
   }
