@@ -98,7 +98,7 @@ test("an unclear job says what to check, and a stopped note says why and to writ
   });
 
   expect(screen.getByText(/Mentions work authorisation/)).toBeInTheDocument();
-  expect(screen.getByText(/write this one yourself/)).toBeInTheDocument();
+  expect(screen.getByText(/Write this one yourself/)).toBeInTheDocument();
   expect(screen.getByText(/The body has 140 words/)).toBeInTheDocument();
   expect(screen.getByText(/Remove the banned phrase/)).toBeInTheDocument();
 });

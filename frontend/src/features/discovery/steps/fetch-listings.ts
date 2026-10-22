@@ -2,6 +2,8 @@ import "server-only";
 import { z } from "zod";
 import { fetchHimalayasJobs, HIMALAYAS_SOURCE, type HimalayasJob } from "@/server/himalayas";
 import { jobKey } from "@/server/job-key";
+import { finishRun } from "@/server/runs";
+import { loadSpendingCap } from "@/server/spending";
 import { getAdminClient } from "@/server/supabase/admin";
 import type { Json } from "@/server/supabase/database.types";
 import type { Eligibility, Listing } from "../schemas";
@@ -19,6 +21,8 @@ import { queueScoring } from "./score-listings";
 //
 // Safe to run twice: the second run saves nothing new, the counts are read back from the saved rows, and
 // only listings without a score are queued.
+//
+// Once this month's spending reaches the cap (B2), the run fetches nothing: nothing could be scored.
 
 const FetchListingsPayloadSchema = z.object({ runId: z.uuid() });
 
@@ -29,6 +33,13 @@ const OVERLAP_MS = 60 * 60 * 1000;
 
 export async function fetchListings(payload: Json): Promise<void> {
   const { runId } = FetchListingsPayloadSchema.parse(payload);
+
+  if ((await loadSpendingCap(getAdminClient())).reached) {
+    // Expired listings are still removed, as Himalayas' terms ask.
+    await deleteExpiredListings();
+    await finishRun(runId);
+    return;
+  }
 
   const [since, settings] = await Promise.all([fetchSince(runId), loadFilterSettings()]);
   const jobs = await fetchHimalayasJobs(since);

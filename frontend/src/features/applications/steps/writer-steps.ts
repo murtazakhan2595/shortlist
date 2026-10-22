@@ -7,6 +7,7 @@ import { getCheckpointer } from "@/server/queue/checkpointer";
 import { enqueueStep } from "@/server/queue/queue";
 import { STEP_NAMES } from "@/server/queue/step-names";
 import { finishRun } from "@/server/runs";
+import { loadSpendingCap } from "@/server/spending";
 import { getAdminClient } from "@/server/supabase/admin";
 import type { Json, Tables } from "@/server/supabase/database.types";
 import { ApplicationPayloadSchema, type WriterContext } from "../schemas";
@@ -27,12 +28,17 @@ import { buildWriterGraph, START_STATE, type WriterStateValues, writerOutcome } 
 // to advance_writer first claims a short lease on the application, and does nothing if it is taken; an
 // extra call only moves the loop one stage further. If a call dies, its lease runs out and the queue's
 // retry carries on from the last saved stage. create_gmail_draft takes the same lease (gmail-draft.ts).
+//
+// A note is part of the nightly run, so it stops once this month's spending reaches the cap (B2): it is
+// saved as blocked, saying so. An email for a capture is the owner's own request and is always written.
 
 const CapturePayloadSchema = z.object({ captureId: z.uuid() });
 const ListingPayloadSchema = z.object({ listingId: z.uuid() });
 
 // Longer than one stage (60 seconds), shorter than the queue's 90 seconds before a retry.
 const LEASE_SECONDS = 75;
+
+export const STOPPED_AT_CAP = "Stopped: this month's model spending reached your cap. Raise it in Settings, or write this one yourself.";
 
 // A long job description is cut, as for scoring (score-listings.ts), so one listing cannot make every
 // write and check call slow or dear.
@@ -161,6 +167,10 @@ async function runNextStage(applicationId: string): Promise<string | null> {
   const { status, recipient_email: recipientEmail, captures: capture, listings: listing } = application.data;
 
   let outcome = status;
+  if (status === "preparing" && !capture && (await loadSpendingCap(getAdminClient())).reached) {
+    await stopAtCap(applicationId);
+    return null;
+  }
   if (status === "preparing") {
     const writer = capture
       ? await emailWriter(applicationId, capture, recipientEmail)
@@ -210,6 +220,16 @@ async function noteWriter(applicationId: string, listing: ListingForWriter | nul
     },
     recipientEmail: null,
   };
+}
+
+/** Saves a note as blocked because the monthly cap was reached. */
+async function stopAtCap(applicationId: string): Promise<void> {
+  const { error } = await getAdminClient()
+    .from("applications")
+    .update({ status: "blocked", blocked_reason: STOPPED_AT_CAP })
+    .eq("id", applicationId)
+    .eq("status", "preparing");
+  if (error) throw new Error(`Could not stop application ${applicationId}: ${error.message}`);
 }
 
 /** The capture is closed and its run finished. */

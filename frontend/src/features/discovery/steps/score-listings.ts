@@ -5,6 +5,7 @@ import { loadOwnerMaterial } from "@/server/owner-material";
 import { enqueueStep, wakeWorker } from "@/server/queue/queue";
 import { STEP_NAMES } from "@/server/queue/step-names";
 import { finishRun } from "@/server/runs";
+import { loadSpendingCap } from "@/server/spending";
 import { getAdminClient } from "@/server/supabase/admin";
 import type { Json, Tables } from "@/server/supabase/database.types";
 
@@ -21,6 +22,9 @@ import type { Json, Tables } from "@/server/supabase/database.types";
 //
 // Both are safe to run twice: a scored listing is not scored again (one score per listing), choosing the
 // top listings again gives the same ranks, and a listing gets one application however often it is queued.
+//
+// Once this month's spending reaches the cap (B2), no more listings are scored: the run goes straight on
+// to choosing its list from those already scored, and no notes are queued.
 
 const ListingPayloadSchema = z.object({ listingId: z.uuid() });
 const RunPayloadSchema = z.object({ runId: z.uuid() });
@@ -68,10 +72,14 @@ async function unscoredListingIds(runId: string): Promise<string[]> {
  * the run is running: a listing scored on a retry after its run finished just gets its score.
  */
 async function selectIfAllScored(runId: string): Promise<void> {
+  if ((await unscoredListingIds(runId)).length === 0) await selectWhileRunning(runId);
+}
+
+/** Queues select_top_listings, unless the run has finished. */
+async function selectWhileRunning(runId: string): Promise<void> {
   const { data: run, error } = await getAdminClient().from("runs").select("status").eq("id", runId).single();
   if (error) throw new Error(`Could not load run ${runId}: ${error.message}`);
-  if (run.status !== "running") return;
-  if ((await unscoredListingIds(runId)).length === 0) await enqueueStep(STEP_NAMES.selectTopListings, { runId });
+  if (run.status === "running") await enqueueStep(STEP_NAMES.selectTopListings, { runId });
 }
 
 // ---------------------------------------------------------------------------
@@ -109,6 +117,10 @@ export async function scoreListing(payload: Json): Promise<void> {
   // Deleted since it was queued, as an expired listing is.
   if (!listing) return;
 
+  if (!listing.scores && (await loadSpendingCap(db)).reached) {
+    if (listing.run_id) await selectWhileRunning(listing.run_id);
+    return;
+  }
   if (!listing.scores) await scoreAndSave(listingId, listing);
   if (listing.run_id) await selectIfAllScored(listing.run_id);
 }
@@ -262,8 +274,10 @@ export async function selectTopListings(payload: Json): Promise<void> {
   );
 
   // Queued together, waking the worker once, so the notes are written a few at a time, not all at once.
-  await Promise.all(top.map((listingId) => enqueueStep(STEP_NAMES.prepareNoteApplication, { listingId }, { wake: false })));
-  if (top.length > 0) await wakeWorker();
+  // None at the cap: the list is still ranked, and the owner writes the notes.
+  const notes = (await loadSpendingCap(db)).reached ? [] : top;
+  await Promise.all(notes.map((listingId) => enqueueStep(STEP_NAMES.prepareNoteApplication, { listingId }, { wake: false })));
+  if (notes.length > 0) await wakeWorker();
 
   const counted = await db
     .from("runs")

@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { JobsList } from "@/features/discovery/components/jobs-list";
-import { FailureNotice } from "@/features/failed-steps/components/failure-notice";
 import { getJobsList } from "@/features/discovery/data";
+import { FailureNotice } from "@/features/failed-steps/components/failure-notice";
+import { CapReached } from "@/features/settings/components/cap-reached";
+import { getSpendingCap } from "@/features/settings/data";
 
 export const metadata: Metadata = { title: "Jobs" };
 
@@ -19,7 +21,11 @@ export default function JobsPage() {
 }
 
 async function List() {
+  const [list, cap] = await Promise.all([getJobsList(), getSpendingCap()]);
   return (
-    <JobsList list={await getJobsList()} renderFailure={(failure) => <FailureNotice key={failure.id} failure={failure} />} />
+    <>
+      <CapReached cap={cap} />
+      <JobsList list={list} renderFailure={(failure) => <FailureNotice key={failure.id} failure={failure} />} />
+    </>
   );
 }

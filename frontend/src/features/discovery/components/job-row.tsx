@@ -116,8 +116,7 @@ function Note({ note }: { note: NonNullable<JobView["note"]> }) {
     return (
       <div className="flex flex-col gap-1 text-sm">
         <p>
-          <span className="font-semibold">No note:</span> the last draft did not pass the checks, so write this one
-          yourself.
+          <span className="font-semibold">No note.</span> Write this one yourself. Why it stopped:
         </p>
         {note.blockedReason && (
           <ul className="list-disc pl-5 text-ink-muted">

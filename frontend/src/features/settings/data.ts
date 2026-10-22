@@ -1,6 +1,7 @@
 import "server-only";
 import { requireOwner } from "@/server/auth/require-owner";
 import { isGmailConnected } from "@/server/gmail/gmail";
+import { currentMonth, loadSpendingCap, type SpendingCap } from "@/server/spending";
 
 // Data Access Layer for settings: the feature's reads, each starting with the owner check.
 
@@ -26,9 +27,9 @@ export async function getMonthlySpend(requestedMonth: string | undefined): Promi
   const { data, error } = await db.from("monthly_spend").select("month, step, calls, cost_usd");
   if (error) throw new Error(`Could not load monthly spending: ${error.message}`);
 
-  const currentMonth = new Date().toISOString().slice(0, 7);
-  const months = [...new Set([currentMonth, ...data.flatMap((row) => (row.month ? [row.month] : []))])].sort().reverse();
-  const month = requestedMonth && months.includes(requestedMonth) ? requestedMonth : currentMonth;
+  const thisMonth = currentMonth();
+  const months = [...new Set([thisMonth, ...data.flatMap((row) => (row.month ? [row.month] : []))])].sort().reverse();
+  const month = requestedMonth && months.includes(requestedMonth) ? requestedMonth : thisMonth;
 
   const steps = data
     .filter((row) => row.month === month)
@@ -42,4 +43,10 @@ export async function getMonthlySpend(requestedMonth: string | undefined): Promi
     calls: steps.reduce((total, step) => total + step.calls, 0),
     steps,
   };
+}
+
+/** This month's model spending against the monthly cap (B2). */
+export async function getSpendingCap(): Promise<SpendingCap> {
+  const { db } = await requireOwner();
+  return loadSpendingCap(db);
 }

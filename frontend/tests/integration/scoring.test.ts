@@ -15,6 +15,9 @@ vi.mock("@/server/queue/queue", () => ({
   wakeWorker: async () => {},
 }));
 
+// The monthly cap is not reached here; spending-cap.test.ts covers the cap.
+vi.mock("@/server/spending", () => ({ loadSpendingCap: async () => ({ spentUsd: 0, capUsd: 50, reached: false }) }));
+
 function modelAnswer(parsed: unknown) {
   const raw = new AIMessage({
     content: JSON.stringify(parsed),
