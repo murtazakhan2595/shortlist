@@ -565,6 +565,7 @@ export type Database = {
       }
       settings: {
         Row: {
+          blocked_companies: string[]
           daily_target: number
           excluded_countries: string[]
           id: boolean
@@ -573,6 +574,7 @@ export type Database = {
           pay_floor_usd_month: number
         }
         Insert: {
+          blocked_companies?: string[]
           daily_target?: number
           excluded_countries?: string[]
           id?: boolean
@@ -581,6 +583,7 @@ export type Database = {
           pay_floor_usd_month?: number
         }
         Update: {
+          blocked_companies?: string[]
           daily_target?: number
           excluded_countries?: string[]
           id?: boolean

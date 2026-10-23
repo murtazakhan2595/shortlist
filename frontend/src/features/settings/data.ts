@@ -24,7 +24,7 @@ export async function getRunSettings(): Promise<UpdateSettingsInput> {
   const { db } = await requireOwner();
   const { data, error } = await db
     .from("settings")
-    .select("daily_target, monthly_cap_usd, pay_floor_usd_month, excluded_countries")
+    .select("daily_target, monthly_cap_usd, pay_floor_usd_month, excluded_countries, blocked_companies")
     .single();
   if (error) throw new Error(`Could not load the settings: ${error.message}`);
   return {
@@ -32,6 +32,7 @@ export async function getRunSettings(): Promise<UpdateSettingsInput> {
     monthlyCapUsd: data.monthly_cap_usd,
     payFloorUsdMonth: data.pay_floor_usd_month,
     excludedCountries: data.excluded_countries,
+    blockedCompanies: data.blocked_companies,
   };
 }
 

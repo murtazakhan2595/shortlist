@@ -9,14 +9,17 @@ import { updateSettings } from "../actions";
 import type { UpdateSettingsInput } from "../schemas";
 
 /** "India, Nigeria " as ["India", "Nigeria"]. */
-function countryList(text: string): string[] {
+function commaList(text: string): string[] {
   return text
     .split(",")
-    .map((country) => country.trim())
+    .map((item) => item.trim())
     .filter(Boolean);
 }
 
-/** The nightly run's settings (U4): how many jobs a night, the monthly cap, the lowest pay, excluded countries. */
+/**
+ * The nightly run's settings (U4): how many jobs a night, the monthly cap, the lowest pay, excluded countries
+ * and blocked companies.
+ */
 export function RunSettingsForm({ settings }: { settings: UpdateSettingsInput }) {
   const router = useRouter();
   const [message, setMessage] = useState<{ ok: boolean; text: string }>();
@@ -30,7 +33,8 @@ export function RunSettingsForm({ settings }: { settings: UpdateSettingsInput })
         dailyTarget: Number(form.get("dailyTarget")),
         monthlyCapUsd: Number(form.get("monthlyCapUsd")),
         payFloorUsdMonth: Number(form.get("payFloorUsdMonth")),
-        excludedCountries: countryList(String(form.get("excludedCountries"))),
+        excludedCountries: commaList(String(form.get("excludedCountries"))),
+        blockedCompanies: commaList(String(form.get("blockedCompanies"))),
       });
       if (!result.ok) return setMessage({ ok: false, text: result.error.message });
       setMessage({ ok: true, text: "Saved. The next nightly run uses these." });
@@ -62,6 +66,9 @@ export function RunSettingsForm({ settings }: { settings: UpdateSettingsInput })
         </Field>
         <Field id="excludedCountries" label="Excluded countries" hint="Separated by commas, as Himalayas names them.">
           <Input id="excludedCountries" name="excludedCountries" aria-describedby="excludedCountries-hint" defaultValue={settings.excludedCountries.join(", ")} />
+        </Field>
+        <Field id="blockedCompanies" label="Blocked companies" hint="Separated by commas. Their jobs are dropped before scoring.">
+          <Input id="blockedCompanies" name="blockedCompanies" aria-describedby="blockedCompanies-hint" defaultValue={settings.blockedCompanies.join(", ")} />
         </Field>
       </div>
       {message && (

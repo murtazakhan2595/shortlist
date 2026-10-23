@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { Listing } from "../schemas";
 import { eligibilityOf, minimumYearsRequired, monthlyPayUsd } from "./eligibility";
 
-const SETTINGS = { payFloorUsdMonth: 3000, excludedCountries: ["India"] };
+const SETTINGS = { payFloorUsdMonth: 3000, excludedCountries: ["India"], blockedCompanies: ["micro1", "KDCI"] };
 
 const LISTING: Listing = {
   source: "himalayas",
@@ -37,6 +37,9 @@ test("a mid-level developer job open worldwide is eligible", () => {
 
 describe("drops what clearly does not fit", () => {
   test.each([
+    [{ company: "KDCI" }, "A company you blocked"],
+    [{ company: "kdci." }, "A company you blocked"],
+    [{ company: "Micro1" }, "A company you blocked"],
     [{ title: "Account Manager", categories: ["Sales", "Customer Service"] }, "Not a technical role"],
     [{ title: "Lead Software Engineer" }, "Above the seniority range"],
     [{ title: "Staff Engineer" }, "Above the seniority range"],
@@ -57,6 +60,7 @@ describe("drops what clearly does not fit", () => {
 
 describe("keeps a listing when in doubt", () => {
   test.each([
+    ["a company whose name only contains a blocked one", { company: "Microsoft" }],
     ["a technical title in a non-technical category", { title: "DevOps Engineer", categories: ["Operations"] }],
     ["an AI role filed under Product", { title: "AI Product Engineer", categories: ["Product"] }],
     ["no category at all", { title: "Specialist", categories: [] }],
