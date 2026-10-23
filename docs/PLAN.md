@@ -1,6 +1,6 @@
 # Shortlist: Build Plan
 
-Version 2.8, 22 October 2026. Agreed plan. Sprints 0 to 5 are done; sections 2, 3, 5, 8 and 9 describe what sprint 1 actually built. Sprints 3, 4 and 5 record what they built under their tables.
+Version 2.9, 24 October 2026. Agreed plan. Stage 1, sprints 0 to 6, is done; sections 2, 3, 5, 8 and 9 describe what sprint 1 actually built. Sprints 3 to 6 record what they built under their tables. Stage 2 starts with more job sources (sprints 7 and 8).
 
 This document says **how** Shortlist gets built. **What** is being built, and how success is judged, is in [REQUIREMENTS.md](REQUIREMENTS.md). Requirement IDs (C1, D3, F4, E2 and so on) refer to that file.
 
@@ -128,7 +128,7 @@ What the figures show:
 | Checking on capture | `gpt-6.1-sol` | medium |
 | Writing and checking, overnight | `gpt-6.1-sol` | medium |
 
-Challengers are cheaper open-source models (for example `deepseek-flash`), compared in item 6.1. Anthropic models are not used (owner's decision, 15 October 2026).
+Challengers are cheaper open-source models (for example `deepseek-flash`), compared in item 6.1. Anthropic models are not used (owner's decision, 15 October 2026). On 24 October 2026 the owner kept these starting models as final for now: every automated check passes on them and the nightly run costs well under the estimate below. Challengers wait until a new provider is added.
 
 Both starting models accept images, per Artificial Analysis. A challenger for reading screenshots must too.
 
@@ -323,6 +323,13 @@ Two lessons from the owner's playbook are built into this plan: guard side effec
 | 6.2 | B | Documentation | README, architecture diagram and cost report exist; the README has a "prior art" section comparing Shortlist with career-ops and ai-job-search; the playbook has notes on what the build taught |
 | 6.3 | B | Demo | A short video shows capture, form answers and the morning list |
 | 6.4 | C | Publication check | The repository and its history contain no secrets and no personal data |
+
+**As built (24 October 2026).** Sprint 6 is done (owner, 24 October 2026). Next.js was first upgraded to 16.4.2 for a security fix (#42).
+
+- **Model comparison (6.1).** No challengers were run: the owner kept the starting models (section 4). The README's "Model results" section records the checks (E1 7/7 on pasted posts and 8/8 on screenshots, E4 5/5, all on `gpt-6.1-sol` at low effort), the model per step and why, and real costs from `model_calls`. E2 and E3 depend on real use and carry over as the owner's ongoing checks, with the exit checks of sprints 4 and 5.
+- **Documentation (6.2).** The README describes the three paths, the architecture (with a diagram), the safety rules and how code enforces them, model results, costs, a "prior art" comparison with career-ops and ai-job-search, and how to run and test. The owner's playbook has a note on what the build taught.
+- **Demo (6.3).** Dropped (owner, 24 October 2026).
+- **Publication check (6.4).** `gitleaks` over the full history finds no secrets; keys exist only in git-ignored files. The owner's phone, employers and clients appear nowhere. Two tests used real addresses copied from job posts and now use example ones (#43); older commits still hold them, and history was not rewritten, as the repository stays private (owner, 24 October 2026).
 
 ### Stage 2 sprints, in outline
 
