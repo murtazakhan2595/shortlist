@@ -87,6 +87,9 @@ test("scores each listing once, then keeps the best ones, eligible before unclea
   const { data: strongListing } = await database.from("listings").select("tags, scores (score, reasons)").eq("id", strong).single();
   expect(strongListing).toEqual({ tags: ["remote", "visa"], scores: { score: 80, reasons: "Strengths:\n- React" } });
 
+  // A rank left by an earlier pass is cleared, so it never mixes with this one.
+  const stale = await database.from("listings").update({ top_rank: 3 }).eq("id", weak);
+  if (stale.error) throw stale.error;
   queued.length = 0;
   await selectTopListings({ runId });
   await selectTopListings({ runId });
@@ -97,10 +100,9 @@ test("scores each listing once, then keeps the best ones, eligible before unclea
     [unclear]: 2,
     [weak]: null,
   });
-  // Each kept listing goes on to its note; running the step twice queues them twice, and the note step
-  // makes one application per listing.
+  // Each kept listing goes on to its note, once: the second pass finds the run finished and does nothing.
   const noteStep = (listingId: string) => ({ step: "prepare_note_application", payload: { listingId } });
-  expect(queued).toEqual([noteStep(strong), noteStep(unclear), noteStep(strong), noteStep(unclear)]);
+  expect(queued).toEqual([noteStep(strong), noteStep(unclear)]);
   const { data: finished } = await database.from("runs").select("status, listings_scored").eq("id", runId).single();
   expect(finished).toEqual({ status: "succeeded", listings_scored: 3 });
 

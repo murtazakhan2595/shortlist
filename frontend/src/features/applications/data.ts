@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { sourceName } from "@/lib/source-names";
 import { requireOwner } from "@/server/auth/require-owner";
 import { findOpenFailures, type OpenFailure } from "@/server/queue/failed-steps";
 import { DAILY_LIST_DAYS } from "./schemas";
@@ -87,7 +88,6 @@ export type ApplicationSummary = {
   href: string;
 };
 
-const SOURCE_NAMES: Record<string, string> = { himalayas: "Himalayas" };
 
 /** The applications of the last DAILY_LIST_DAYS days, newest first. */
 export async function getRecentApplications(): Promise<ApplicationSummary[]> {
@@ -115,7 +115,7 @@ export async function getRecentApplications(): Promise<ApplicationSummary[]> {
         createdAt: row.created_at,
         role: capture?.role ?? listing?.title ?? row.job_role,
         company: capture?.company ?? listing?.company ?? row.job_company,
-        source: capture ? "LinkedIn" : listing ? (SOURCE_NAMES[listing.source] ?? listing.source) : null,
+        source: capture ? "LinkedIn" : listing ? sourceName(listing.source) : null,
         score: listing?.scores?.score ?? null,
         tags: listing?.tags ?? [],
         inGmail: row.gmail_draft_id !== null,

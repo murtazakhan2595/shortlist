@@ -4,7 +4,7 @@ import type { Tables } from "@/server/supabase/database.types";
 // Contracts for the discovery feature (PLAN.md item 1.3; D1, U7).
 //
 // Server Actions:
-//   labelListing(LabelListingInput) -> Result<ListingLabelled>
+//   labelListing(LabelListingInput) -> Result<LabelListingInput>
 //   blockCompany(BlockCompanyInput) -> Result<CompanyBlocked>
 //
 // The daily run has no route: Supabase Cron calls start_daily_run in the database, which queues the
@@ -16,7 +16,6 @@ export const LabelListingInputSchema = z.object({
 });
 export type LabelListingInput = z.infer<typeof LabelListingInputSchema>;
 
-export type ListingLabelled = LabelListingInput;
 
 // The company is read from the listing on the server, never sent by the browser.
 export const BlockCompanyInputSchema = z.object({ listingId: z.uuid() });

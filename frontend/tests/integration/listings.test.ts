@@ -83,7 +83,9 @@ test("saves new listings whole, saves nothing the second time, and deletes expir
     run_id: runId,
   });
 
-  expect(await deleteExpiredListings()).toBeGreaterThanOrEqual(1);
+  // Another test file may delete the expired listing first (they share the one database), so the count is
+  // not checked; what is left is.
+  await deleteExpiredListings();
   const { data: left } = await database.from("listings").select("title").eq("company", company);
   expect(left).toEqual([{ title: "Engineer open" }]);
 });

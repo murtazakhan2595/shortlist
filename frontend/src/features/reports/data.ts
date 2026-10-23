@@ -1,4 +1,5 @@
 import "server-only";
+import { sourceName } from "@/lib/source-names";
 import { requireOwner } from "@/server/auth/require-owner";
 import { currentMonth } from "@/server/spending";
 
@@ -94,7 +95,6 @@ export type ReplyRates = { bySource: ReplyRate[]; byPattern: ReplyRate[] };
 /** One sent application, as the rates count it. */
 export type SentApplication = { source: string; pattern: string | null; status: string };
 
-const SOURCE_NAMES: Record<string, string> = { himalayas: "Himalayas" };
 
 /** Reply and interview rates per source and per email pattern, over every application the owner sent (U5). */
 export async function getReplyRates(): Promise<ReplyRates> {
@@ -109,7 +109,7 @@ export async function getReplyRates(): Promise<ReplyRates> {
 
   return replyRates(
     data.map((row) => ({
-      source: row.captures ? "LinkedIn" : row.listings ? (SOURCE_NAMES[row.listings.source] ?? row.listings.source) : "Forms",
+      source: row.captures ? "LinkedIn" : row.listings ? sourceName(row.listings.source) : "Forms",
       pattern: row.documents?.name ?? null,
       status: row.status,
     })),

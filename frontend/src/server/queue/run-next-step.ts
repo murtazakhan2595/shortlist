@@ -13,8 +13,9 @@ export type StepHandler = {
   /** Runs the step. Must be safe to run twice, because a step can be retried after doing part of its work. */
   run: (payload: Json) => Promise<void>;
   /**
-   * Runs once the step has failed every attempt, for work that must not wait on it: for example, the
-   * daily run still ranks its other listings when one cannot be scored. Must also be safe to run twice.
+   * Runs once the step has failed every attempt and the failure is recorded, for work that must not wait
+   * on it: for example, the daily run still ranks its other listings when one cannot be scored. If it fails
+   * too, the error is logged and the failure stays open; trying the step again runs it, and this, once more.
    */
   giveUp?: (payload: Json) => Promise<void>;
 };
@@ -51,7 +52,7 @@ export async function runNextStep(handlers: StepHandlers, options: RunOptions = 
     const isLastAttempt = !handler || step.attempts >= MAX_ATTEMPTS;
     if (isLastAttempt) {
       await failStep(queue, step, describeError(error));
-      await handler?.giveUp?.(step.payload);
+      if (handler?.giveUp) await giveUpAfterFailure(handler.giveUp, step);
     } else {
       const delayPerAttempt = options.retryDelaySecondsPerAttempt ?? RETRY_DELAY_SECONDS_PER_ATTEMPT;
       await retryStepLater(queue, step, delayPerAttempt * step.attempts);
@@ -61,6 +62,15 @@ export async function runNextStep(handlers: StepHandlers, options: RunOptions = 
 
   await completeStep(queue, step);
   return { stepsRun: 1, stepsFailed: 0, queueEmpty: false };
+}
+
+/** The step is already recorded as failed, so an error here is logged, not thrown: nothing would retry it. */
+async function giveUpAfterFailure(giveUp: NonNullable<StepHandler["giveUp"]>, step: QueuedStep): Promise<void> {
+  try {
+    await giveUp(step.payload);
+  } catch (error) {
+    console.error(`Step ${step.step} failed, and so did its give-up: ${describeError(error)}`);
+  }
 }
 
 async function readNextStep(queue: QueueName): Promise<QueuedStep | undefined> {
