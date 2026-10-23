@@ -12,13 +12,13 @@ import {
 // Server Actions for settings (contracts in ./schemas.ts; U4). Writes use the owner's client, so the
 // access rules apply too. Each takes effect from the next step that reads it: no restart is needed.
 
-/** Saves the nightly run's settings: jobs a night, monthly cap, lowest pay and excluded countries. */
+/** Saves the nightly run's settings: jobs a night, monthly cap, lowest pay, excluded countries and blocked companies. */
 export async function updateSettings(request: UpdateSettingsInput): Promise<Result<UpdateSettingsInput>> {
   const input = UpdateSettingsInputSchema.safeParse(request);
   if (!input.success) return fail("invalid_input", input.error.issues[0].message);
 
   const { db } = await requireOwner();
-  const { dailyTarget, monthlyCapUsd, payFloorUsdMonth, excludedCountries } = input.data;
+  const { dailyTarget, monthlyCapUsd, payFloorUsdMonth, excludedCountries, blockedCompanies } = input.data;
   const { error } = await db
     .from("settings")
     .update({
@@ -27,6 +27,7 @@ export async function updateSettings(request: UpdateSettingsInput): Promise<Resu
       pay_floor_usd_month: payFloorUsdMonth,
       // Each country once, as the filter compares names exactly.
       excluded_countries: [...new Set(excludedCountries)],
+      blocked_companies: [...new Set(blockedCompanies)],
     })
     // The table has one row, whose id is always true.
     .eq("id", true);

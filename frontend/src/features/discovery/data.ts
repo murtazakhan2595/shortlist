@@ -121,7 +121,11 @@ export async function getJobsList(): Promise<JobsListView | null> {
       warning: runWarning(run.data, new Date()),
     },
     failures: failures.filter((failure) => failure.targetIds.includes(runId)),
-    top: jobs.filter((job) => job.topRank !== null).sort((a, b) => (a.topRank ?? 0) - (b.topRank ?? 0)),
+    // A listing dropped after ranking, because the owner blocked its company, keeps its rank (check E2) but
+    // leaves the list.
+    top: jobs
+      .filter((job) => job.topRank !== null && job.eligibility !== "excluded")
+      .sort((a, b) => (a.topRank ?? 0) - (b.topRank ?? 0)),
     alsoScored: jobs.filter((job) => job.topRank === null && job.eligibility !== "excluded").sort(byScore),
     dropped: jobs.filter((job) => job.eligibility === "excluded"),
   };

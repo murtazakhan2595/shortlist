@@ -1,5 +1,6 @@
 import "server-only";
 import { escapeRegExp } from "@/lib/regex";
+import { slugify } from "@/server/job-key";
 import { getAdminClient } from "@/server/supabase/admin";
 import type { Eligibility, Listing } from "../schemas";
 
@@ -9,15 +10,22 @@ import type { Eligibility, Listing } from "../schemas";
 // "eligible". When in doubt, a rule keeps the listing: judging fit is the scoring step's job (D5).
 
 /** The owner's filter settings, which the owner can change in the app (U4). */
-export type FilterSettings = { payFloorUsdMonth: number; excludedCountries: string[] };
+export type FilterSettings = { payFloorUsdMonth: number; excludedCountries: string[]; blockedCompanies: string[] };
 
 /** Where the owner lives and works from. */
 const OWNER_COUNTRY = "Pakistan";
 
 export async function loadFilterSettings(): Promise<FilterSettings> {
-  const { data, error } = await getAdminClient().from("settings").select("pay_floor_usd_month, excluded_countries").single();
+  const { data, error } = await getAdminClient()
+    .from("settings")
+    .select("pay_floor_usd_month, excluded_countries, blocked_companies")
+    .single();
   if (error) throw new Error(`Could not load the filter settings: ${error.message}`);
-  return { payFloorUsdMonth: data.pay_floor_usd_month, excludedCountries: data.excluded_countries };
+  return {
+    payFloorUsdMonth: data.pay_floor_usd_month,
+    excludedCountries: data.excluded_countries,
+    blockedCompanies: data.blocked_companies,
+  };
 }
 
 /** The first rule a listing clearly fails, else what makes it unclear, else eligible. */
@@ -31,6 +39,7 @@ export function eligibilityOf(listing: Listing, settings: FilterSettings): Eligi
 }
 
 function exclusionReason(listing: Listing, settings: FilterSettings): string | null {
+  if (isBlockedCompany(listing.company, settings.blockedCompanies)) return BLOCKED_COMPANY_REASON;
   if (isNonTechnical(listing)) return "Not a technical role";
   if (isAboveSeniorityRange(listing)) return "Above the seniority range (lead, staff, principal or management)";
 
@@ -42,6 +51,22 @@ function exclusionReason(listing: Listing, settings: FilterSettings): string | n
 
   if (CLEARANCE_OR_CITIZENSHIP.test(listing.description)) return "Asks for a security clearance or citizenship";
   return countryReason(listing, settings.excludedCountries);
+}
+
+// ---------------------------------------------------------------------------
+// Companies the owner blocked
+// ---------------------------------------------------------------------------
+
+export const BLOCKED_COMPANY_REASON = "A company you blocked";
+
+/**
+ * True when the company is one the owner blocked. Names are compared as the duplicate key writes them, so
+ * capitals and punctuation do not matter ("KDCI." is "kdci"), but a part never matches a whole: blocking
+ * "micro1" does not block "Microsoft".
+ */
+export function isBlockedCompany(company: string, blockedCompanies: string[]): boolean {
+  const key = slugify(company);
+  return key !== "" && blockedCompanies.some((blocked) => slugify(blocked) === key);
 }
 
 // ---------------------------------------------------------------------------

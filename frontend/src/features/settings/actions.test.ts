@@ -31,15 +31,27 @@ beforeEach(() => {
   db.error = null;
 });
 
-const SETTINGS = { dailyTarget: 15, monthlyCapUsd: 40.5, payFloorUsdMonth: 3000, excludedCountries: ["India", "India", "Nigeria"] };
+const SETTINGS = {
+  dailyTarget: 15,
+  monthlyCapUsd: 40.5,
+  payFloorUsdMonth: 3000,
+  excludedCountries: ["India", "India", "Nigeria"],
+  blockedCompanies: ["KDCI", "micro1", "KDCI"],
+};
 
-test("saves the nightly run's settings to the one settings row, each country once", async () => {
+test("saves the nightly run's settings to the one settings row, each country and company once", async () => {
   expect((await updateSettings(SETTINGS)).ok).toBe(true);
 
   expect(db.updates).toEqual([
     {
       table: "settings",
-      values: { daily_target: 15, monthly_cap_usd: 40.5, pay_floor_usd_month: 3000, excluded_countries: ["India", "Nigeria"] },
+      values: {
+        daily_target: 15,
+        monthly_cap_usd: 40.5,
+        pay_floor_usd_month: 3000,
+        excluded_countries: ["India", "Nigeria"],
+        blocked_companies: ["KDCI", "micro1"],
+      },
       filter: ["id", true],
     },
   ]);

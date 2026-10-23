@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { type ReactNode, useState, useTransition } from "react";
 import { CopyButton } from "@/components/ui/copy-button";
-import { labelListing } from "../actions";
+import { blockCompany, labelListing } from "../actions";
 import type { JobView } from "../data";
 
 type Label = NonNullable<JobView["label"]>;
@@ -86,6 +86,7 @@ export function JobRow({ job, failureNotice }: { job: JobView; failureNotice?: R
             Open the job on Himalayas
           </a>
         </div>
+        <BlockCompany listingId={job.id} company={job.company} />
         {error && (
           <p role="alert" className="text-sm text-danger">
             {error}
@@ -100,6 +101,54 @@ export function JobRow({ job, failureNotice }: { job: JobView; failureNotice?: R
         </p>
       )}
     </li>
+  );
+}
+
+/**
+ * Blocks the job's company after one confirming tap: its jobs leave tonight's list and are dropped every night
+ * after. Undone by removing the company in Settings.
+ */
+function BlockCompany({ listingId, company }: { listingId: string; company: string }) {
+  const router = useRouter();
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string>();
+  const [isPending, startTransition] = useTransition();
+
+  function block() {
+    startTransition(async () => {
+      const result = await blockCompany({ listingId });
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  if (!confirming) {
+    return (
+      <button type="button" onClick={() => setConfirming(true)} className="self-start text-sm text-ink-muted underline hover:text-ink">
+        Block {company}
+      </button>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-2 text-sm">
+      <p>Hide every job from {company}, tonight and from now on? You can undo it in Settings.</p>
+      <div className="flex gap-2">
+        <button type="button" onClick={block} disabled={isPending} className={`${MARK_BUTTON} bg-ink text-paper`}>
+          {isPending ? "Blocking…" : `Block ${company}`}
+        </button>
+        <button type="button" onClick={() => setConfirming(false)} disabled={isPending} className={`${MARK_BUTTON} border border-rule text-ink-muted hover:text-ink`}>
+          Keep
+        </button>
+      </div>
+      {error && (
+        <p role="alert" className="text-danger">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 

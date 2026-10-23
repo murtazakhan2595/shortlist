@@ -2,11 +2,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 import { fail, ok } from "@/lib/result";
-import { labelListing } from "../actions";
+import { blockCompany, labelListing } from "../actions";
 import type { JobView } from "../data";
 import { JobRow } from "./job-row";
 
-vi.mock("../actions", () => ({ labelListing: vi.fn() }));
+vi.mock("../actions", () => ({ labelListing: vi.fn(), blockCompany: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 const JOB: JobView = {
@@ -102,3 +102,32 @@ test("an unclear job says what to check, and a stopped note says why and to writ
   expect(screen.getByText(/The body has 140 words/)).toBeInTheDocument();
   expect(screen.getByText(/Remove the banned phrase/)).toBeInTheDocument();
 });
+
+test("blocks the company only after a confirming tap, and can be kept instead", async () => {
+  vi.mocked(blockCompany).mockResolvedValue(ok({ company: "Acme", listingsDropped: 3 }));
+  const user = userEvent.setup();
+  renderRow();
+
+  await user.click(screen.getByRole("button", { name: "Block Acme" }));
+  expect(blockCompany).not.toHaveBeenCalled();
+  expect(screen.getByText(/Hide every job from Acme/)).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Keep" }));
+  expect(screen.queryByText(/Hide every job from Acme/)).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Block Acme" }));
+  await user.click(screen.getByRole("button", { name: "Block Acme" }));
+  expect(blockCompany).toHaveBeenCalledWith({ listingId: JOB.id });
+});
+
+test("says why a company could not be blocked", async () => {
+  vi.mocked(blockCompany).mockResolvedValue(fail("not_found", "This job is no longer listed"));
+  const user = userEvent.setup();
+  renderRow();
+
+  await user.click(screen.getByRole("button", { name: "Block Acme" }));
+  await user.click(screen.getByRole("button", { name: "Block Acme" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("This job is no longer listed");
+});
+
