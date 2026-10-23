@@ -63,13 +63,13 @@ async function unscoredListingIds(runId: string): Promise<string[]> {
   const unscored = data.filter((listing) => !listing.scores).map((listing) => listing.id);
   if (unscored.length === 0) return [];
 
-  // An open failure only: one the owner tried again is removed (server/queue/failed-steps.ts).
+  // An open failure only: one the owner tried again is removed (server/queue/failed-steps.ts). They are few,
+  // so all are read and matched here; the listing ids in the query would make its URL grow with the night.
   const failed = await db
     .from("failed_steps")
     .select("listing_id:payload->>listingId")
     .eq("queue", "steps")
-    .eq("step", STEP_NAMES.scoreListing)
-    .in("payload->>listingId", unscored);
+    .eq("step", STEP_NAMES.scoreListing);
   if (failed.error) throw new Error(`Could not read the failed scoring steps: ${failed.error.message}`);
   const failedIds = new Set(failed.data.map((row) => row.listing_id));
   return unscored.filter((id) => !failedIds.has(id));
@@ -265,6 +265,12 @@ export async function selectTopListings(payload: Json): Promise<void> {
   const { runId } = RunPayloadSchema.parse(payload);
   const db = getAdminClient();
 
+  // Several scoring steps can queue this, for example once the cap is reached. The first one finishes the
+  // run; the rest find it finished and do nothing.
+  const run = await db.from("runs").select("status").eq("id", runId).single();
+  if (run.error) throw new Error(`Could not load run ${runId}: ${run.error.message}`);
+  if (run.data.status !== "running") return;
+
   const [settings, listings] = await Promise.all([
     db.from("settings").select("daily_target").single(),
     db.from("listings").select("id, company, eligibility, scores (score)").eq("run_id", runId).neq("eligibility", "excluded"),
@@ -274,6 +280,11 @@ export async function selectTopListings(payload: Json): Promise<void> {
 
   const scored = listings.data.map(({ id, company, eligibility, scores }) => ({ id, company, eligibility, score: scores?.score ?? null }));
   const top = topListings(scored, settings.data.daily_target);
+
+  // Ranked again from scratch, so a second pass that saw more scores never leaves an earlier pass's ranks.
+  // A listing dropped after ranking (its company blocked) keeps its rank, for check E2.
+  const cleared = await db.from("listings").update({ top_rank: null }).eq("run_id", runId).neq("eligibility", "excluded");
+  if (cleared.error) throw new Error(`Could not clear the run's ranks: ${cleared.error.message}`);
   await Promise.all(
     top.map(async (listingId, index) => {
       const ranked = await db.from("listings").update({ top_rank: index + 1 }).eq("id", listingId);

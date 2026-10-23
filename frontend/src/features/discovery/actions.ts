@@ -8,7 +8,6 @@ import {
   type CompanyBlocked,
   type LabelListingInput,
   LabelListingInputSchema,
-  type ListingLabelled,
 } from "./schemas";
 import { BLOCKED_COMPANY_REASON, isBlockedCompany } from "./steps/eligibility";
 
@@ -16,7 +15,7 @@ import { BLOCKED_COMPANY_REASON, isBlockedCompany } from "./steps/eligibility";
 // rules apply too.
 
 /** Marks a listing apply or skip (U7). The marks are the test set for match quality (check E2). */
-export async function labelListing(request: LabelListingInput): Promise<Result<ListingLabelled>> {
+export async function labelListing(request: LabelListingInput): Promise<Result<LabelListingInput>> {
   const input = LabelListingInputSchema.safeParse(request);
   if (!input.success) return fail("invalid_input", input.error.issues[0].message);
 

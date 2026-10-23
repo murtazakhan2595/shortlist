@@ -76,6 +76,20 @@ describe("runNextStep", () => {
     expect(giveUp).toHaveBeenCalledExactlyOnceWith({ n: 3 });
   });
 
+  test("a give-up that fails too is logged, and the step stays recorded as failed to try again", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const handler = { run: vi.fn().mockRejectedValue(new Error("still broken")), giveUp: vi.fn().mockRejectedValue(new Error("no database")) };
+    const messageId = await addTestStep("test_step");
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) await runNextStep({ test_step: handler }, noWait);
+
+    expect(await queueLength(queue)).toBe(0);
+    const { count } = await getAdminClient().from("failed_steps").select("id", { count: "exact", head: true }).eq("message_id", messageId);
+    expect(count).toBe(1);
+    expect(logged).toHaveBeenCalledWith(expect.stringContaining("so did its give-up: Error: no database"));
+    logged.mockRestore();
+  });
+
   test("records a step with no handler at once, without retrying", async () => {
     const messageId = await addTestStep("unknown_step");
 

@@ -137,7 +137,8 @@ export function runWarning(run: { status: string; started_at: string }, now: Dat
   if (run.status === "running" && hoursSinceStart > RUN_FINISHES_WITHIN_HOURS) {
     return `The nightly run has not finished after ${RUN_FINISHES_WITHIN_HOURS} hours. Try its failed steps again.`;
   }
-  if (run.status === "failed") return "The nightly run failed. Try its failed steps again.";
+  // A run also fails when the owner dismisses its failed step, so this does not say to try one again.
+  if (run.status === "failed") return "The nightly run stopped before it finished. The next one starts tonight.";
   if (hoursSinceStart > RUN_STARTS_EVERY_HOURS) {
     return "No nightly run has started for over a day. The schedule in Supabase may have stopped.";
   }

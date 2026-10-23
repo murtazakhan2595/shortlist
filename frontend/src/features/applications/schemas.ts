@@ -4,7 +4,7 @@ import type { OwnerMaterial } from "@/server/owner-material";
 // Contracts for the applications feature (PLAN.md item 1.3; U2, Q7).
 //
 // Server Actions:
-//   updateApplicationStatus(UpdateApplicationStatusInput) -> Result<ApplicationStatusUpdated>
+//   updateApplicationStatus(UpdateApplicationStatusInput) -> Result<UpdateApplicationStatusInput>
 
 // The statuses the owner sets with one tap. The others (preparing, ready, blocked, failed) are set by the system.
 export const OWNER_SET_STATUSES = ["sent", "skipped", "replied", "interview"] as const;
@@ -15,7 +15,6 @@ export const UpdateApplicationStatusInputSchema = z.object({
 });
 export type UpdateApplicationStatusInput = z.infer<typeof UpdateApplicationStatusInputSchema>;
 
-export type ApplicationStatusUpdated = UpdateApplicationStatusInput;
 
 /** How far back the daily list on the home page goes (U1). */
 export const DAILY_LIST_DAYS = 7;

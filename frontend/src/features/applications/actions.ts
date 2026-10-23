@@ -2,7 +2,7 @@
 
 import { fail, ok, type Result } from "@/lib/result";
 import { requireOwner } from "@/server/auth/require-owner";
-import { type ApplicationStatusUpdated, type UpdateApplicationStatusInput, UpdateApplicationStatusInputSchema } from "./schemas";
+import { type UpdateApplicationStatusInput, UpdateApplicationStatusInputSchema } from "./schemas";
 
 // Server Actions for applications (contracts in ./schemas.ts). Writes use the owner's client, so the access
 // rules apply too.
@@ -11,7 +11,7 @@ import { type ApplicationStatusUpdated, type UpdateApplicationStatusInput, Updat
  * Marks an application sent, skipped, replied or interview, with one tap (U2, Q7). Not one still being
  * prepared: the writer would overwrite the mark. The first time it is marked sent is kept, for the reports.
  */
-export async function updateApplicationStatus(request: UpdateApplicationStatusInput): Promise<Result<ApplicationStatusUpdated>> {
+export async function updateApplicationStatus(request: UpdateApplicationStatusInput): Promise<Result<UpdateApplicationStatusInput>> {
   const input = UpdateApplicationStatusInputSchema.safeParse(request);
   if (!input.success) return fail("invalid_input", input.error.issues[0].message);
 

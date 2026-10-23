@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, expect, test, vi } from "vitest";
-import { dismissFailedStep, findOpenFailures, retryFailedStep } from "@/server/queue/failed-steps";
+import { DISMISSED_REASON, dismissFailedStep, findOpenFailures, retryFailedStep } from "@/server/queue/failed-steps";
 import { getAdminClient } from "@/server/supabase/admin";
 
 // Failed steps against the real database. Queueing is replaced, so no step really runs again.
@@ -87,3 +87,41 @@ test("dismissing closes the failure once, without queueing anything", async () =
   expect(queued.steps).toEqual([]);
   expect((await findOpenFailures(database, [applicationId])).map((failure) => failure.id)).not.toContain(failureId);
 });
+
+test("dismissing stops what the step was working on from waiting for it for good", async () => {
+  const form = randomUUID();
+  const note = randomUUID();
+  const created = await Promise.all([
+    database.from("applications").insert({ id: form, route: "form", fingerprint: `form:${form}` }),
+    database.from("applications").insert({ id: note, route: "note", fingerprint: `test:${note}` }),
+    database.from("captures").insert({ input_type: "text", raw_text: "A post", status: "processing" }).select("id").single(),
+    database.from("runs").insert({ kind: "daily" }).select("id").single(),
+  ]);
+  for (const { error } of created) if (error) throw error;
+  const capture = created[2].data?.id ?? "";
+  const run = created[3].data?.id ?? "";
+
+  try {
+    const payloads: Record<string, string>[] = [{ applicationId: form }, { applicationId: note }, { captureId: capture }, { runId: run }];
+    for (const payload of payloads) {
+      await dismissFailedStep(database, await addFailure("some_step", payload));
+    }
+
+    const [forms, captures, runs] = await Promise.all([
+      database.from("applications").select("id, status, blocked_reason").in("id", [form, note]),
+      database.from("captures").select("status").eq("id", capture).single(),
+      database.from("runs").select("status").eq("id", run).single(),
+    ]);
+    expect(Object.fromEntries((forms.data ?? []).map((row) => [row.id, { status: row.status, reason: row.blocked_reason }]))).toEqual({
+      [form]: { status: "ready", reason: null },
+      [note]: { status: "blocked", reason: DISMISSED_REASON },
+    });
+    expect(captures.data?.status).toBe("failed");
+    expect(runs.data?.status).toBe("failed");
+  } finally {
+    await database.from("applications").delete().in("id", [form, note]);
+    await database.from("captures").delete().eq("id", capture);
+    await database.from("runs").delete().eq("id", run);
+  }
+});
+
