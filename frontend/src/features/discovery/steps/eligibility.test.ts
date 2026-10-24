@@ -25,6 +25,7 @@ const LISTING: Listing = {
   posted_at: null,
   expires_at: null,
   run_id: null,
+  contact_email: null,
 };
 
 function decide(changes: Partial<Listing>) {
@@ -133,6 +134,7 @@ describe("a Hacker News post: kept when it can be done from Pakistan", () => {
     // An employer that sponsors a visa or helps with relocation is open to the owner (Q4).
     "Acme | Engineer | ONSITE in London | Visa sponsorship",
     "Acme | Engineer | Berlin | HYBRID\n\nWe offer relocation support.",
+    "Acme | Engineer | NYC | ONSITE\n\nWe sponsor H-1Bs.",
   ])("eligible: %s", (description) => {
     expect(decidePost(description)).toEqual({ eligibility: "eligible", eligibility_reason: null });
   });
@@ -150,6 +152,9 @@ describe("a Hacker News post: kept when it can be done from Pakistan", () => {
     ["Acme | Engineer | Remote (North America / LatAm)\n\nOur members are worldwide.", "Remote only within a region that leaves out Pakistan"],
     // A visa that is ruled out does not count as offered.
     ["Acme | Engineer | Remote (US)\n\nWe are not able to sponsor visas.", "Remote only within a region that leaves out Pakistan"],
+    ["Acme | Engineer | REMOTE (US/Canada)\n\nVisa: H-1B transfers supported; no new visa sponsorship", "Remote only within a region that leaves out Pakistan"],
+    // Someone's own "who wants to be hired" post, put in the hiring thread.
+    ["Location: Bangalore\n\nRemote: Yes\n\nWilling to relocate: No\n\nEmail: me@example.com", "Someone looking for work, not a job"],
   ])("excluded: %s", (description, reason) => {
     expect(decidePost(description)).toEqual({ eligibility: "excluded", eligibility_reason: reason });
   });

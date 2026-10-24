@@ -60,12 +60,12 @@ test("finds the open failures of what it is asked about, by any id in the payloa
 });
 
 test("trying again queues the step with its payload once, however often it is asked, and closes the failure", async () => {
-  const failureId = await addFailure("prepare_note_application", { listingId });
+  const failureId = await addFailure("prepare_listing_application", { listingId });
 
   const results = await Promise.all([retryFailedStep(database, failureId), retryFailedStep(database, failureId)]);
 
   expect(results.sort()).toEqual([false, true]);
-  expect(queued.steps).toEqual([{ step: "prepare_note_application", payload: { listingId } }]);
+  expect(queued.steps).toEqual([{ step: "prepare_listing_application", payload: { listingId } }]);
   expect((await findOpenFailures(database, [listingId])).map((failure) => failure.id)).not.toContain(failureId);
 });
 

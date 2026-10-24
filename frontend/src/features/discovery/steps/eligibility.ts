@@ -52,6 +52,7 @@ function exclusionReason(listing: Listing, settings: FilterSettings): string | n
 
   if (CLEARANCE_OR_CITIZENSHIP.test(listing.description)) return "Asks for a security clearance or citizenship";
   if (listing.source === HACKER_NEWS_SOURCE) {
+    if (JOB_SEEKER_POST.test(listing.description)) return "Someone looking for work, not a job";
     const place = whereFrom(listing);
     if (place.excluded) return place.excluded;
   }
@@ -181,6 +182,9 @@ function countryReason(listing: Listing, excludedCountries: string[]): string | 
 // says where; the body is read only when it does not, as a body's "worldwide" is often about something else.
 
 export const REMOTE = /\bremote\b|work from anywhere/i;
+// A "Who wants to be hired?" post put in the hiring thread by mistake, in that thread's form:
+// "Location: ... Remote: ... Willing to relocate: ...".
+const JOB_SEEKER_POST = /^location:[\s\S]*\bwilling to relocate:/i;
 const NOT_REMOTE = /\b(no|not|non)[\s-]remote\b|\b(on-?site|in[- ]office) only\b/i;
 // Only phrases about where the work can be done: "a global company" says nothing about that.
 const OPEN_TO_OWNER =
@@ -198,10 +202,11 @@ const REMOTE_IN_AREA_CODES = new RegExp(
   `(?:remote|Remote|REMOTE)\\s*[,:–—-]?\\s*(?:in |within )?(?:the )?(?:${AREA_CODES})(?!\\w)|(?<!\\w)(?:${AREA_CODES})[\\s-]*(?:only|Only|ONLY|based|Based|remote|Remote|REMOTE)\\b`,
 );
 
+// An H-1B transfer is not sponsorship: only someone who already has the visa can use it.
 const VISA_OFFERED =
-  /\bvisa sponsorship\b|\bsponsor(s|ing)? (work )?visas?\b|\bh-?1b\b|\bwill sponsor\b|\brelocation (assistance|support|package|help|bonus|is provided|available)\b|\bhelp (you )?relocate\b/i;
+  /\bvisa sponsorship\b|\bsponsor(s|ing)? (work )?(visas?|h-?1bs?)\b|\bwill sponsor\b|\brelocation (assistance|support|package|help|bonus|is provided|available)\b|\bhelp (you )?relocate\b/i;
 const NO_VISA =
-  /\b(no|not|cannot|can['’]t|can ?not|unable to|won['’]t|will not|don['’]t|do not|doesn['’]t|does not)\s+(able to\s+|offer\s+|provide\s+|currently\s+)*(visa\s+)?sponsor/i;
+  /\b(no|not|cannot|can['’]t|can ?not|unable to|won['’]t|will not|don['’]t|do not|doesn['’]t|does not)\s+(able to\s+|offer\s+|provide\s+|currently\s+|new\s+)*(visa\s+)?sponsor/i;
 
 /** True when the text offers visa sponsorship or relocation, and does not also say there is none. */
 export function offersVisa(text: string): boolean {

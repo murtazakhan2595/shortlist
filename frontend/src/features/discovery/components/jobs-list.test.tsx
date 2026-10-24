@@ -23,7 +23,7 @@ const job: JobView = {
   score: 80,
   reasons: null,
   label: null,
-  note: { status: "preparing", body: null, cvVariant: null, blockedReason: null },
+  note: { status: "preparing", body: null, cvVariant: null, blockedReason: null, email: null },
   failure: null,
 };
 

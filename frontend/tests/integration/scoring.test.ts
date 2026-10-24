@@ -101,7 +101,7 @@ test("scores each listing once, then keeps the best ones, eligible before unclea
     [weak]: null,
   });
   // Each kept listing goes on to its note, once: the second pass finds the run finished and does nothing.
-  const noteStep = (listingId: string) => ({ step: "prepare_note_application", payload: { listingId } });
+  const noteStep = (listingId: string) => ({ step: "prepare_listing_application", payload: { listingId } });
   expect(queued).toEqual([noteStep(strong), noteStep(unclear)]);
   const { data: finished } = await database.from("runs").select("status, listings_scored").eq("id", runId).single();
   expect(finished).toEqual({ status: "succeeded", listings_scored: 3 });

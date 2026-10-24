@@ -322,6 +322,7 @@ export type Database = {
         Row: {
           categories: string[]
           company: string
+          contact_email: string | null
           countries: string[]
           created_at: string
           description: string
@@ -351,6 +352,7 @@ export type Database = {
         Insert: {
           categories?: string[]
           company: string
+          contact_email?: string | null
           countries?: string[]
           created_at?: string
           description: string
@@ -380,6 +382,7 @@ export type Database = {
         Update: {
           categories?: string[]
           company?: string
+          contact_email?: string | null
           countries?: string[]
           created_at?: string
           description?: string

@@ -153,6 +153,8 @@ export function himalayasListing(job: HimalayasJob, runId: string): Listing {
     posted_at: new Date(job.pubDate * 1000).toISOString(),
     expires_at: job.expiryDate ? new Date(job.expiryDate * 1000).toISOString() : null,
     run_id: runId,
+    // Himalayas jobs are applied to through their link (its terms).
+    contact_email: null,
   };
 }
 
@@ -211,7 +213,29 @@ export function hackerNewsListing(post: HackerNewsPost, runId: string): Listing 
     posted_at: postedAt.toISOString(),
     expires_at: new Date(postedAt.getTime() + HACKER_NEWS_POST_DAYS * 24 * 60 * 60 * 1000).toISOString(),
     run_id: runId,
+    contact_email: contactEmailIn(description),
   };
+}
+
+// "jobs@acme.com", and the spelled-out forms posts use against spam: "jobs [at] acme [dot] com",
+// "jobs (at) acme (dot) io". A bare "jobs at acme dot com" is left out: "engineers at acme" reads the same.
+const PLAIN_EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/;
+const SPELLED_EMAIL = /([\w.+-]+)\s*[[(]\s*at\s*[\])]\s*([\w-]+(?:\s*(?:[[(]\s*dot\s*[\])]|\.)\s*[\w-]+)+)/i;
+
+/**
+ * The first email address a post gives, written out plainly, or null. Read by code, never by a model, so a
+ * draft's recipient is always an address that is in the post (X5).
+ */
+export function contactEmailIn(text: string): string | null {
+  const plain = text.match(PLAIN_EMAIL)?.[0];
+  const spelled = text.match(SPELLED_EMAIL);
+  const plainAt = plain ? text.indexOf(plain) : Infinity;
+  const spelledAt = spelled?.index ?? Infinity;
+  if (spelled && spelledAt < plainAt) {
+    const domain = spelled[2].replace(/\s*(?:[[(]\s*dot\s*[\])]|\.)\s*/gi, ".");
+    return `${spelled[1]}@${domain}`.toLowerCase();
+  }
+  return plain ? plain.replace(/\.+$/, "").toLowerCase() : null;
 }
 
 /**
