@@ -1,6 +1,6 @@
 # Shortlist: Build Plan
 
-Version 3.0, 25 October 2026. Agreed plan. Stage 1, sprints 0 to 6, is done, and sprint 7 is built; sections 2, 3, 5, 8 and 9 describe what sprint 1 actually built. Sprints 3 to 6 record what they built under their tables. Stage 2 starts with more job sources (sprints 7 and 8).
+Version 3.0, 25 October 2026. Agreed plan. Stage 1, sprints 0 to 6, is done, and sprint 7 is built; sections 2, 3, 5, 8 and 9 describe what sprint 1 actually built. Sprints 3 to 7 record what they built under their tables. Stage 2 starts with more job sources (sprints 7 and 8).
 
 This document says **how** Shortlist gets built. **What** is being built, and how success is judged, is in [REQUIREMENTS.md](REQUIREMENTS.md). Requirement IDs (C1, D3, F4, E2 and so on) refer to that file.
 
