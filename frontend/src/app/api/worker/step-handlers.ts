@@ -1,7 +1,7 @@
 import { createGmailDraft } from "@/features/applications/steps/gmail-draft";
 import { advanceWriter, prepareEmailApplication, prepareNoteApplication } from "@/features/applications/steps/writer-steps";
 import { extractCapture } from "@/features/captures/steps/extract-capture";
-import { fetchListings } from "@/features/discovery/steps/fetch-listings";
+import { fetchingGaveUp, fetchListings } from "@/features/discovery/steps/fetch-listings";
 import { scoreListing, scoringGaveUp, selectTopListings } from "@/features/discovery/steps/score-listings";
 import { answerForm, checkFormAnswers } from "@/features/forms/steps/answer-form";
 import { readForm } from "@/features/forms/steps/read-form";
@@ -21,7 +21,7 @@ export const STEP_HANDLERS: StepHandlers = {
   [STEP_NAMES.readForm]: { run: readForm },
   [STEP_NAMES.answerForm]: { run: answerForm },
   [STEP_NAMES.checkFormAnswers]: { run: checkFormAnswers },
-  [STEP_NAMES.fetchListings]: { run: fetchListings },
+  [STEP_NAMES.fetchListings]: { run: fetchListings, giveUp: fetchingGaveUp },
   [STEP_NAMES.scoreListing]: { run: scoreListing, giveUp: scoringGaveUp },
   [STEP_NAMES.selectTopListings]: { run: selectTopListings },
 };

@@ -344,6 +344,22 @@ Stage 2 brings in every job source the owner wants, one sprint each, in this ord
 
 Each source's terms page is re-read before its connector is built. Product Hunt launches stay for later.
 
+### Sprint 7: Hacker News
+
+**Goal:** jobs from Hacker News's monthly "Who is hiring?" thread reach the nightly list, with a Gmail draft for each post that gives an email address.
+
+Owner's decisions (24 October 2026): a post with an email gets a Gmail draft; the filter is strict about where a job can be done; the HN jobs feed is left out (two or three title-only posts a week, many of them also on the boards of sprint 8).
+
+| ID | Track | Item | Done when |
+|---|---|---|---|
+| 7.1 | A | Several sources a night | The nightly run reads each source in turn, one step each, then scores them together; a source that fails every attempt is skipped and shown; the counts cover every source |
+| 7.2 | A | Hacker News reader | The latest hiring thread's posts from the last 30 days are read through Algolia's HN API (two requests a night) and converted to the common format, with a link to each post (D7); terms and limits in the code, covered by tests |
+| 7.3 | B | Strict location filter | A post is kept only when it is remote and not limited to a region that leaves out Pakistan, or offers a visa or relocation; a remote post that does not say from where is unclear (D3, Q4) |
+| 7.4 | C | Email drafts from listings | A listing on the night's list whose post gives an email address, read by code and never by a model, gets an email and a Gmail draft with the chosen CV, as a capture does (X1, X4, X5) |
+| 7.5 | D | Pages | The Jobs page, notes, emails and reports name each listing's source and link back to it (D7, U1, U5) |
+
+**Exit check:** in the nights after November's thread (Monday 2 November 2026), Hacker News jobs reach the list, with Gmail drafts for those that give an email.
+
 ## 8. Risks
 
 | Risk | What to do |
