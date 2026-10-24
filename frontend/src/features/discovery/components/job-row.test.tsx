@@ -13,6 +13,7 @@ const JOB: JobView = {
   id: "11111111-1111-4111-8111-111111111111",
   title: "Full Stack Engineer",
   company: "Acme",
+  source: "himalayas",
   location: "Worldwide",
   url: "https://himalayas.app/companies/acme/jobs/full-stack-engineer",
   tags: ["remote", "visa"],
@@ -131,3 +132,9 @@ test("says why a company could not be blocked", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("This job is no longer listed");
 });
 
+
+test("a Hacker News job links to its post there", () => {
+  renderRow({ ...JOB, source: "hackernews", url: "https://news.ycombinator.com/item?id=1" });
+
+  expect(screen.getByRole("link", { name: "Open the job on Hacker News" })).toHaveAttribute("href", "https://news.ycombinator.com/item?id=1");
+});
