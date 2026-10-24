@@ -7,8 +7,8 @@ export const STEP_NAMES = {
   extractCapture: "extract_capture",
   /** applications: start the application for a capture with an email (item 2.2). */
   prepareEmailApplication: "prepare_email_application",
-  /** applications: start the note for a listing in its night's top N (item 4.6). */
-  prepareNoteApplication: "prepare_note_application",
+  /** applications: start the email or note for a listing in its night's top N (items 4.6, 7.4). */
+  prepareListingApplication: "prepare_listing_application",
   /** applications: run the next stage of the writer's loop (item 2.2). */
   advanceWriter: "advance_writer",
   /** applications: save a ready application as a Gmail draft with its CV (item 2.3). */

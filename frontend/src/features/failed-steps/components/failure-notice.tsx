@@ -8,7 +8,7 @@ const DOING: Record<string, string> = {
   [STEP_NAMES.prepareEmailApplication]: "Starting the email",
   [STEP_NAMES.advanceWriter]: "Writing the draft",
   [STEP_NAMES.createGmailDraft]: "Saving the draft to Gmail",
-  [STEP_NAMES.prepareNoteApplication]: "Starting the note",
+  [STEP_NAMES.prepareListingApplication]: "Starting the application",
   [STEP_NAMES.readForm]: "Reading the form's pages",
   [STEP_NAMES.answerForm]: "Answering the questions",
   [STEP_NAMES.checkFormAnswers]: "Checking the answers",

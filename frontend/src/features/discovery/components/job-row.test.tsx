@@ -23,7 +23,7 @@ const JOB: JobView = {
   score: 84,
   reasons: "Strengths:\n- React",
   label: null,
-  note: { status: "ready", body: "I build React apps.", cvVariant: "ai_full_stack", blockedReason: null },
+  note: { status: "ready", body: "I build React apps.", cvVariant: "ai_full_stack", blockedReason: null, email: null },
   failure: null,
 };
 
@@ -95,6 +95,7 @@ test("an unclear job says what to check, and a stopped note says why and to writ
       body: null,
       cvVariant: null,
       blockedReason: "The body has 140 words; the job-board-note pattern needs 40 to 90.\nRemove the banned phrase \"leverage\".",
+      email: null,
     },
   });
 
@@ -132,9 +133,26 @@ test("says why a company could not be blocked", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("This job is no longer listed");
 });
 
-
 test("a Hacker News job links to its post there", () => {
   renderRow({ ...JOB, source: "hackernews", url: "https://news.ycombinator.com/item?id=1" });
 
   expect(screen.getByRole("link", { name: "Open the job on Hacker News" })).toHaveAttribute("href", "https://news.ycombinator.com/item?id=1");
+});
+
+test("an email for a post that gave an address says who it goes to and that it is in Gmail, with no CV line", () => {
+  renderRow({
+    ...JOB,
+    note: { status: "ready", body: "Hello, I build React apps.", cvVariant: "full_stack", blockedReason: null, email: { to: "jobs@acme.com", inGmail: true } },
+  });
+
+  expect(screen.getByText("Email to jobs@acme.com:")).toBeInTheDocument();
+  expect(screen.getByText(/in your Gmail drafts, with your CV attached/)).toBeInTheDocument();
+  expect(screen.getByText("Hello, I build React apps.")).toBeInTheDocument();
+  expect(screen.queryByText(/Send your/)).not.toBeInTheDocument();
+});
+
+test("an email still being written says so", () => {
+  renderRow({ ...JOB, note: { status: "preparing", body: null, cvVariant: null, blockedReason: null, email: { to: "jobs@acme.com", inGmail: false } } });
+
+  expect(screen.getByText("Writing the email…")).toBeInTheDocument();
 });

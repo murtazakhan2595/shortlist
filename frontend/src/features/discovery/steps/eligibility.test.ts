@@ -25,6 +25,7 @@ const LISTING: Listing = {
   posted_at: null,
   expires_at: null,
   run_id: null,
+  contact_email: null,
 };
 
 function decide(changes: Partial<Listing>) {

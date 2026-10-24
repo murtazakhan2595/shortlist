@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { HackerNewsPost } from "@/server/hacker-news";
 import type { HimalayasJob } from "@/server/himalayas";
-import { hackerNewsListing, himalayasListing, htmlToText } from "./fetch-listings";
+import { contactEmailIn, hackerNewsListing, himalayasListing, htmlToText } from "./fetch-listings";
 
 const JOB: HimalayasJob = {
   guid: "https://himalayas.app/companies/acme/jobs/full-stack-engineer-123",
@@ -43,6 +43,7 @@ test("converts a Himalayas job to the common format, keeping its link to apply a
     posted_at: "2026-10-20T10:00:00.000Z",
     expires_at: "2026-12-19T10:00:00.000Z",
     run_id: "run-1",
+    contact_email: null,
   });
 });
 
@@ -104,6 +105,7 @@ describe("a Hacker News post in the common format", () => {
       posted_at: "2026-10-01T16:00:00.000Z",
       expires_at: "2026-11-15T16:00:00.000Z",
       run_id: "run-1",
+      contact_email: "jobs@acme.com",
     });
   });
 
@@ -128,5 +130,28 @@ describe("a Hacker News post in the common format", () => {
     const listing = hackerNewsListing({ ...POST, text: "Gamma | Engineer | London | ONSITE<p>Visa sponsorship available." }, "run-1");
 
     expect(listing.tags).toEqual(["visa"]);
+  });
+});
+
+describe("the email address a post gives", () => {
+  test.each([
+    ["Apply at jobs@acme.com.", "jobs@acme.com"],
+    ["Email Jane.Doe+hn@Acme.co.uk with your CV", "jane.doe+hn@acme.co.uk"],
+    ["resumes [at] voladynamics [dot] com", "resumes@voladynamics.com"],
+    ["hiring (at) beta (dot) io, or see the site", "hiring@beta.io"],
+    ["jobs [at] acme.com", "jobs@acme.com"],
+    // The first address in the post wins, written either way.
+    ["Write to first [at] acme [dot] com, or second@acme.com", "first@acme.com"],
+    ["Write to first@acme.com, or second [at] acme [dot] com", "first@acme.com"],
+  ])("%s", (text, email) => {
+    expect(contactEmailIn(text)).toBe(email);
+  });
+
+  test.each([
+    "Apply on our site: https://acme.com/jobs",
+    // Too easily a sentence: "engineers at acme dot com" is left out.
+    "Our engineers at acme dot com build tools",
+  ])("none in: %s", (text) => {
+    expect(contactEmailIn(text)).toBeNull();
   });
 });

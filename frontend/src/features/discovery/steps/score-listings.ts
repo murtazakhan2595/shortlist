@@ -19,7 +19,7 @@ import type { Json, Tables } from "@/server/supabase/database.types";
 // 2. select_top_listings: ranks the run's scored listings, eligible ones before unclear ones, each by score,
 //    and keeps the top N (the daily target) that score at least MIN_SCORE_TO_KEEP, at most
 //    MAX_LISTINGS_PER_COMPANY from one company. Each kept listing is
-//    handed to the applications feature for its CV and note (prepare_note_application, X2). Then the run
+//    handed to the applications feature for its CV and note or email (prepare_listing_application, X2). Then the run
 //    is finished; the notes' costs still count towards it.
 //
 // Both are safe to run twice: a scored listing is not scored again (one score per listing), choosing the
@@ -295,7 +295,7 @@ export async function selectTopListings(payload: Json): Promise<void> {
   // Queued together, waking the worker once, so the notes are written a few at a time, not all at once.
   // None at the cap: the list is still ranked, and the owner writes the notes.
   const notes = (await loadSpendingCap(db)).reached ? [] : top;
-  await Promise.all(notes.map((listingId) => enqueueStep(STEP_NAMES.prepareNoteApplication, { listingId }, { wake: false })));
+  await Promise.all(notes.map((listingId) => enqueueStep(STEP_NAMES.prepareListingApplication, { listingId }, { wake: false })));
   if (notes.length > 0) await wakeWorker();
 
   const counted = await db

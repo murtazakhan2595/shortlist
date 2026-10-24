@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { AIMessage } from "@langchain/core/messages";
 import { afterAll, expect, test, vi } from "vitest";
-import { advanceWriter, prepareNoteApplication } from "@/features/applications/steps/writer-steps";
+import { advanceWriter, prepareListingApplication } from "@/features/applications/steps/writer-steps";
 import { getCheckpointer } from "@/server/queue/checkpointer";
 import { getAdminClient } from "@/server/supabase/admin";
 
-// A listing's note (X2) through the writer's queued steps, against the real database, its LangGraph
+// A listing's note (X2), or its email when the post gave an address (7.4), through the writer's queued steps, against the real database, its LangGraph
 // checkpoints and the owner's real material, with a fake model. Queued steps are collected here and run
 // one by one, as the worker would.
 const invokeModel = vi.hoisted(() => vi.fn());
@@ -41,6 +41,22 @@ const NOTE = {
   signature: "",
 };
 
+// An email in the post-reply pattern, plain words only, so the code check passes on any profile.
+const EMAIL = {
+  cvVariant: "full_stack",
+  presentedTitle: "Software Engineer",
+  emailPattern: "post-reply",
+  subject: "Application for the Software Engineer role",
+  body: [
+    "Hi team,",
+    "I am applying for the Software Engineer role you posted on Hacker News, and my CV is attached.",
+    "I build web products from the database up to the screens people use, and I write the tests that keep them working.",
+    "In my current work I plan features with the team, ship them in small steps, and stay with them after release until they work well for the people who use them every day.",
+    "I can start soon and work fully remote.",
+  ].join("\n\n"),
+  signature: "Regards,\nThe Owner",
+};
+
 const database = getAdminClient();
 const runId = randomUUID();
 const applicationIds: string[] = [];
@@ -55,7 +71,7 @@ afterAll(async () => {
   }
 });
 
-async function addListing(name: string, topRank: number | null): Promise<string> {
+async function addListing(name: string, topRank: number | null, contactEmail: string | null = null): Promise<string> {
   const { data, error } = await database
     .from("listings")
     .insert({
@@ -69,6 +85,7 @@ async function addListing(name: string, topRank: number | null): Promise<string>
       fingerprint: `${name}-${runId}`,
       run_id: runId,
       top_rank: topRank,
+      contact_email: contactEmail,
     })
     .select("id")
     .single();
@@ -76,9 +93,9 @@ async function addListing(name: string, topRank: number | null): Promise<string>
   return data.id;
 }
 
-/** Runs queued steps in order, as the worker would, until none are left. */
+/** Runs the writer's queued steps in order, as the worker would, until none are left but a Gmail draft. */
 async function runQueuedSteps(maxSteps = 12) {
-  for (let count = 0; queued.length > 0 && count < maxSteps; count++) {
+  for (let count = 0; queued.length > 0 && queued[0].step !== "create_gmail_draft" && count < maxSteps; count++) {
     const next = queued.shift();
     if (next?.step !== "advance_writer") throw new Error(`Unexpected step ${next?.step}`);
     await advanceWriter(next.payload as { applicationId: string });
@@ -92,8 +109,8 @@ test("a top listing gets one application with a checked note and a CV, and no Gm
   const listingId = await addListing("top", 1);
   invokeModel.mockResolvedValueOnce(modelAnswer(NOTE)).mockResolvedValueOnce(modelAnswer({ problems: [] }));
 
-  await prepareNoteApplication({ listingId });
-  await prepareNoteApplication({ listingId });
+  await prepareListingApplication({ listingId });
+  await prepareListingApplication({ listingId });
 
   const { data: started } = await database.from("applications").select("id").eq("listing_id", listingId);
   expect(started).toHaveLength(1);
@@ -128,9 +145,36 @@ test("a top listing gets one application with a checked note and a CV, and no Gm
 test("a listing outside the top N gets no application", async () => {
   const listingId = await addListing("not-kept", null);
 
-  await prepareNoteApplication({ listingId });
+  await prepareListingApplication({ listingId });
 
   const { data } = await database.from("applications").select("id").eq("listing_id", listingId);
   expect(data).toEqual([]);
   expect(queued).toEqual([]);
+});
+
+test("a top listing whose post gave an address gets an email to that address, which goes on to a Gmail draft", { timeout: 60_000 }, async () => {
+  const listingId = await addListing("email", 2, "jobs@acme.example");
+  invokeModel.mockResolvedValueOnce(modelAnswer(EMAIL)).mockResolvedValueOnce(modelAnswer({ problems: [] }));
+
+  await prepareListingApplication({ listingId });
+  const { data: started } = await database.from("applications").select("id").eq("listing_id", listingId).single();
+  const applicationId = started?.id ?? "";
+  applicationIds.push(applicationId);
+
+  await runQueuedSteps();
+
+  const { data: application } = await database
+    .from("applications")
+    .select("route, status, recipient_email, subject, body, current_documents (name)")
+    .eq("id", applicationId)
+    .single();
+  expect(application).toMatchObject({
+    route: "email",
+    status: "ready",
+    // From the listing, saved by code when the post was read; never from the model's draft (X5).
+    recipient_email: "jobs@acme.example",
+    subject: EMAIL.subject,
+    current_documents: { name: "post-reply" },
+  });
+  expect(queued.splice(0)).toEqual([{ step: "create_gmail_draft", payload: { applicationId } }]);
 });

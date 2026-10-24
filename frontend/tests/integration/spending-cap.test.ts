@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, expect, test, vi } from "vitest";
-import { advanceWriter, prepareNoteApplication, STOPPED_AT_CAP } from "@/features/applications/steps/writer-steps";
+import { advanceWriter, prepareListingApplication, STOPPED_AT_CAP } from "@/features/applications/steps/writer-steps";
 import { fetchListings } from "@/features/discovery/steps/fetch-listings";
 import { scoreListing, selectTopListings } from "@/features/discovery/steps/score-listings";
 import { fetchHimalayasJobs } from "@/server/himalayas";
@@ -112,7 +112,7 @@ test("at the cap, a note already queued is stopped without a model call, saying 
   const runId = await addRun();
   const listingId = await addListing(runId, "top", 1);
 
-  await prepareNoteApplication({ listingId });
+  await prepareListingApplication({ listingId });
   const [{ payload }] = queued;
   const { applicationId } = payload as { applicationId: string };
   await advanceWriter({ applicationId });

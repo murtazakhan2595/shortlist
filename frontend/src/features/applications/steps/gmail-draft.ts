@@ -8,7 +8,8 @@ import { ApplicationPayloadSchema } from "../schemas";
 import { claimLease, whileLeased } from "./writer-steps";
 
 // create_gmail_draft (PLAN.md item 2.3, X1): a ready application becomes a draft in the owner's Gmail,
-// with the chosen CV attached. Queued by advance_writer when the writer's loop ends with a ready email.
+// with the chosen CV attached. Queued by advance_writer when the writer's loop ends with a ready email, from a
+// capture or from a listing whose post gave an address (7.4).
 // The owner reads the draft in Gmail and sends it; nothing here sends (hard rule 1).
 //
 // Safe to run twice (AGENTS.md rule 7). A step that finds gmail_draft_id set does nothing. Two copies
@@ -62,11 +63,12 @@ async function draftOnce(applicationId: string): Promise<void> {
   if (saved.error) throw new Error(`Could not save the Gmail draft id: ${saved.error.message}`);
 }
 
-/** Queues a draft for every ready application without one. Run when the owner connects Gmail. */
+/** Queues a draft for every ready email without one. Run when the owner connects Gmail. Notes have no draft. */
 export async function queueMissingDrafts(): Promise<void> {
   const { data, error } = await getAdminClient()
     .from("applications")
     .select("id")
+    .eq("route", "email")
     .eq("status", "ready")
     .is("gmail_draft_id", null);
   if (error) throw new Error(`Could not list applications without a draft: ${error.message}`);

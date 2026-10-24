@@ -14,12 +14,13 @@ import type { Json, Tables } from "@/server/supabase/database.types";
 import { ApplicationPayloadSchema, type WriterContext } from "../schemas";
 import { buildWriterGraph, START_STATE, type WriterStateValues, writerOutcome } from "./writer";
 
-// The writer's queue steps (PLAN.md items 2.2, 2.6 and 4.6), in the order they run:
+// The writer's queue steps (PLAN.md items 2.2, 2.6, 4.6 and 7.4), in the order they run:
 //
 // 1. prepare_email_application: a capture with an email gets its application row, unless the same job
 //    already has one (then the capture is a duplicate). Queued when a post is read.
-//    prepare_note_application: a listing in its night's top N gets its application row, a note to paste
-//    when applying through its link (X2), unless the same job already has one. Queued by select_top_listings.
+//    prepare_listing_application: a listing in its night's top N gets its application row, unless the same
+//    job already has one. Queued by select_top_listings. A listing whose post gives an email address gets
+//    an email, as a capture does (7.4); any other gets a note to paste when applying through its link (X2).
 // 2. advance_writer: runs the next stage of the writer's loop (writer.ts) and queues itself again, until
 //    the loop ends and the application is saved as ready or blocked. A ready email goes on to
 //    create_gmail_draft (gmail-draft.ts); a note is done. One stage per call keeps every call
@@ -30,8 +31,9 @@ import { buildWriterGraph, START_STATE, type WriterStateValues, writerOutcome } 
 // extra call only moves the loop one stage further. If a call dies, its lease runs out and the queue's
 // retry carries on from the last saved stage. create_gmail_draft takes the same lease (gmail-draft.ts).
 //
-// A note is part of the nightly run, so it stops once this month's spending reaches the cap (B2): it is
-// saved as blocked, saying so. An email for a capture is the owner's own request and is always written.
+// A listing's note or email is part of the nightly run, so it stops once this month's spending reaches the
+// cap (B2): it is saved as blocked, saying so. An email for a capture is the owner's own request and is
+// always written.
 
 const CapturePayloadSchema = z.object({ captureId: z.uuid() });
 const ListingPayloadSchema = z.object({ listingId: z.uuid() });
@@ -105,19 +107,19 @@ export function captureFingerprint(contactEmail: string, role: string | null, po
 }
 
 // ---------------------------------------------------------------------------
-// 1. prepare_note_application
+// 1. prepare_listing_application
 // ---------------------------------------------------------------------------
 
-export async function prepareNoteApplication(payload: Json): Promise<void> {
+export async function prepareListingApplication(payload: Json): Promise<void> {
   const { listingId } = ListingPayloadSchema.parse(payload);
   const db = getAdminClient();
 
-  const listing = await db.from("listings").select("fingerprint, top_rank").eq("id", listingId).maybeSingle();
+  const listing = await db.from("listings").select("fingerprint, top_rank, contact_email").eq("id", listingId).maybeSingle();
   if (listing.error) throw new Error(`Could not load listing ${listingId}: ${listing.error.message}`);
   if (!listing.data?.top_rank) return;
 
   // The listing's own duplicate key (D2, X6), so the same job gets one application from any source.
-  const { fingerprint } = listing.data;
+  const { fingerprint, contact_email: contactEmail } = listing.data;
   const existing = await db.from("applications").select("id, listing_id").eq("fingerprint", fingerprint).maybeSingle();
   if (existing.error) throw new Error(`Could not look for an earlier application: ${existing.error.message}`);
   if (existing.data?.listing_id === listingId) {
@@ -128,9 +130,14 @@ export async function prepareNoteApplication(payload: Json): Promise<void> {
 
   // If another run of this step inserts first, the unique fingerprint makes this fail, and the retry
   // takes the branch above.
+  // The recipient is the address code read from the post when it was saved, never one a model wrote (X5).
   const created = await db
     .from("applications")
-    .insert({ listing_id: listingId, route: "note", fingerprint })
+    .insert(
+      contactEmail
+        ? { listing_id: listingId, route: "email", recipient_email: contactEmail, fingerprint }
+        : { listing_id: listingId, route: "note", fingerprint },
+    )
     .select("id")
     .single();
   if (created.error) throw new Error(`Could not start the application: ${created.error.message}`);
@@ -160,12 +167,12 @@ async function runNextStage(applicationId: string): Promise<string | null> {
   const application = await getAdminClient()
     .from("applications")
     .select(
-      "status, recipient_email, captures (id, run_id, raw_text, role, company, poster_name), listings (run_id, source, title, company, location, description)",
+      "route, status, recipient_email, captures (id, run_id, raw_text, role, company, poster_name), listings (run_id, source, title, company, location, description)",
     )
     .eq("id", applicationId)
     .single();
   if (application.error) throw new Error(`Could not load application ${applicationId}: ${application.error.message}`);
-  const { status, recipient_email: recipientEmail, captures: capture, listings: listing } = application.data;
+  const { route, status, recipient_email: recipientEmail, captures: capture, listings: listing } = application.data;
 
   let outcome = status;
   if (status === "preparing" && !capture && (await loadSpendingCap(getAdminClient())).reached) {
@@ -175,15 +182,14 @@ async function runNextStage(applicationId: string): Promise<string | null> {
   if (status === "preparing") {
     const writer = capture
       ? await emailWriter(applicationId, capture, recipientEmail)
-      : await noteWriter(applicationId, listing);
+      : await listingWriter(applicationId, route, listing, recipientEmail);
     outcome = await runOneStage(applicationId, writer);
     if (outcome === "preparing") return STEP_NAMES.advanceWriter;
   }
-  // A note is done once saved. Also reached when a retry finds the outcome already saved, so a call that
-  // died here still hands off.
-  if (!capture) return null;
-  await finishCapture(capture);
-  return outcome === "ready" ? STEP_NAMES.createGmailDraft : null;
+  // Also reached when a retry finds the outcome already saved, so a call that died here still hands off.
+  // A ready email, from a capture or a listing, becomes a Gmail draft; a note is done once saved.
+  if (capture) await finishCapture(capture);
+  return route === "email" && outcome === "ready" ? STEP_NAMES.createGmailDraft : null;
 }
 
 type CaptureForWriter = Pick<Tables<"captures">, "id" | "run_id" | "raw_text" | "role" | "company" | "poster_name">;
@@ -206,11 +212,19 @@ async function emailWriter(applicationId: string, capture: CaptureForWriter, rec
   };
 }
 
-async function noteWriter(applicationId: string, listing: ListingForWriter | null): Promise<WriterContext> {
+/** A listing's note, or its email when its post gave an address (7.4). */
+async function listingWriter(
+  applicationId: string,
+  route: string,
+  listing: ListingForWriter | null,
+  recipientEmail: string | null,
+): Promise<WriterContext> {
   if (!listing) throw new Error(`Application ${applicationId} has no capture or listing`);
+  const email = route === "email";
+  if (email && !recipientEmail) throw new Error(`Application ${applicationId} has no recipient`);
   return {
-    ...(await loadWriterMaterial("note")),
-    route: "note",
+    ...(await loadWriterMaterial(email ? "email" : "note")),
+    route: email ? "email" : "note",
     link: { runId: listing.run_id ?? undefined, applicationId },
     post: {
       text: `${listing.title} at ${listing.company}\nLocation: ${listing.location ?? "not stated"}\n\n${listing.description.slice(0, MAX_DESCRIPTION_LENGTH)}`,
@@ -219,7 +233,7 @@ async function noteWriter(applicationId: string, listing: ListingForWriter | nul
       posterName: null,
       seenOn: sourceName(listing.source),
     },
-    recipientEmail: null,
+    recipientEmail: email ? recipientEmail : null,
   };
 }
 

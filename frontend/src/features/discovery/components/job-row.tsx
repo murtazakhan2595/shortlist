@@ -159,14 +159,16 @@ function tagNames(tags: string[]): string[] {
   return tags.map((tag) => TAG_NAMES[tag] ?? tag);
 }
 
+/** The note to paste, or the email that goes to the owner's Gmail drafts (7.4). */
 function Note({ note }: { note: NonNullable<JobView["note"]> }) {
-  if (note.status === "preparing") return <p className="text-sm text-ink-muted">Writing the note…</p>;
+  const kind = note.email ? "email" : "note";
+  if (note.status === "preparing") return <p className="text-sm text-ink-muted">Writing the {kind}…</p>;
 
   if (note.status === "blocked") {
     return (
       <div className="flex flex-col gap-1 text-sm">
         <p>
-          <span className="font-semibold">No note.</span> Write this one yourself. Why it stopped:
+          <span className="font-semibold">No {kind}.</span> Write this one yourself. Why it stopped:
         </p>
         {note.blockedReason && (
           <ul className="list-disc pl-5 text-ink-muted">
@@ -181,11 +183,17 @@ function Note({ note }: { note: NonNullable<JobView["note"]> }) {
 
   return (
     <div className="flex flex-col gap-2">
+      {note.email && (
+        <p className="text-sm">
+          <span className="font-semibold">Email to {note.email.to}:</span>{" "}
+          {note.email.inGmail ? "in your Gmail drafts, with your CV attached." : "being saved to your Gmail drafts."}
+        </p>
+      )}
       <div className="flex items-start gap-3 rounded-md border border-rule bg-field p-3">
         <p className="min-w-0 flex-1 text-sm leading-relaxed whitespace-pre-wrap break-words">{note.body}</p>
         {note.body && <CopyButton text={note.body} />}
       </div>
-      {note.cvVariant && <p className="text-sm text-ink-muted">Send your {note.cvVariant.replaceAll("_", " ")} CV.</p>}
+      {note.cvVariant && !note.email && <p className="text-sm text-ink-muted">Send your {note.cvVariant.replaceAll("_", " ")} CV.</p>}
     </div>
   );
 }

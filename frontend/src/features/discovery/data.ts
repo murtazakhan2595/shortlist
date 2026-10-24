@@ -21,8 +21,17 @@ export type JobView = {
   score: number | null;
   reasons: string | null;
   label: "apply" | "skip" | null;
-  /** The prepared note (X2), once the writer has finished it. */
-  note: { status: string; body: string | null; cvVariant: string | null; blockedReason: string | null } | null;
+  /**
+   * What was prepared: a note to paste (X2), or an email when the post gave an address (7.4), which goes
+   * to the owner's Gmail drafts.
+   */
+  note: {
+    status: string;
+    body: string | null;
+    cvVariant: string | null;
+    blockedReason: string | null;
+    email: { to: string; inGmail: boolean } | null;
+  } | null;
   /** Scoring this job, or starting or writing its note, failed every attempt (5.6). */
   failure: OpenFailure | null;
 };
@@ -67,7 +76,7 @@ export async function getJobsList(): Promise<JobsListView | null> {
     db
       .from("listings")
       .select(
-        "id, title, company, location, source, url, tags, eligibility, eligibility_reason, top_rank, label, scores (score, reasons), applications (id, status, body, blocked_reason, cv_files (variant))",
+        "id, title, company, location, source, url, tags, eligibility, eligibility_reason, top_rank, label, scores (score, reasons), applications (id, route, status, body, blocked_reason, recipient_email, gmail_draft_id, cv_files (variant))",
       )
       .eq("run_id", run.data.id),
     db.from("model_calls").select("cost_usd").eq("run_id", run.data.id),
@@ -107,6 +116,10 @@ export async function getJobsList(): Promise<JobsListView | null> {
             body: application.body,
             cvVariant: application.cv_files?.variant ?? null,
             blockedReason: application.blocked_reason,
+            email:
+              application.route === "email" && application.recipient_email
+                ? { to: application.recipient_email, inGmail: application.gmail_draft_id !== null }
+                : null,
           }
         : null,
       failure: failures.find((failure) => failure.targetIds.some((id) => ownIds.includes(id))) ?? null,
