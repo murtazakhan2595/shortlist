@@ -82,7 +82,9 @@ test("saves new listings whole, saves nothing the second time, and deletes expir
   ];
 
   expect(await saveNewListings(listings)).toHaveLength(2);
-  expect(await saveNewListings(listings)).toEqual([]);
+  // Only the open listing is saved again: another test file may delete expired listings in between (they
+  // share the one database), and then the expired one would rightly be new.
+  expect(await saveNewListings([listings[0]])).toEqual([]);
 
   const { data: saved } = await database
     .from("listings")
