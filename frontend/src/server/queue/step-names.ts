@@ -19,7 +19,7 @@ export const STEP_NAMES = {
   answerForm: "answer_form",
   /** forms: check the new answers against the profile (item 3.2). */
   checkFormAnswers: "check_form_answers",
-  /** discovery: fetch, filter and save the night's new listings; queued by start_daily_run (items 4.1 to 4.5). */
+  /** discovery: fetch, filter and save one source's new listings, then queue the next source; queued by start_daily_run (items 4.1 to 4.5). */
   fetchListings: "fetch_listings",
   /** discovery: score one kept listing against the profile (item 4.4). */
   scoreListing: "score_listing",

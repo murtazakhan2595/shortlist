@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { sourceName } from "@/lib/source-names";
 import { jobKey } from "@/server/job-key";
 import { loadOwnerMaterial } from "@/server/owner-material";
 import { getCheckpointer } from "@/server/queue/checkpointer";
@@ -159,7 +160,7 @@ async function runNextStage(applicationId: string): Promise<string | null> {
   const application = await getAdminClient()
     .from("applications")
     .select(
-      "status, recipient_email, captures (id, run_id, raw_text, role, company, poster_name), listings (run_id, title, company, location, description)",
+      "status, recipient_email, captures (id, run_id, raw_text, role, company, poster_name), listings (run_id, source, title, company, location, description)",
     )
     .eq("id", applicationId)
     .single();
@@ -186,7 +187,7 @@ async function runNextStage(applicationId: string): Promise<string | null> {
 }
 
 type CaptureForWriter = Pick<Tables<"captures">, "id" | "run_id" | "raw_text" | "role" | "company" | "poster_name">;
-type ListingForWriter = Pick<Tables<"listings">, "run_id" | "title" | "company" | "location" | "description">;
+type ListingForWriter = Pick<Tables<"listings">, "run_id" | "source" | "title" | "company" | "location" | "description">;
 
 async function emailWriter(applicationId: string, capture: CaptureForWriter, recipientEmail: string | null): Promise<WriterContext> {
   if (!capture.raw_text || !recipientEmail) throw new Error(`Application ${applicationId} has no post text or recipient`);
@@ -216,7 +217,7 @@ async function noteWriter(applicationId: string, listing: ListingForWriter | nul
       role: listing.title,
       company: listing.company,
       posterName: null,
-      seenOn: "Himalayas",
+      seenOn: sourceName(listing.source),
     },
     recipientEmail: null,
   };

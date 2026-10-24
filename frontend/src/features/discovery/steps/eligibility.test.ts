@@ -113,3 +113,64 @@ test("converts stated pay to US dollars a month", () => {
   expect(monthlyPayUsd({ ...LISTING, salary_max: 3000, salary_currency: "EUR", salary_period: "month" })).toBeCloseTo(3300);
   expect(monthlyPayUsd(LISTING)).toBeNull();
 });
+
+test("a title naming several roles is dropped only when every one is above the range", () => {
+  expect(decide({ title: "Staff Engineer, Senior Engineer" }).eligibility).toBe("eligible");
+  expect(decide({ title: "Staff and Principal Engineers" }).eligibility_reason).toMatch("Above the seniority range");
+});
+
+describe("a Hacker News post: kept when it can be done from Pakistan", () => {
+  // The first line of the description is the post's own first line.
+  function decidePost(description: string) {
+    return decide({ source: "hackernews", countries: [], seniority: [], categories: [], location: null, description });
+  }
+
+  test.each([
+    "Acme | Engineer | REMOTE (Worldwide)\n\nDetails",
+    "Acme | Engineer | Remote (Global)",
+    "Acme | Engineer | REMOTE (EMEA/APAC)",
+    "Acme | Engineer | Remote, anywhere in the world",
+    // An employer that sponsors a visa or helps with relocation is open to the owner (Q4).
+    "Acme | Engineer | ONSITE in London | Visa sponsorship",
+    "Acme | Engineer | Berlin | HYBRID\n\nWe offer relocation support.",
+  ])("eligible: %s", (description) => {
+    expect(decidePost(description)).toEqual({ eligibility: "eligible", eligibility_reason: null });
+  });
+
+  test.each([
+    ["Acme | Engineer | San Francisco | ONSITE", "On-site or hybrid, with no visa sponsorship"],
+    ["Acme | Engineer | NYC | HYBRID\n\nWe don’t offer visa sponsorship.", "On-site or hybrid, with no visa sponsorship"],
+    ["Acme | Engineer | Remote, but not remote for this role: no remote", "On-site or hybrid, with no visa sponsorship"],
+    ["Acme | Engineer | REMOTE (US Timezones)", "Remote only within a region that leaves out Pakistan"],
+    ["Acme | Engineer | Remote (Germany)", "Remote only within a region that leaves out Pakistan"],
+    ["Acme | Engineer | REMOTE [Europe / GMT+2]", "Remote only within a region that leaves out Pakistan"],
+    ["Acme | Engineer | Remote US or Ontario, Canada", "Remote only within a region that leaves out Pakistan"],
+    ["Acme | Engineer | US-based remote", "Remote only within a region that leaves out Pakistan"],
+    // The first line decides: "worldwide" in the body is about the members, not the job.
+    ["Acme | Engineer | Remote (North America / LatAm)\n\nOur members are worldwide.", "Remote only within a region that leaves out Pakistan"],
+    // A visa that is ruled out does not count as offered.
+    ["Acme | Engineer | Remote (US)\n\nWe are not able to sponsor visas.", "Remote only within a region that leaves out Pakistan"],
+  ])("excluded: %s", (description, reason) => {
+    expect(decidePost(description)).toEqual({ eligibility: "excluded", eligibility_reason: reason });
+  });
+
+  test.each([
+    "Acme | Engineer | REMOTE | Full-time",
+    "Acme | Engineer | NYC or Remote",
+    // A preference is not a limit.
+    "Acme | Engineer | REMOTE (CET ±3 preferred)",
+    // "us" the word is not the country.
+    "Acme | Engineer | Remote\n\nJoin us remote-first folks.",
+  ])("unclear: %s", (description) => {
+    expect(decidePost(description)).toEqual({ eligibility: "unclear", eligibility_reason: "Remote, but it does not say from where" });
+  });
+
+  test("the first line's silence lets the body decide", () => {
+    expect(decidePost("Acme | Engineer | Remote\n\nThis role is open worldwide.").eligibility).toBe("eligible");
+    expect(decidePost("Acme | Engineer | Remote\n\nUS only, sorry.").eligibility).toBe("excluded");
+  });
+
+  test("a Himalayas listing is not judged by these words: Himalayas already lists jobs open to Pakistan", () => {
+    expect(decide({ description: "Work from our office in San Francisco." }).eligibility).toBe("eligible");
+  });
+});

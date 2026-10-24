@@ -1,6 +1,7 @@
-import { expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
+import type { HackerNewsPost } from "@/server/hacker-news";
 import type { HimalayasJob } from "@/server/himalayas";
-import { himalayasListing, htmlToText } from "./fetch-listings";
+import { hackerNewsListing, himalayasListing, htmlToText } from "./fetch-listings";
 
 const JOB: HimalayasJob = {
   guid: "https://himalayas.app/companies/acme/jobs/full-stack-engineer-123",
@@ -65,4 +66,67 @@ test("turns HTML into plain text, with line breaks and list items kept", () => {
   expect(htmlToText("<h2>About</h2><p>Line one<br>Line   two</p><p></p><p>It&#39;s &quot;great&quot;&nbsp;here</p>")).toBe(
     'About\nLine one\nLine two\n\nIt\'s "great" here',
   );
+});
+
+test("reads hexadecimal entities, as Hacker News writes them", () => {
+  expect(htmlToText("https:&#x2F;&#x2F;acme.com&#x2F;jobs &#x27;here&#x27;")).toBe("https://acme.com/jobs 'here'");
+});
+
+describe("a Hacker News post in the common format", () => {
+  const POST: HackerNewsPost = {
+    id: 49922600,
+    created_at_i: Date.parse("2026-10-01T16:00:00Z") / 1000,
+    text:
+      'Acme (YC S21) | Senior Full-Stack Engineer | REMOTE (Worldwide) | Contract | <a href="https:&#x2F;&#x2F;acme.com&#x2F;jobs" rel="nofollow">https:&#x2F;&#x2F;acme.com&#x2F;j...</a>' +
+      "<p>We build tools with React &amp; Node.<p>Apply at jobs@acme.com",
+  };
+
+  test("takes the company, role and place from the first line, and keeps the whole post", () => {
+    expect(hackerNewsListing(POST, "run-1")).toEqual({
+      source: "hackernews",
+      source_id: "49922600",
+      url: "https://news.ycombinator.com/item?id=49922600",
+      title: "Senior Full-Stack Engineer",
+      company: "Acme",
+      location: "REMOTE (Worldwide) | Contract",
+      countries: [],
+      salary_min: null,
+      salary_max: null,
+      salary_currency: null,
+      salary_period: null,
+      seniority: [],
+      employment_type: null,
+      categories: [],
+      tags: ["remote", "contractor"],
+      description:
+        "Acme (YC S21) | Senior Full-Stack Engineer | REMOTE (Worldwide) | Contract | https://acme.com/jobs\n\nWe build tools with React & Node.\n\nApply at jobs@acme.com",
+      fingerprint: "acme_senior-full-stack-engineer",
+      posted_at: "2026-10-01T16:00:00.000Z",
+      expires_at: "2026-11-15T16:00:00.000Z",
+      run_id: "run-1",
+    });
+  });
+
+  test("finds the role wherever it is, and reads dashes as separators", () => {
+    const listing = hackerNewsListing({ ...POST, text: "Beta Labs — NYC or Remote — Backend Developer<p>Details" }, "run-1");
+
+    expect(listing).toMatchObject({ company: "Beta Labs", title: "Backend Developer", location: "NYC or Remote" });
+  });
+
+  test("a first line with no separator is the title, and the post gets its own company key", () => {
+    const listing = hackerNewsListing({ ...POST, text: "We are hiring engineers to work on compilers.<p>More" }, "run-1");
+
+    expect(listing).toMatchObject({
+      company: "Hacker News post 49922600",
+      title: "We are hiring engineers to work on compilers.",
+      location: null,
+      tags: [],
+    });
+  });
+
+  test("tags a post that offers visa sponsorship", () => {
+    const listing = hackerNewsListing({ ...POST, text: "Gamma | Engineer | London | ONSITE<p>Visa sponsorship available." }, "run-1");
+
+    expect(listing.tags).toEqual(["visa"]);
+  });
 });

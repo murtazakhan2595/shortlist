@@ -1,5 +1,6 @@
 import "server-only";
 import { escapeRegExp } from "@/lib/regex";
+import { HACKER_NEWS_SOURCE } from "@/server/hacker-news";
 import { slugify } from "@/server/job-key";
 import { getAdminClient } from "@/server/supabase/admin";
 import type { Eligibility, Listing } from "../schemas";
@@ -50,6 +51,10 @@ function exclusionReason(listing: Listing, settings: FilterSettings): string | n
   if (pay !== null && pay < settings.payFloorUsdMonth) return `Pays about ${Math.round(pay)} USD a month, below the floor`;
 
   if (CLEARANCE_OR_CITIZENSHIP.test(listing.description)) return "Asks for a security clearance or citizenship";
+  if (listing.source === HACKER_NEWS_SOURCE) {
+    const place = whereFrom(listing);
+    if (place.excluded) return place.excluded;
+  }
   return countryReason(listing, settings.excludedCountries);
 }
 
@@ -107,9 +112,11 @@ const LEVELS_ABOVE_RANGE = ["Manager", "Director", "Executive"];
 const TITLE_ABOVE_RANGE = /\b(lead|staff|principal|head of|director|vp|vice president|chief|cto)\b/i;
 const MAX_YEARS_REQUIRED = 5;
 
+/** A title can name several roles ("Staff Engineer, Senior Engineer"): dropped only when every one is above. */
 function isAboveSeniorityRange(listing: Listing): boolean {
   const labelledAbove = listing.seniority.length > 0 && listing.seniority.every((level) => LEVELS_ABOVE_RANGE.includes(level));
-  return labelledAbove || TITLE_ABOVE_RANGE.test(listing.title);
+  const roles = listing.title.split(/[,;/&]|\band\b/i).filter((role) => role.trim() !== "");
+  return labelledAbove || (roles.length > 0 && roles.every((role) => TITLE_ABOVE_RANGE.test(role)));
 }
 
 // "5+ years of experience", "3-5 years of professional backend experience", "7 years' experience". Only a
@@ -165,6 +172,67 @@ function countryReason(listing: Listing, excludedCountries: string[]): string | 
 }
 
 // ---------------------------------------------------------------------------
+// Where the work is done, for sources with no list of countries (sprint 7)
+// ---------------------------------------------------------------------------
+
+// A Hacker News post says in words where its job can be done. Its job is kept when it is remote and not
+// limited to a region that leaves out the owner's country, or when the employer offers a visa or relocation
+// (Q4). A remote job that does not say from where is kept as unclear. The post's first line decides when it
+// says where; the body is read only when it does not, as a body's "worldwide" is often about something else.
+
+export const REMOTE = /\bremote\b|work from anywhere/i;
+const NOT_REMOTE = /\b(no|not|non)[\s-]remote\b|\b(on-?site|in[- ]office) only\b/i;
+// Only phrases about where the work can be done: "a global company" says nothing about that.
+const OPEN_TO_OWNER =
+  /\b(worldwide|anywhere in the world|from anywhere|remote[\s(,:–—-]*(global|anywhere|international)|global(ly)? remote|any time ?zones?|all time ?zones|pakistan|asia|apac)\b/i;
+// "Remote (Germany)", "REMOTE [Europe / GMT+2]": what the brackets name is where the job is open.
+const REMOTE_WITH_PLACE = /remote\s*[([]\s*([^)\]]{1,60})[)\]]/gi;
+const AREA_WORDS = "united states|north america|americas|canada|united kingdom|europe|latin america|latam";
+const REMOTE_IN_AREA_WORDS = new RegExp(
+  `remote\\s*[,:–—-]?\\s*(?:in |within )?(?:the )?(?:${AREA_WORDS})\\b|\\b(?:${AREA_WORDS})[\\s-]*(?:only|based)\\b|\\b(?:${AREA_WORDS}) time ?zones?`,
+  "i",
+);
+// Matched with capitals only, so the word "us" in "join us" is never read as the country.
+const AREA_CODES = "US|USA|U\\.S\\.A?\\.?|UK|EU";
+const REMOTE_IN_AREA_CODES = new RegExp(
+  `(?:remote|Remote|REMOTE)\\s*[,:–—-]?\\s*(?:in |within )?(?:the )?(?:${AREA_CODES})(?!\\w)|(?<!\\w)(?:${AREA_CODES})[\\s-]*(?:only|Only|ONLY|based|Based|remote|Remote|REMOTE)\\b`,
+);
+
+const VISA_OFFERED =
+  /\bvisa sponsorship\b|\bsponsor(s|ing)? (work )?visas?\b|\bh-?1b\b|\bwill sponsor\b|\brelocation (assistance|support|package|help|bonus|is provided|available)\b|\bhelp (you )?relocate\b/i;
+const NO_VISA =
+  /\b(no|not|cannot|can['’]t|can ?not|unable to|won['’]t|will not|don['’]t|do not|doesn['’]t|does not)\s+(able to\s+|offer\s+|provide\s+|currently\s+)*(visa\s+)?sponsor/i;
+
+/** True when the text offers visa sponsorship or relocation, and does not also say there is none. */
+export function offersVisa(text: string): boolean {
+  return VISA_OFFERED.test(text) && !NO_VISA.test(text);
+}
+
+/** What a piece of text says about where a remote job can be done from. */
+function placeIn(text: string): "open" | "limited" | "unsaid" {
+  if (OPEN_TO_OWNER.test(text)) return "open";
+  // A preference ("CET ±3 preferred") is not a limit.
+  const places = [...text.matchAll(REMOTE_WITH_PLACE)].map((match) => match[1]).filter((place) => !/prefer/i.test(place));
+  if (places.length > 0) return "limited";
+  if (REMOTE_IN_AREA_WORDS.test(text) || REMOTE_IN_AREA_CODES.test(text)) return "limited";
+  return "unsaid";
+}
+
+/** Whether a post's job can be done from the owner's country: excluded, in doubt, or neither. */
+function whereFrom(listing: Listing): { excluded?: string; doubt?: string } {
+  const text = listing.description;
+  if (offersVisa(text)) return {};
+  if (!REMOTE.test(text) || NOT_REMOTE.test(text)) return { excluded: "On-site or hybrid, with no visa sponsorship" };
+
+  const [firstLine, ...body] = text.split("\n");
+  const firstLineSays = placeIn(firstLine);
+  const says = firstLineSays === "unsaid" ? placeIn(body.join("\n")) : firstLineSays;
+  if (says === "limited") return { excluded: `Remote only within a region that leaves out ${OWNER_COUNTRY}` };
+  if (says === "unsaid") return { doubt: "Remote, but it does not say from where" };
+  return {};
+}
+
+// ---------------------------------------------------------------------------
 // Doubts: kept, scored, ranked lower (D4)
 // ---------------------------------------------------------------------------
 
@@ -176,6 +244,10 @@ function doubtsAbout(listing: Listing): string[] {
   // Not dropped: a list can name a region, such as "Asia", that includes the owner's country.
   if (listing.countries.length > 0 && !listing.countries.includes(OWNER_COUNTRY)) {
     doubts.push(`Lists ${listing.countries.join(", ")}, not ${OWNER_COUNTRY}`);
+  }
+  if (listing.source === HACKER_NEWS_SOURCE) {
+    const place = whereFrom(listing);
+    if (place.doubt) doubts.push(place.doubt);
   }
   if (WORK_AUTHORISATION.test(listing.description)) doubts.push("Mentions work authorisation or where you must live");
   if (listing.seniority.length > 0 && listing.seniority.every((level) => level === "Entry-level")) doubts.push("Listed as entry level");
