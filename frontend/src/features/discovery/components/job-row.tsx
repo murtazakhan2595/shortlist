@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { type ReactNode, useState, useTransition } from "react";
 import { CopyButton } from "@/components/ui/copy-button";
+import { sourceName } from "@/lib/source-names";
 import { blockCompany, labelListing } from "../actions";
 import type { JobView } from "../data";
 
@@ -83,7 +84,7 @@ export function JobRow({ job, failureNotice }: { job: JobView; failureNotice?: R
             ))}
           </div>
           <a href={job.url} target="_blank" rel="noreferrer" className="text-sm underline">
-            Open the job on Himalayas
+            Open the job on {sourceName(job.source)}
           </a>
         </div>
         <BlockCompany listingId={job.id} company={job.company} />

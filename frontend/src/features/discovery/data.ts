@@ -10,7 +10,9 @@ export type JobView = {
   title: string;
   company: string;
   location: string | null;
-  /** The Himalayas page: where to apply, and the credit its terms ask for (D7). */
+  /** Where the job came from: "himalayas" or "hackernews". */
+  source: string;
+  /** The job's page on its source: where to apply or read the post, and the credit its terms ask for (D7). */
   url: string;
   tags: string[];
   eligibility: string;
@@ -65,7 +67,7 @@ export async function getJobsList(): Promise<JobsListView | null> {
     db
       .from("listings")
       .select(
-        "id, title, company, location, url, tags, eligibility, eligibility_reason, top_rank, label, scores (score, reasons), applications (id, status, body, blocked_reason, cv_files (variant))",
+        "id, title, company, location, source, url, tags, eligibility, eligibility_reason, top_rank, label, scores (score, reasons), applications (id, status, body, blocked_reason, cv_files (variant))",
       )
       .eq("run_id", run.data.id),
     db.from("model_calls").select("cost_usd").eq("run_id", run.data.id),
@@ -90,6 +92,7 @@ export async function getJobsList(): Promise<JobsListView | null> {
       title: listing.title,
       company: listing.company,
       location: listing.location,
+      source: listing.source,
       url: listing.url,
       tags: listing.tags,
       eligibility: listing.eligibility,

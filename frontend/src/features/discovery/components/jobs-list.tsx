@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { OpenFailure } from "@/server/queue/failed-steps";
 import { AutoRefresh } from "@/components/ui/auto-refresh";
 import { formatUsd } from "@/lib/format";
+import { NIGHTLY_SOURCES } from "@/lib/source-names";
 import type { JobsListView } from "../data";
 import { JobRow } from "./job-row";
 
@@ -17,8 +18,8 @@ export function JobsList({ list, renderFailure }: { list: JobsListView | null; r
   if (!list) {
     return (
       <p className="max-w-prose text-ink-muted">
-        No list yet. Every night at 02:00, Shortlist finds new jobs on Himalayas, ranks them against your profile and
-        writes a note for the best ones. They appear here.
+        No list yet. Every night at 02:00, Shortlist finds new jobs on {NIGHTLY_SOURCES.map((source) => source.name).join(" and ")},
+        ranks them against your profile and prepares a note or email for the best ones. They appear here.
       </p>
     );
   }
@@ -86,9 +87,14 @@ export function JobsList({ list, renderFailure }: { list: JobsListView | null; r
 
       <p className="text-sm text-ink-muted">
         Jobs from{" "}
-        <a href="https://himalayas.app" target="_blank" rel="noreferrer" className="underline">
-          Himalayas
-        </a>
+        {NIGHTLY_SOURCES.map((source, index) => (
+          <span key={source.site}>
+            {index > 0 && " and "}
+            <a href={source.site} target="_blank" rel="noreferrer" className="underline">
+              {source.name}
+            </a>
+          </span>
+        ))}
         . Apply through each job&apos;s own link.
       </p>
     </div>

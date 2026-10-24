@@ -13,6 +13,7 @@ const job: JobView = {
   id: "job-1",
   title: "Full Stack Engineer",
   company: "Acme",
+  source: "himalayas",
   location: null,
   url: "https://himalayas.app/companies/acme/jobs/1",
   tags: [],
