@@ -154,7 +154,7 @@ Many recruiter posts link to a form, often a Google Form, instead of giving an e
 | Hacker News: monthly hiring thread and jobs feed | Official API | 2 |
 | Company career pages on Greenhouse, Lever, Ashby | Public job-board endpoints, driven by a company watchlist | 2 |
 | Job-alert emails (Wellfound, LinkedIn job alerts, country job portals) | Read from a dedicated alerts mailbox | 2 |
-| Jobicy, RemoteOK | Public APIs, with attribution | Later |
+| Jobicy, RemoteOK | Public APIs, with attribution | 2 (moved from later by the owner, 24 October 2026) |
 | Product Hunt launches | Official API, non-commercial use | Later |
 
 **Never read automatically:** LinkedIn, Wellfound, Y Combinator's Work at a Startup, Workday career sites. Jobs from these enter only by manual capture or by the alert emails those sites send.

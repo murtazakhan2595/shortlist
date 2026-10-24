@@ -333,11 +333,16 @@ Two lessons from the owner's playbook are built into this plan: guard side effec
 
 ### Stage 2 sprints, in outline
 
+Stage 2 brings in every job source the owner wants, one sprint each, in this order (owner, 24 October 2026). Each new source feeds the same nightly run: fetch, filter, score, the night's list and notes.
+
 | Sprint | Goal |
 |---|---|
 | 7 | Hacker News connector: the monthly hiring thread and the jobs feed, ported from career-ops, reusing the email draft path |
 | 8 | Company watchlist on Greenhouse, then Lever and Ashby (D8), with fetchers ported from career-ops and the company list seeded from Feashliaa's job-board lists; answers prepared from published questions (X7) |
-| 9 | Alerts mailbox reader for Wellfound, LinkedIn job alerts and country portals |
+| 9 | Wellfound, LinkedIn job alerts and country portals, through an alerts mailbox reader. Wellfound and LinkedIn are never read automatically (principle 3), so their jobs come from the alert emails they send to saved searches |
+| 10 | RemoteOK and Jobicy connectors: public APIs, with the attribution each one's terms ask for |
+
+Each source's terms page is re-read before its connector is built. Product Hunt launches stay for later.
 
 ## 8. Risks
 
