@@ -1,6 +1,6 @@
 # Shortlist: Build Plan
 
-Version 2.9, 24 October 2026. Agreed plan. Stage 1, sprints 0 to 6, is done; sections 2, 3, 5, 8 and 9 describe what sprint 1 actually built. Sprints 3 to 6 record what they built under their tables. Stage 2 starts with more job sources (sprints 7 and 8).
+Version 3.0, 25 October 2026. Agreed plan. Stage 1, sprints 0 to 6, is done, and sprint 7 is built; sections 2, 3, 5, 8 and 9 describe what sprint 1 actually built. Sprints 3 to 6 record what they built under their tables. Stage 2 starts with more job sources (sprints 7 and 8).
 
 This document says **how** Shortlist gets built. **What** is being built, and how success is judged, is in [REQUIREMENTS.md](REQUIREMENTS.md). Requirement IDs (C1, D3, F4, E2 and so on) refer to that file.
 
@@ -359,6 +359,14 @@ Owner's decisions (24 October 2026): a post with an email gets a Gmail draft; th
 | 7.5 | D | Pages | The Jobs page, notes, emails and reports name each listing's source and link back to it (D7, U1, U5) |
 
 **Exit check:** in the nights after November's thread (Monday 2 November 2026), Hacker News jobs reach the list, with Gmail drafts for those that give an email.
+
+**As built (25 October 2026).** The build is done; the exit check waits for November's thread.
+
+- **Several sources a night (7.1).** `fetch_listings` takes a source; each source's step saves its listings and queues the next (Himalayas, then Hacker News), and the last one starts scoring. Steps in a row are the barrier, so scoring never starts before every source is saved. The number read travels in the payload, so a retry never counts twice. A source that fails every attempt is skipped through its `giveUp` hook, and the night goes on.
+- **Hacker News reader (7.2).** `server/hacker-news.ts` makes two Algolia requests a night: the latest "Ask HN: Who is hiring?" by the whoishiring account, then its posts up to 30 days old. A post becomes a listing with company, role and place from its first line (split on `|` or dashes), the whole post as its description, its Hacker News page as its link, kept 45 days. Ported in part from career-ops.
+- **Strict location filter (7.3).** Checked on October's thread (266 posts, no model calls): 22 eligible, 38 unclear, 206 dropped, of them 107 on-site and 77 remote only within a region. The first line decides where a job is; the body is read only when it says nothing, as "worldwide" in a body is often about the company. An H-1B transfer is not sponsorship, and a job seeker's own post put in the thread is dropped.
+- **Email drafts from listings (7.4).** A post's first email address, plain or spelled out ("jobs [at] acme [dot] com"), is read by code into `listings.contact_email` (27 of the kept October posts give one). `prepare_note_application` became `prepare_listing_application`: a listing with an address gets an email in the capture's patterns and a Gmail draft with the chosen CV; any other gets a note. The nightly cap applies to both. Connecting Gmail no longer queues drafts for notes.
+- **Pages (7.5).** Each job links to its own source; the Jobs page credits every nightly source; notes and emails say where the job was seen; reports split by source through `sourceName`.
 
 ## 8. Risks
 
