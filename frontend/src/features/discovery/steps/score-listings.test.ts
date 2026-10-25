@@ -14,28 +14,36 @@ test("the reasons list up to three strengths and gaps", () => {
   expect(reasonsText({ strengths: ["React"], gaps: [] })).toBe("Strengths:\n- React");
 });
 
-test("keeps the best listings up to the daily target: eligible before unclear, unscored and weak ones never", () => {
+test("keeps each source's best listings by score up to the daily target, unscored and weak ones never", () => {
   const listings = [
-    { id: "unclear-90", company: "Company unclear-90", eligibility: "unclear", score: 90 },
-    { id: "eligible-60", company: "Company eligible-60", eligibility: "eligible", score: 60 },
-    { id: "eligible-80", company: "Company eligible-80", eligibility: "eligible", score: 80 },
-    { id: "eligible-weak", company: "Company eligible-weak", eligibility: "eligible", score: MIN_SCORE_TO_KEEP - 1 },
-    { id: "eligible-at-line", company: "Company eligible-at-line", eligibility: "eligible", score: MIN_SCORE_TO_KEEP },
-    { id: "unscored", company: "Company unscored", eligibility: "eligible", score: null },
+    { id: "hn-90", source: "hackernews", company: "Company hn-90", score: 90 },
+    { id: "him-60", source: "himalayas", company: "Company him-60", score: 60 },
+    { id: "him-80", source: "himalayas", company: "Company him-80", score: 80 },
+    { id: "him-weak", source: "himalayas", company: "Company him-weak", score: MIN_SCORE_TO_KEEP - 1 },
+    { id: "him-at-line", source: "himalayas", company: "Company him-at-line", score: MIN_SCORE_TO_KEEP },
+    { id: "hn-unscored", source: "hackernews", company: "Company hn-unscored", score: null },
   ];
 
-  expect(topListings(listings, 20)).toEqual(["eligible-80", "eligible-60", "eligible-at-line", "unclear-90"]);
-  expect(topListings(listings, 2)).toEqual(["eligible-80", "eligible-60"]);
+  expect(topListings(listings, 20)).toEqual([
+    { id: "hn-90", rank: 1 },
+    { id: "him-80", rank: 1 },
+    { id: "him-60", rank: 2 },
+    { id: "him-at-line", rank: 3 },
+  ]);
+  // The target counts per source: a strong source does not take another's places.
+  expect(topListings(listings, 1)).toEqual([
+    { id: "hn-90", rank: 1 },
+    { id: "him-80", rank: 1 },
+  ]);
 });
 
 test(`keeps at most ${MAX_LISTINGS_PER_COMPANY} listings from one company, its best ones, and fills the list from others`, () => {
   const listings = [
-    { id: "kdci-90", company: "KDCI", eligibility: "eligible", score: 90 },
-    { id: "kdci-85", company: "kdci.", eligibility: "eligible", score: 85 },
-    { id: "kdci-80", company: "KDCI", eligibility: "eligible", score: 80 },
-    { id: "acme-70", company: "Acme", eligibility: "eligible", score: 70 },
+    { id: "kdci-90", source: "himalayas", company: "KDCI", score: 90 },
+    { id: "kdci-85", source: "himalayas", company: "kdci.", score: 85 },
+    { id: "kdci-80", source: "himalayas", company: "KDCI", score: 80 },
+    { id: "acme-70", source: "himalayas", company: "Acme", score: 70 },
   ];
 
-  expect(topListings(listings, 3)).toEqual(["kdci-90", "kdci-85", "acme-70"]);
+  expect(topListings(listings, 3).map(({ id }) => id)).toEqual(["kdci-90", "kdci-85", "acme-70"]);
 });
-

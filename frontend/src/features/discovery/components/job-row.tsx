@@ -19,7 +19,7 @@ const MARK_STYLES: Record<Label, { on: string; off: string }> = {
 /**
  * One job on the list, marked by hand as on a printed shortlist: apply puts a tick by it, skip strikes it
  * through (U7). The mark shows at once and is saved in the background. failureNotice shows a step for this
- * job that failed every attempt (job.failure), in place of its note.
+ * job that failed every attempt (job.failure), in place of its email.
  */
 export function JobRow({ job, failureNotice }: { job: JobView; failureNotice?: ReactNode }) {
   const router = useRouter();
@@ -66,7 +66,7 @@ export function JobRow({ job, failureNotice }: { job: JobView; failureNotice?: R
           </details>
         )}
 
-        {job.failure ? failureNotice : job.note && <Note note={job.note} />}
+        {job.failure ? failureNotice : job.email && <Email email={job.email} />}
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
           <div className="flex gap-2" role="group" aria-label={`Mark ${job.title}`}>
@@ -159,20 +159,19 @@ function tagNames(tags: string[]): string[] {
   return tags.map((tag) => TAG_NAMES[tag] ?? tag);
 }
 
-/** The note to paste, or the email that goes to the owner's Gmail drafts (7.4). */
-function Note({ note }: { note: NonNullable<JobView["note"]> }) {
-  const kind = note.email ? "email" : "note";
-  if (note.status === "preparing") return <p className="text-sm text-ink-muted">Writing the {kind}…</p>;
+/** The email written for a post that gave an address, which goes to the owner's Gmail drafts (7.4). */
+function Email({ email }: { email: NonNullable<JobView["email"]> }) {
+  if (email.status === "preparing") return <p className="text-sm text-ink-muted">Writing the email to {email.to}…</p>;
 
-  if (note.status === "blocked") {
+  if (email.status === "blocked") {
     return (
       <div className="flex flex-col gap-1 text-sm">
         <p>
-          <span className="font-semibold">No {kind}.</span> Write this one yourself. Why it stopped:
+          <span className="font-semibold">No email.</span> Write to {email.to} yourself. Why it stopped:
         </p>
-        {note.blockedReason && (
+        {email.blockedReason && (
           <ul className="list-disc pl-5 text-ink-muted">
-            {note.blockedReason.split("\n").map((problem) => (
+            {email.blockedReason.split("\n").map((problem) => (
               <li key={problem}>{problem}</li>
             ))}
           </ul>
@@ -183,17 +182,14 @@ function Note({ note }: { note: NonNullable<JobView["note"]> }) {
 
   return (
     <div className="flex flex-col gap-2">
-      {note.email && (
-        <p className="text-sm">
-          <span className="font-semibold">Email to {note.email.to}:</span>{" "}
-          {note.email.inGmail ? "in your Gmail drafts, with your CV attached." : "being saved to your Gmail drafts."}
-        </p>
-      )}
+      <p className="text-sm">
+        <span className="font-semibold">Email to {email.to}:</span>{" "}
+        {email.inGmail ? "in your Gmail drafts, with your CV attached." : "being saved to your Gmail drafts."}
+      </p>
       <div className="flex items-start gap-3 rounded-md border border-rule bg-field p-3">
-        <p className="min-w-0 flex-1 text-sm leading-relaxed whitespace-pre-wrap break-words">{note.body}</p>
-        {note.body && <CopyButton text={note.body} />}
+        <p className="min-w-0 flex-1 text-sm leading-relaxed whitespace-pre-wrap break-words">{email.body}</p>
+        {email.body && <CopyButton text={email.body} />}
       </div>
-      {note.cvVariant && !note.email && <p className="text-sm text-ink-muted">Send your {note.cvVariant.replaceAll("_", " ")} CV.</p>}
     </div>
   );
 }

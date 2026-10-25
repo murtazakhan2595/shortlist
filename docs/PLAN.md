@@ -368,6 +368,12 @@ Owner's decisions (24 October 2026): a post with an email gets a Gmail draft; th
 - **Email drafts from listings (7.4).** A post's first email address, plain or spelled out ("jobs [at] acme [dot] com"), is read by code into `listings.contact_email` (27 of the kept October posts give one). `prepare_note_application` became `prepare_listing_application`: a listing with an address gets an email in the capture's patterns and a Gmail draft with the chosen CV; any other gets a note. The nightly cap applies to both. Connecting Gmail no longer queues drafts for notes.
 - **Pages (7.5).** Each job links to its own source; the Jobs page credits every nightly source; notes and emails say where the job was seen; reports split by source through `sourceName`.
 
+**Changed after the sprint (owner, 25 October 2026).**
+
+- **No notes.** A listing with only an apply link gets nothing written: the notes were most of the nightly cost. The writer now writes emails only (the `write_note` and `check_note` steps are gone); a top listing whose post gives an address still gets its email and Gmail draft. Notes written before stay in the daily list. REQUIREMENTS.md X2 and Q5 record the change.
+- **Top N per source, by score.** The daily target is now the number of top jobs from each source ("Top jobs per source" in Settings). Each source's top is by score, at least 45, at most two from one company; an unclear job is ranked by its score like the rest and keeps its "check first" line.
+- **Jobs page.** One tab per source, each with its top jobs and then the rest it kept, by score. Listings the filter dropped are no longer shown; they stay in the database, so a job is not saved twice and the filter can be checked.
+
 ## 8. Risks
 
 | Risk | What to do |

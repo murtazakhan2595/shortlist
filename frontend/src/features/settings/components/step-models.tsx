@@ -15,8 +15,6 @@ const STEP_LABELS: Record<ModelStep, string> = {
   answer_form: "Answering forms",
   check_form_answers: "Checking form answers",
   score_listing: "Scoring jobs",
-  write_note: "Writing notes",
-  check_note: "Checking notes",
 };
 
 const SELECT =

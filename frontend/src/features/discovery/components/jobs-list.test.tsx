@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 import type { OpenFailure } from "@/server/queue/failed-steps";
 import type { JobsListView, JobView } from "../data";
@@ -23,26 +24,57 @@ const job: JobView = {
   score: 80,
   reasons: null,
   label: null,
-  note: { status: "preparing", body: null, cvVariant: null, blockedReason: null, email: null },
+  email: { status: "preparing", to: "jobs@acme.com", body: null, inGmail: false, blockedReason: null },
   failure: null,
 };
 
-const list: JobsListView = {
-  run: { startedAt: "2026-10-21T21:00:00Z", status: "succeeded", fetched: 40, kept: 12, costUsd: 0.2, warning: null },
-  failures: [],
-  top: [job],
-  alsoScored: [],
-  dropped: [],
-};
+const hackerNewsJob: JobView = { ...job, id: "job-2", title: "Backend Developer", source: "hackernews", topRank: null, score: 60, email: null };
+
+function listWith(himalayas: { top: JobView[]; more: JobView[] }, hackerNews = { top: [] as JobView[], more: [hackerNewsJob] }): JobsListView {
+  return {
+    run: { startedAt: "2026-10-21T21:00:00Z", status: "succeeded", fetched: 40, kept: 12, costUsd: 0.2, warning: null },
+    failures: [],
+    sources: [
+      { source: "himalayas", name: "Himalayas", ...himalayas },
+      { source: "hackernews", name: "Hacker News", ...hackerNews },
+    ],
+  };
+}
+const list = listWith({ top: [job], more: [] });
 
 const renderFailure = (shown: OpenFailure) => <p key={shown.id}>Failed: {shown.step}</p>;
 
-test("a job whose note failed shows the failure in place of the note", () => {
-  render(<JobsList list={{ ...list, top: [{ ...job, failure: failure("f1", "advance_writer") }] }} renderFailure={renderFailure} />);
+test("a job whose email failed shows the failure in place of the email", () => {
+  render(<JobsList list={listWith({ top: [{ ...job, failure: failure("f1", "advance_writer") }], more: [] })} renderFailure={renderFailure} />);
 
   const row = screen.getByRole("listitem");
   expect(within(row).getByText("Failed: advance_writer")).toBeInTheDocument();
-  expect(within(row).queryByText("Writing the note…")).not.toBeInTheDocument();
+  expect(within(row).queryByText(/Writing the email/)).not.toBeInTheDocument();
+});
+
+test("one tab per source, each with its own top jobs and the rest below by score", async () => {
+  const user = userEvent.setup();
+  render(<JobsList list={list} renderFailure={renderFailure} />);
+
+  // Himalayas is shown first.
+  expect(screen.getByRole("radio", { name: "Himalayas (1)" })).toBeChecked();
+  expect(screen.getByRole("heading", { name: "Full Stack Engineer" })).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Backend Developer" })).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("radio", { name: "Hacker News (1)" }));
+
+  expect(screen.getByRole("heading", { name: "Backend Developer" })).toBeInTheDocument();
+  expect(screen.getByText("No job from Hacker News fitted well enough to make the top this time.")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "More from Hacker News (1)" })).toBeInTheDocument();
+});
+
+test("a source with no new jobs says so", async () => {
+  const user = userEvent.setup();
+  render(<JobsList list={listWith({ top: [job], more: [] }, { top: [], more: [] })} renderFailure={renderFailure} />);
+
+  await user.click(screen.getByRole("radio", { name: "Hacker News (0)" }));
+
+  expect(screen.getByText("No new jobs from Hacker News this time.")).toBeInTheDocument();
 });
 
 test("the run's own failures and its warning are shown at the top", () => {

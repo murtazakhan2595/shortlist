@@ -5,7 +5,7 @@ import { advanceWriter, prepareListingApplication } from "@/features/application
 import { getCheckpointer } from "@/server/queue/checkpointer";
 import { getAdminClient } from "@/server/supabase/admin";
 
-// A listing's note (X2), or its email when the post gave an address (7.4), through the writer's queued steps, against the real database, its LangGraph
+// A listing's email when its post gave an address (7.4), through the writer's queued steps, against the real database, its LangGraph
 // checkpoints and the owner's real material, with a fake model. Queued steps are collected here and run
 // one by one, as the worker would.
 const invokeModel = vi.hoisted(() => vi.fn());
@@ -26,20 +26,6 @@ function modelAnswer(parsed: unknown) {
   });
   return { raw, parsed };
 }
-
-// Plain words only, within the job-board note's 50 to 100 words, so the code check passes on any profile.
-const NOTE = {
-  cvVariant: "full_stack",
-  presentedTitle: "Software Engineer",
-  emailPattern: "job-board-note",
-  subject: "",
-  body: [
-    "I build web products from the database up to the screens people use, and I write the tests that keep them working.",
-    "In my current work I plan features with the team, ship them in small steps, and stay with them after release until they work well for the people who use them every day.",
-    "I work remotely, overlap with your hours and can start soon.",
-  ].join(" "),
-  signature: "",
-};
 
 // An email in the post-reply pattern, plain words only, so the code check passes on any profile.
 const EMAIL = {
@@ -93,53 +79,26 @@ async function addListing(name: string, topRank: number | null, contactEmail: st
   return data.id;
 }
 
-/** Runs the writer's queued steps in order, as the worker would, until none are left but a Gmail draft. */
+/** Runs the writer's queued steps in order, as the worker would, leaving the steps that come after it. */
 async function runQueuedSteps(maxSteps = 12) {
-  for (let count = 0; queued.length > 0 && queued[0].step !== "create_gmail_draft" && count < maxSteps; count++) {
-    const next = queued.shift();
-    if (next?.step !== "advance_writer") throw new Error(`Unexpected step ${next?.step}`);
+  for (let count = 0; count < maxSteps; count++) {
+    const index = queued.findIndex((step) => step.step === "advance_writer");
+    if (index === -1) return;
+    const [next] = queued.splice(index, 1);
     await advanceWriter(next.payload as { applicationId: string });
   }
 }
 
-// Every stage saves a LangGraph checkpoint over the network, so the loop takes several seconds.
-test("a top listing gets one application with a checked note and a CV, and no Gmail draft", { timeout: 60_000 }, async () => {
+test("a top listing with only an apply link gets nothing written: notes were dropped", async () => {
   const run = await database.from("runs").insert({ id: runId, kind: "daily" });
   if (run.error) throw run.error;
-  const listingId = await addListing("top", 1);
-  invokeModel.mockResolvedValueOnce(modelAnswer(NOTE)).mockResolvedValueOnce(modelAnswer({ problems: [] }));
+  const listingId = await addListing("link-only", 1);
 
   await prepareListingApplication({ listingId });
-  await prepareListingApplication({ listingId });
 
-  const { data: started } = await database.from("applications").select("id").eq("listing_id", listingId);
-  expect(started).toHaveLength(1);
-  const applicationId = started?.[0].id ?? "";
-  applicationIds.push(applicationId);
-  expect(queued).toEqual([
-    { step: "advance_writer", payload: { applicationId } },
-    { step: "advance_writer", payload: { applicationId } },
-  ]);
-
-  await runQueuedSteps();
-
-  const { data: application } = await database
-    .from("applications")
-    .select("route, status, recipient_email, subject, body, cv_file_id, current_documents (name)")
-    .eq("id", applicationId)
-    .single();
-  expect(application).toMatchObject({
-    route: "note",
-    status: "ready",
-    recipient_email: null,
-    subject: null,
-    body: NOTE.body,
-    current_documents: { name: "job-board-note" },
-  });
-  expect(application?.cv_file_id).not.toBeNull();
-  // Both calls were the note steps, costed against the night's run (B1).
-  const { data: calls } = await database.from("model_calls").select("step").eq("run_id", runId).order("created_at");
-  expect(calls?.map((call) => call.step)).toEqual(["write_note", "check_note"]);
+  const { data } = await database.from("applications").select("id").eq("listing_id", listingId);
+  expect(data).toEqual([]);
+  expect(queued).toEqual([]);
 });
 
 test("a listing outside the top N gets no application", async () => {
@@ -157,9 +116,15 @@ test("a top listing whose post gave an address gets an email to that address, wh
   invokeModel.mockResolvedValueOnce(modelAnswer(EMAIL)).mockResolvedValueOnce(modelAnswer({ problems: [] }));
 
   await prepareListingApplication({ listingId });
-  const { data: started } = await database.from("applications").select("id").eq("listing_id", listingId).single();
-  const applicationId = started?.id ?? "";
+  await prepareListingApplication({ listingId });
+  const { data: started } = await database.from("applications").select("id").eq("listing_id", listingId);
+  expect(started).toHaveLength(1);
+  const applicationId = started?.[0].id ?? "";
   applicationIds.push(applicationId);
+  expect(queued).toEqual([
+    { step: "advance_writer", payload: { applicationId } },
+    { step: "advance_writer", payload: { applicationId } },
+  ]);
 
   await runQueuedSteps();
 
@@ -176,5 +141,11 @@ test("a top listing whose post gave an address gets an email to that address, wh
     subject: EMAIL.subject,
     current_documents: { name: "post-reply" },
   });
-  expect(queued.splice(0)).toEqual([{ step: "create_gmail_draft", payload: { applicationId } }]);
+  // The draft step comes next; the duplicate writer step queues it again, which the draft step allows for.
+  const after = queued.splice(0);
+  expect(after.length).toBeGreaterThan(0);
+  expect(after.every((step) => step.step === "create_gmail_draft" && (step.payload as { applicationId: string }).applicationId === applicationId)).toBe(true);
+  // Both calls were the email steps, costed against the night's run (B1).
+  const { data: calls } = await database.from("model_calls").select("step").eq("run_id", runId).order("created_at");
+  expect(calls?.map((call) => call.step)).toEqual(["write_email", "check_email"]);
 });

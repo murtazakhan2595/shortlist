@@ -95,7 +95,7 @@ These hold at every stage and override any individual requirement.
 | ID | Requirement | Stage |
 |---|---|---|
 | X1 | Where a contact email exists, create a draft in the owner's existing Gmail with the chosen CV attached. | 1 |
-| X2 | Where the job has only an apply link, choose the CV and write a short tailored note the owner can paste **(Q5)**. | 1 |
+| X2 | ~~Where the job has only an apply link, choose the CV and write a short tailored note the owner can paste **(Q5)**.~~ Dropped by the owner on 25 October 2026: the notes cost more than they were worth. A listing whose post gives an email address gets an email and a Gmail draft (PLAN.md item 7.4). | 1 |
 | X3 | Where the owner supplies the application form, answer it as in 5.5. | 1 |
 | X4 | Check every draft, note and answer against the profile and block any unsupported claim. | 1 |
 | X5 | Use the narrowest Gmail permission that can create drafts. That permission also allows sending, so the code must contain no send call, and a test must enforce this. | 1 |
@@ -206,7 +206,7 @@ No questions are open. All were decided on 13 October 2026.
 | Q2 | Seniority range | Mid-level and senior, up to five years required. Lead, staff and principal roles are dropped. |
 | Q3 | Pay below the floor | A listing that states pay below the owner's pay floor (a setting, in USD a month) is dropped. A listing that states no pay is kept. |
 | Q4 | Listings that do not say whether contractors or visa sponsorship are possible | Kept. Only listings that clearly exclude the owner are dropped. Pay at or above the floor is what matters. |
-| Q5 | What stage 1 prepares for job-board listings, which have an apply link and no email | The chosen CV and a short tailored note. Form answers on demand, from screenshots. |
+| Q5 | What stage 1 prepares for job-board listings, which have an apply link and no email | Nothing written: the score, its reasons and the link (owner, 25 October 2026; earlier, the chosen CV and a short tailored note). Form answers on demand, from screenshots. |
 | Q6 | Capturing posts on the phone | By screenshot, and by copying and pasting the post's text. Both are supported. |
 | Q7 | How the system learns that an application was sent | One tap in the app. Automatic detection later (L4). |
 | Q8 | How the profile and answer bank are edited | As plain documents in the app, not structured forms. |

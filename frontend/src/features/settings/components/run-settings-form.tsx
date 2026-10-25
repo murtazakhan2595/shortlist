@@ -45,7 +45,7 @@ export function RunSettingsForm({ settings }: { settings: UpdateSettingsInput })
   return (
     <form onSubmit={handleSubmit} onChange={() => setMessage(undefined)} className="flex flex-col gap-5">
       <div className="grid gap-5 sm:grid-cols-2">
-        <Field id="dailyTarget" label="Jobs on each night's list" hint="Each gets a note to paste.">
+        <Field id="dailyTarget" label="Top jobs per source" hint="Each night, the best from each source, by score; the rest are listed below them. A top job whose post gives an email gets a Gmail draft.">
           <Input id="dailyTarget" name="dailyTarget" aria-describedby="dailyTarget-hint" type="number" required min={1} max={100} step={1} defaultValue={settings.dailyTarget} />
         </Field>
         <Field id="monthlyCapUsd" label="Monthly spending cap, US dollars" hint="The nightly run stops when it is reached.">

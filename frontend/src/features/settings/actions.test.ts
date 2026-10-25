@@ -86,7 +86,7 @@ test("sets one step's model, and only a priced one (B1, B3)", async () => {
 test("a step with no model row is reported as not found", async () => {
   db.found = false;
 
-  const result = await updateStepModel({ step: "write_note", provider: "openai", model: "gpt-6-luna", effort: "high" });
+  const result = await updateStepModel({ step: "check_email", provider: "openai", model: "gpt-6-luna", effort: "high" });
 
   expect(result).toMatchObject({ ok: false, error: { code: "not_found" } });
 });
