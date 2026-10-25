@@ -34,7 +34,7 @@ It serves two purposes:
 4. Model spending stays within the monthly cap.
 5. Nothing has ever been sent or submitted without the owner doing it.
 
-**The job search works** when the system shows, per source, how many applications led to a reply and to an interview. No target number is set until two weeks of real data exist **(Q11)**.
+**The results are measured** when the system shows, per source, how many applications led to a reply and to an interview **(Q11)**.
 
 **The portfolio works** when the repository can be shown to an employer: a clear README, an architecture diagram, a results table for the quality checks across models, a cost report and a short demo video.
 
