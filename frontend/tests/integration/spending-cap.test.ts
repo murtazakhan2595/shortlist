@@ -4,6 +4,7 @@ import { fetchListings } from "@/features/discovery/steps/fetch-listings";
 import { scoreListing, selectTopListings } from "@/features/discovery/steps/score-listings";
 import { fetchHimalayasJobs } from "@/server/himalayas";
 import { getAdminClient } from "@/server/supabase/admin";
+import { TEST_RUN_STARTED_AT } from "./test-runs";
 
 // The nightly run at the monthly spending cap (B2), against the real database. The cap is faked as
 // reached, so the owner's real settings are never changed. No model or Himalayas call may happen.
@@ -41,7 +42,7 @@ afterAll(async () => {
 });
 
 async function addRun(): Promise<string> {
-  const { data, error } = await database.from("runs").insert({ kind: "daily" }).select("id").single();
+  const { data, error } = await database.from("runs").insert({ kind: "daily", started_at: TEST_RUN_STARTED_AT }).select("id").single();
   if (error) throw error;
   runIds.push(data.id);
   return data.id;

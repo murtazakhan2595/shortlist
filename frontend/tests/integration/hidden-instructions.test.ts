@@ -11,6 +11,7 @@ import type { DraftEmail } from "@/server/gmail/schemas";
 import { getCheckpointer } from "@/server/queue/checkpointer";
 import { STEP_NAMES } from "@/server/queue/step-names";
 import { getAdminClient } from "@/server/supabase/admin";
+import { TEST_RUN_STARTED_AT } from "./test-runs";
 
 // Hidden instructions in posts, forms and job listings (PLAN.md item 5.5; principle 4): they cause no
 // action and never change a draft's recipient. The model here is a fake that does whatever the hidden
@@ -221,7 +222,7 @@ describe("a job listing with hidden instructions", () => {
   });
 
   test("scoring it cannot touch other listings or add steps: the run only goes on to choosing its list", async () => {
-    const run = await database.from("runs").insert({ id: runId, kind: "daily" });
+    const run = await database.from("runs").insert({ id: runId, kind: "daily", started_at: TEST_RUN_STARTED_AT });
     if (run.error) throw run.error;
     const listing = await database
       .from("listings")
