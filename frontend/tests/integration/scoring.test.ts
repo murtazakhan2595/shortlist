@@ -3,6 +3,7 @@ import { AIMessage } from "@langchain/core/messages";
 import { afterAll, expect, test, vi } from "vitest";
 import { scoreListing, scoringGaveUp, selectTopListings } from "@/features/discovery/steps/score-listings";
 import { getAdminClient } from "@/server/supabase/admin";
+import { TEST_RUN_STARTED_AT } from "./test-runs";
 
 // The scoring steps against the real database and the owner's real profile, with a fake model.
 // Queued steps are collected here instead of going to the real queue.
@@ -66,7 +67,7 @@ async function addListing(name: string, eligibility: string, run = runId, contac
 }
 
 test("scores each listing once, then keeps the best ones by score, writes emails only where the post gave an address, and finishes the run", async () => {
-  const run = await database.from("runs").insert({ id: runId, kind: "daily" });
+  const run = await database.from("runs").insert({ id: runId, kind: "daily", started_at: TEST_RUN_STARTED_AT });
   if (run.error) throw run.error;
   const strong = await addListing("strong", "eligible", runId, "jobs@acme.example");
   const weak = await addListing("weak", "eligible");
@@ -114,7 +115,7 @@ test("scores each listing once, then keeps the best ones by score, writes emails
 });
 
 test("a listing that cannot be scored does not hold up the run, and one scored on a retry after the run just gets its score", async () => {
-  const run = await database.from("runs").insert({ id: secondRunId, kind: "daily" });
+  const run = await database.from("runs").insert({ id: secondRunId, kind: "daily", started_at: TEST_RUN_STARTED_AT });
   if (run.error) throw run.error;
   const scored = await addListing("scored", "eligible", secondRunId);
   const broken = await addListing("broken", "eligible", secondRunId);

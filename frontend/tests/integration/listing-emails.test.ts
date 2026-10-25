@@ -4,6 +4,7 @@ import { afterAll, expect, test, vi } from "vitest";
 import { advanceWriter, prepareListingApplication } from "@/features/applications/steps/writer-steps";
 import { getCheckpointer } from "@/server/queue/checkpointer";
 import { getAdminClient } from "@/server/supabase/admin";
+import { TEST_RUN_STARTED_AT } from "./test-runs";
 
 // A listing's email when its post gave an address (7.4), through the writer's queued steps, against the real database, its LangGraph
 // checkpoints and the owner's real material, with a fake model. Queued steps are collected here and run
@@ -90,7 +91,7 @@ async function runQueuedSteps(maxSteps = 12) {
 }
 
 test("a top listing with only an apply link gets nothing written: notes were dropped", async () => {
-  const run = await database.from("runs").insert({ id: runId, kind: "daily" });
+  const run = await database.from("runs").insert({ id: runId, kind: "daily", started_at: TEST_RUN_STARTED_AT });
   if (run.error) throw run.error;
   const listingId = await addListing("link-only", 1);
 

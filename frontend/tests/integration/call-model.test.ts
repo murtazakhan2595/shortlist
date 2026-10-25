@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vit
 import { z } from "zod";
 import { callModel } from "@/server/models/call-model";
 import { getAdminClient } from "@/server/supabase/admin";
+import { TEST_RUN_STARTED_AT } from "./test-runs";
 
 // callModel against the real database, with the provider replaced by a fake: tests never call a real model.
 const invokeModel = vi.hoisted(() => vi.fn());
@@ -31,7 +32,7 @@ describe("callModel", () => {
 
   // Calls are linked to a test run, so every row this test creates can be found and deleted.
   beforeAll(async () => {
-    const { data, error } = await database.from("runs").insert({ kind: "daily" }).select("id").single();
+    const { data, error } = await database.from("runs").insert({ kind: "daily", started_at: TEST_RUN_STARTED_AT }).select("id").single();
     if (error) throw error;
     runId = data.id;
   });

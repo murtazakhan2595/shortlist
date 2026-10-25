@@ -3,6 +3,7 @@ import { afterAll, beforeAll, expect, test, vi } from "vitest";
 import { getRecentApplications } from "@/features/applications/data";
 import { getOpenFailures } from "@/features/failed-steps/data";
 import { getAdminClient } from "@/server/supabase/admin";
+import { TEST_RUN_STARTED_AT } from "./test-runs";
 
 // The home page's reads against the real database. The owner check is replaced by the admin client,
 // as tests never sign in as the owner; the rows this test adds are deleted after it.
@@ -20,7 +21,7 @@ beforeAll(async () => {
   if (capture.error) throw capture.error;
   ids.capture = capture.data.id;
 
-  const run = await database.from("runs").insert({ id: ids.run, kind: "daily" });
+  const run = await database.from("runs").insert({ id: ids.run, kind: "daily", started_at: TEST_RUN_STARTED_AT });
   if (run.error) throw run.error;
   const listing = await database
     .from("listings")

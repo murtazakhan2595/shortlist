@@ -17,7 +17,13 @@ let listingId = "";
 const applicationIds: string[] = [];
 
 beforeAll(async () => {
-  const run = await database.from("runs").insert({ id: runId, kind: "daily", listings_fetched: 30, listings_kept: 9, listings_scored: 8 });
+  // Among the two weeks of runs the report shows, but just before the latest real one, so the app never
+  // takes it for the latest (test-runs.ts).
+  const latest = await database.from("runs").select("started_at").eq("kind", "daily").order("started_at", { ascending: false }).limit(1).maybeSingle();
+  const startedAt = new Date(new Date(latest.data?.started_at ?? Date.now()).getTime() - 60_000).toISOString();
+  const run = await database
+    .from("runs")
+    .insert({ id: runId, kind: "daily", started_at: startedAt, listings_fetched: 30, listings_kept: 9, listings_scored: 8 });
   if (run.error) throw run.error;
   const listing = await database
     .from("listings")

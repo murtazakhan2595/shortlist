@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, expect, test, vi } from "vitest";
 import { DISMISSED_REASON, dismissFailedStep, findOpenFailures, retryFailedStep } from "@/server/queue/failed-steps";
 import { getAdminClient } from "@/server/supabase/admin";
+import { TEST_RUN_STARTED_AT } from "./test-runs";
 
 // Failed steps against the real database. Queueing is replaced, so no step really runs again.
 const queued = vi.hoisted(() => ({ steps: [] as { step: string; payload: unknown }[], fail: false }));
@@ -95,7 +96,7 @@ test("dismissing stops what the step was working on from waiting for it for good
     database.from("applications").insert({ id: form, route: "form", fingerprint: `form:${form}` }),
     database.from("applications").insert({ id: note, route: "note", fingerprint: `test:${note}` }),
     database.from("captures").insert({ input_type: "text", raw_text: "A post", status: "processing" }).select("id").single(),
-    database.from("runs").insert({ kind: "daily" }).select("id").single(),
+    database.from("runs").insert({ kind: "daily", started_at: TEST_RUN_STARTED_AT }).select("id").single(),
   ]);
   for (const { error } of created) if (error) throw error;
   const capture = created[2].data?.id ?? "";

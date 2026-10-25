@@ -10,6 +10,7 @@ import {
 import type { HackerNewsPost } from "@/server/hacker-news";
 import type { HimalayasJob } from "@/server/himalayas";
 import { getAdminClient } from "@/server/supabase/admin";
+import { TEST_RUN_STARTED_AT } from "./test-runs";
 
 // The daily run's first steps against the real database, with Himalayas and Hacker News replaced by fakes.
 // The SQL rules themselves are tested in supabase/tests/database/listings.test.sql; this checks the app's
@@ -73,7 +74,7 @@ function job(id: string, expiryDate: number | null): HimalayasJob {
 }
 
 test("saves new listings whole, saves nothing the second time, and deletes expired ones", async () => {
-  const run = await database.from("runs").insert({ id: runId, kind: "daily" });
+  const run = await database.from("runs").insert({ id: runId, kind: "daily", started_at: TEST_RUN_STARTED_AT });
   if (run.error) throw run.error;
   const eligible = { eligibility: "eligible", eligibility_reason: null };
   const listings = [
@@ -108,7 +109,7 @@ test("saves new listings whole, saves nothing the second time, and deletes expir
 });
 
 test("the night reads each source in turn, saves its listings with the filter's decisions, once, and queues the kept ones to be scored", async () => {
-  const run = await database.from("runs").insert({ id: stepRunId, kind: "daily" });
+  const run = await database.from("runs").insert({ id: stepRunId, kind: "daily", started_at: TEST_RUN_STARTED_AT });
   if (run.error) throw run.error;
   const salesJob = { ...job("sales", null), title: "Account Manager", parentCategories: ["Sales"] };
   himalayasJobs.value = [job("developer", null), salesJob];
@@ -155,7 +156,7 @@ test("the night reads each source in turn, saves its listings with the filter's 
 });
 
 test("a source that failed every attempt is skipped, and the night goes on", async () => {
-  const run = await database.from("runs").insert({ id: gaveUpRunId, kind: "daily" });
+  const run = await database.from("runs").insert({ id: gaveUpRunId, kind: "daily", started_at: TEST_RUN_STARTED_AT });
   if (run.error) throw run.error;
 
   await fetchingGaveUp({ runId: gaveUpRunId });
