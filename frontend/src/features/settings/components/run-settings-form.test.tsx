@@ -16,8 +16,8 @@ test("shows the saved settings, and saves the edited ones with the countries and
   render(<RunSettingsForm settings={settings} />);
 
   expect(screen.getByLabelText("Excluded countries")).toHaveValue("India");
-  await user.clear(screen.getByLabelText("Jobs on each night's list"));
-  await user.type(screen.getByLabelText("Jobs on each night's list"), "12");
+  await user.clear(screen.getByLabelText("Top jobs per source"));
+  await user.type(screen.getByLabelText("Top jobs per source"), "12");
   await user.type(screen.getByLabelText("Excluded countries"), ", Nigeria ,");
   expect(screen.getByLabelText("Blocked companies")).toHaveValue("micro1");
   await user.type(screen.getByLabelText("Blocked companies"), ", KDCI");

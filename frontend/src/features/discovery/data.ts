@@ -1,4 +1,5 @@
 import "server-only";
+import { NIGHTLY_SOURCES } from "@/lib/source-names";
 import { requireOwner } from "@/server/auth/require-owner";
 import { findOpenFailures, type OpenFailure } from "@/server/queue/failed-steps";
 
@@ -21,18 +22,9 @@ export type JobView = {
   score: number | null;
   reasons: string | null;
   label: "apply" | "skip" | null;
-  /**
-   * What was prepared: a note to paste (X2), or an email when the post gave an address (7.4), which goes
-   * to the owner's Gmail drafts.
-   */
-  note: {
-    status: string;
-    body: string | null;
-    cvVariant: string | null;
-    blockedReason: string | null;
-    email: { to: string; inGmail: boolean } | null;
-  } | null;
-  /** Scoring this job, or starting or writing its note, failed every attempt (5.6). */
+  /** The email written when the post gave an address (7.4), which goes to the owner's Gmail drafts. */
+  email: { status: string; to: string; body: string | null; inGmail: boolean; blockedReason: string | null } | null;
+  /** Scoring this job, or starting or writing its email, failed every attempt (5.6). */
   failure: OpenFailure | null;
 };
 
@@ -41,7 +33,13 @@ const RUN_FINISHES_WITHIN_HOURS = 6;
 /** The schedule starts a run every 24 hours; a little longer allows for a late start. */
 const RUN_STARTS_EVERY_HOURS = 26;
 
-/** The latest daily run and its listings: the top N, the rest that were scored, and those the filter dropped. */
+/** One source's jobs from a night: its top N (the daily target), then the rest it kept, by score. */
+export type SourceJobs = { source: string; name: string; top: JobView[]; more: JobView[] };
+
+/**
+ * The latest daily run and its listings, by source (owner, 25 October 2026). Listings the filter dropped are
+ * kept in the database, so a job is not saved twice and the filter can be checked, but are not shown.
+ */
 export type JobsListView = {
   run: {
     startedAt: string;
@@ -54,9 +52,8 @@ export type JobsListView = {
   };
   /** Steps of the run itself (fetching, choosing the list) that failed every attempt. A job's own are on the job. */
   failures: OpenFailure[];
-  top: JobView[];
-  alsoScored: JobView[];
-  dropped: JobView[];
+  /** Every nightly source, in the order the night reads them, even one with no new jobs. */
+  sources: SourceJobs[];
 };
 
 /** The latest daily run's list, or null before the first run. */
@@ -76,16 +73,17 @@ export async function getJobsList(): Promise<JobsListView | null> {
     db
       .from("listings")
       .select(
-        "id, title, company, location, source, url, tags, eligibility, eligibility_reason, top_rank, label, scores (score, reasons), applications (id, route, status, body, blocked_reason, recipient_email, gmail_draft_id, cv_files (variant))",
+        "id, title, company, location, source, url, tags, eligibility, eligibility_reason, top_rank, label, scores (score, reasons), applications (id, route, status, body, blocked_reason, recipient_email, gmail_draft_id)",
       )
-      .eq("run_id", run.data.id),
+      .eq("run_id", run.data.id)
+      .neq("eligibility", "excluded"),
     db.from("model_calls").select("cost_usd").eq("run_id", run.data.id),
   ]);
   if (listings.error) throw new Error(`Could not load the run's listings: ${listings.error.message}`);
   if (calls.error) throw new Error(`Could not load the run's cost: ${calls.error.message}`);
 
-  // Failures name the run (fetching, choosing the list), a listing (scoring, starting its note) or its
-  // note's application (writing it).
+  // Failures name the run (fetching, choosing the list), a listing (scoring, starting its email) or its
+  // email's application (writing it).
   const runId = run.data.id;
   const failures = await findOpenFailures(db, [
     runId,
@@ -94,7 +92,8 @@ export async function getJobsList(): Promise<JobsListView | null> {
   ]);
 
   const jobs: JobView[] = listings.data.map((listing) => {
-    const [application] = listing.applications;
+    // Notes written before 25 October 2026 are not shown: only emails are prepared now.
+    const email = listing.applications.find((application) => application.route === "email" && application.recipient_email);
     const ownIds = [listing.id, ...listing.applications.map((own) => own.id)];
     return {
       id: listing.id,
@@ -110,18 +109,16 @@ export async function getJobsList(): Promise<JobsListView | null> {
       score: listing.scores?.score ?? null,
       reasons: listing.scores?.reasons ?? null,
       label: listing.label === "apply" || listing.label === "skip" ? listing.label : null,
-      note: application
-        ? {
-            status: application.status,
-            body: application.body,
-            cvVariant: application.cv_files?.variant ?? null,
-            blockedReason: application.blocked_reason,
-            email:
-              application.route === "email" && application.recipient_email
-                ? { to: application.recipient_email, inGmail: application.gmail_draft_id !== null }
-                : null,
-          }
-        : null,
+      email:
+        email?.recipient_email
+          ? {
+              status: email.status,
+              to: email.recipient_email,
+              body: email.body,
+              inGmail: email.gmail_draft_id !== null,
+              blockedReason: email.blocked_reason,
+            }
+          : null,
       failure: failures.find((failure) => failure.targetIds.some((id) => ownIds.includes(id))) ?? null,
     };
   });
@@ -138,12 +135,16 @@ export async function getJobsList(): Promise<JobsListView | null> {
     },
     failures: failures.filter((failure) => failure.targetIds.includes(runId)),
     // A listing dropped after ranking, because the owner blocked its company, keeps its rank (check E2) but
-    // leaves the list.
-    top: jobs
-      .filter((job) => job.topRank !== null && job.eligibility !== "excluded")
-      .sort((a, b) => (a.topRank ?? 0) - (b.topRank ?? 0)),
-    alsoScored: jobs.filter((job) => job.topRank === null && job.eligibility !== "excluded").sort(byScore),
-    dropped: jobs.filter((job) => job.eligibility === "excluded"),
+    // leaves the list: it is excluded, so it was not loaded.
+    sources: NIGHTLY_SOURCES.map(({ id, name }) => {
+      const fromSource = jobs.filter((job) => job.source === id);
+      return {
+        source: id,
+        name,
+        top: fromSource.filter((job) => job.topRank !== null).sort((a, b) => (a.topRank ?? 0) - (b.topRank ?? 0)),
+        more: fromSource.filter((job) => job.topRank === null).sort(byScore),
+      };
+    }),
   };
 }
 

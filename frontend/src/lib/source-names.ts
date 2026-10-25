@@ -4,8 +4,8 @@ const SOURCES: Record<string, { name: string; site: string }> = {
   hackernews: { name: "Hacker News", site: "https://news.ycombinator.com" },
 };
 
-/** Every source the nightly run reads, for the visible credit their terms ask for (D7). */
-export const NIGHTLY_SOURCES = Object.values(SOURCES);
+/** Every source the nightly run reads, in its order: one tab each on the Jobs page, and the credit (D7). */
+export const NIGHTLY_SOURCES = Object.entries(SOURCES).map(([id, source]) => ({ id, ...source }));
 
 /** "himalayas" -> "Himalayas"; a source with no name yet as it is stored. */
 export function sourceName(source: string): string {

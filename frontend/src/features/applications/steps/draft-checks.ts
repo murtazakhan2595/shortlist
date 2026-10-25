@@ -71,7 +71,7 @@ export function findDraftProblems(draft: EmailDraft, writer: WriterContext): str
   const pattern = writer.patterns.find((candidate) => candidate.name === draft.emailPattern);
 
   return [
-    ...lengthProblems(draft, writer.route, pattern?.content ?? ""),
+    ...lengthProblems(draft, pattern?.content ?? ""),
     ...BANNED_PHRASES.filter((phrase) => new RegExp(`\\b${escapeRegExp(phrase)}`, "i").test(text)).map(
       (phrase) => `Remove the banned phrase "${phrase}".`,
     ),
@@ -91,10 +91,9 @@ export function countWords(text: string): number {
   return text.split(/\s+/).filter(Boolean).length;
 }
 
-function lengthProblems(draft: EmailDraft, route: WriterContext["route"], patternContent: string): string[] {
+function lengthProblems(draft: EmailDraft, patternContent: string): string[] {
   const problems: string[] = [];
-  // A note has no subject.
-  if (route === "email" && !draft.subject.trim()) problems.push("The subject line is empty.");
+  if (!draft.subject.trim()) problems.push("The subject line is empty.");
   if (draft.subject.length > MAX_SUBJECT_LENGTH) problems.push(`The subject line is over ${MAX_SUBJECT_LENGTH} characters.`);
 
   // The pattern states its own length ("**Length:** 60–120 words"), so editing a pattern changes the check.

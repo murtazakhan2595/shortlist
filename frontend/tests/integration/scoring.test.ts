@@ -43,7 +43,7 @@ afterAll(async () => {
   }
 });
 
-async function addListing(name: string, eligibility: string, run = runId): Promise<string> {
+async function addListing(name: string, eligibility: string, run = runId, contactEmail: string | null = null): Promise<string> {
   const { data, error } = await database
     .from("listings")
     .insert({
@@ -57,6 +57,7 @@ async function addListing(name: string, eligibility: string, run = runId): Promi
       fingerprint: `${name}-${run}`,
       tags: ["remote"],
       run_id: run,
+      contact_email: contactEmail,
     })
     .select("id")
     .single();
@@ -64,10 +65,10 @@ async function addListing(name: string, eligibility: string, run = runId): Promi
   return data.id;
 }
 
-test("scores each listing once, then keeps the best ones, eligible before unclear, and finishes the run", async () => {
+test("scores each listing once, then keeps the best ones by score, writes emails only where the post gave an address, and finishes the run", async () => {
   const run = await database.from("runs").insert({ id: runId, kind: "daily" });
   if (run.error) throw run.error;
-  const strong = await addListing("strong", "eligible");
+  const strong = await addListing("strong", "eligible", runId, "jobs@acme.example");
   const weak = await addListing("weak", "eligible");
   const unclear = await addListing("unclear", "unclear");
 
@@ -95,14 +96,15 @@ test("scores each listing once, then keeps the best ones, eligible before unclea
   await selectTopListings({ runId });
 
   const { data: ranks } = await database.from("listings").select("id, top_rank").eq("run_id", runId);
+  // By score: an unclear listing is ranked like the rest, and the Jobs page shows what to check first.
   expect(Object.fromEntries((ranks ?? []).map(({ id, top_rank }) => [id, top_rank]))).toEqual({
-    [strong]: 1,
-    [unclear]: 2,
+    [unclear]: 1,
+    [strong]: 2,
     [weak]: null,
   });
-  // Each kept listing goes on to its note, once: the second pass finds the run finished and does nothing.
-  const noteStep = (listingId: string) => ({ step: "prepare_listing_application", payload: { listingId } });
-  expect(queued).toEqual([noteStep(strong), noteStep(unclear)]);
+  // Only the kept listing whose post gave an address goes on to its email, once: the second pass finds the
+  // run finished and does nothing.
+  expect(queued).toEqual([{ step: "prepare_listing_application", payload: { listingId: strong } }]);
   const { data: finished } = await database.from("runs").select("status, listings_scored").eq("id", runId).single();
   expect(finished).toEqual({ status: "succeeded", listings_scored: 3 });
 

@@ -16,27 +16,28 @@ import type { Json, Tables } from "@/server/supabase/database.types";
 //    visa-sponsoring when the posting says so. The last listing of the run to be scored queues step 2.
 //    A listing that cannot be scored, after every attempt, is left out (scoringGaveUp), so the rest of
 //    the run still gets its list; the owner sees the failure and can try it again.
-// 2. select_top_listings: ranks the run's scored listings, eligible ones before unclear ones, each by score,
-//    and keeps the top N (the daily target) that score at least MIN_SCORE_TO_KEEP, at most
-//    MAX_LISTINGS_PER_COMPANY from one company. Each kept listing is
-//    handed to the applications feature for its CV and note or email (prepare_listing_application, X2). Then the run
-//    is finished; the notes' costs still count towards it.
+// 2. select_top_listings: ranks each source's scored listings by score and keeps its top N (the daily
+//    target, per source: owner, 25 October 2026), each scoring at least MIN_SCORE_TO_KEEP, at most
+//    MAX_LISTINGS_PER_COMPANY from one company. A kept listing whose post gives an email address is handed to
+//    the applications feature for its email and Gmail draft (prepare_listing_application, 7.4); the others
+//    get nothing written, as notes were dropped. Then the run is finished; the emails' costs still count
+//    towards it.
 //
 // Both are safe to run twice: a scored listing is not scored again (one score per listing), choosing the
 // top listings again gives the same ranks, and a listing gets one application however often it is queued.
 //
 // Once this month's spending reaches the cap (B2), no more listings are scored: the run goes straight on
-// to choosing its list from those already scored, and no notes are queued.
+// to choosing its list from those already scored, and no emails are queued.
 
 const ListingPayloadSchema = z.object({ listingId: z.uuid() });
 const RunPayloadSchema = z.object({ runId: z.uuid() });
 
-/** The rubric's "moderate fit" line: a listing below it gets no note, whatever the daily target. */
+/** The rubric's "moderate fit" line: a listing below it never makes the top N, whatever the daily target. */
 export const MIN_SCORE_TO_KEEP = 45;
 
 /**
- * One company posting many similar listings must not fill the list and its paid notes (owner's decision,
- * 23 October 2026: one company took 8 of 20 places). The rest of its listings stay among the others scored.
+ * One company posting many similar listings must not fill the list (owner's decision, 23 October 2026: one
+ * company took 8 of 20 places). The rest of its listings stay among the others scored.
  */
 export const MAX_LISTINGS_PER_COMPANY = 2;
 
@@ -273,12 +274,16 @@ export async function selectTopListings(payload: Json): Promise<void> {
 
   const [settings, listings] = await Promise.all([
     db.from("settings").select("daily_target").single(),
-    db.from("listings").select("id, company, eligibility, scores (score)").eq("run_id", runId).neq("eligibility", "excluded"),
+    db
+      .from("listings")
+      .select("id, source, company, contact_email, scores (score)")
+      .eq("run_id", runId)
+      .neq("eligibility", "excluded"),
   ]);
   if (settings.error) throw new Error(`Could not load the daily target: ${settings.error.message}`);
   if (listings.error) throw new Error(`Could not load the run's listings: ${listings.error.message}`);
 
-  const scored = listings.data.map(({ id, company, eligibility, scores }) => ({ id, company, eligibility, score: scores?.score ?? null }));
+  const scored = listings.data.map(({ id, source, company, scores }) => ({ id, source, company, score: scores?.score ?? null }));
   const top = topListings(scored, settings.data.daily_target);
 
   // Ranked again from scratch, so a second pass that saw more scores never leaves an earlier pass's ranks.
@@ -286,17 +291,18 @@ export async function selectTopListings(payload: Json): Promise<void> {
   const cleared = await db.from("listings").update({ top_rank: null }).eq("run_id", runId).neq("eligibility", "excluded");
   if (cleared.error) throw new Error(`Could not clear the run's ranks: ${cleared.error.message}`);
   await Promise.all(
-    top.map(async (listingId, index) => {
-      const ranked = await db.from("listings").update({ top_rank: index + 1 }).eq("id", listingId);
-      if (ranked.error) throw new Error(`Could not rank listing ${listingId}: ${ranked.error.message}`);
+    top.map(async ({ id, rank }) => {
+      const ranked = await db.from("listings").update({ top_rank: rank }).eq("id", id);
+      if (ranked.error) throw new Error(`Could not rank listing ${id}: ${ranked.error.message}`);
     }),
   );
 
-  // Queued together, waking the worker once, so the notes are written a few at a time, not all at once.
-  // None at the cap: the list is still ranked, and the owner writes the notes.
-  const notes = (await loadSpendingCap(db)).reached ? [] : top;
-  await Promise.all(notes.map((listingId) => enqueueStep(STEP_NAMES.prepareListingApplication, { listingId }, { wake: false })));
-  if (notes.length > 0) await wakeWorker();
+  // Queued together, waking the worker once, so the emails are written a few at a time, not all at once.
+  // None at the cap: the list is still ranked, and the owner writes the emails.
+  const withEmail = new Set(listings.data.filter((listing) => listing.contact_email).map((listing) => listing.id));
+  const emails = (await loadSpendingCap(db)).reached ? [] : top.filter(({ id }) => withEmail.has(id));
+  await Promise.all(emails.map(({ id }) => enqueueStep(STEP_NAMES.prepareListingApplication, { listingId: id }, { wake: false })));
+  if (emails.length > 0) await wakeWorker();
 
   const counted = await db
     .from("runs")
@@ -306,29 +312,32 @@ export async function selectTopListings(payload: Json): Promise<void> {
   await finishRun(runId);
 }
 
-type ScoredListing = { id: string; company: string; eligibility: string; score: number | null };
+type ScoredListing = { id: string; source: string; company: string; score: number | null };
 
 /**
- * The ids of the top listings, best first: eligible ones before unclear ones (D4), each by score, only those
- * scoring at least MIN_SCORE_TO_KEEP, at most MAX_LISTINGS_PER_COMPANY from one company (its best ones), and
- * at most the daily target (D5, Q1).
+ * Each source's top listings with their rank there, best first (D5, Q1): by score, only those scoring at
+ * least MIN_SCORE_TO_KEEP, at most MAX_LISTINGS_PER_COMPANY from one company (its best ones), and at most
+ * the daily target from each source. An unclear listing is ranked by its score like the rest; the Jobs page
+ * shows what to check first.
  */
-export function topListings(listings: ScoredListing[], dailyTarget: number): string[] {
-  const unclearLast = (listing: ScoredListing) => (listing.eligibility === "unclear" ? 1 : 0);
+export function topListings(listings: ScoredListing[], perSource: number): { id: string; rank: number }[] {
   const ranked = listings
     .filter((listing): listing is ScoredListing & { score: number } => listing.score !== null && listing.score >= MIN_SCORE_TO_KEEP)
-    .sort((a, b) => unclearLast(a) - unclearLast(b) || b.score - a.score);
+    .sort((a, b) => b.score - a.score);
 
-  const top: string[] = [];
+  const top: { id: string; rank: number }[] = [];
+  const keptPerSource = new Map<string, number>();
   const keptPerCompany = new Map<string, number>();
   for (const listing of ranked) {
-    if (top.length === dailyTarget) break;
+    const keptFromSource = keptPerSource.get(listing.source) ?? 0;
+    if (keptFromSource === perSource) continue;
     // Compared as the duplicate key writes names, so "Acme" and "ACME." are one company.
     const company = slugify(listing.company);
     const kept = keptPerCompany.get(company) ?? 0;
     if (kept === MAX_LISTINGS_PER_COMPANY) continue;
     keptPerCompany.set(company, kept + 1);
-    top.push(listing.id);
+    keptPerSource.set(listing.source, keptFromSource + 1);
+    top.push({ id: listing.id, rank: keptFromSource + 1 });
   }
   return top;
 }

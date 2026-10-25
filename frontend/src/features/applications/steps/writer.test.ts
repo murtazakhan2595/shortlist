@@ -9,7 +9,6 @@ import { buildWriterGraph, MAX_DRAFTS, START_STATE, writerOutcome } from "./writ
 vi.mock("@/server/models/call-model", () => ({ callModel: vi.fn() }));
 
 const writer: WriterContext = {
-  route: "email",
   link: {},
   post: { text: "Hiring a React Developer. Email hr@acme.example", role: "React Developer", company: null, posterName: null, seenOn: "LinkedIn" },
   recipientEmail: "hr@acme.example",
@@ -34,7 +33,7 @@ const draftWithInventedNumber = { ...goodDraft, body: "Hi team, I have 9 years w
 /** Answers each model call by its step: drafts in order for a write step, problem lists for a check step. */
 function fakeModel(drafts: EmailDraft[], reviews: string[][]) {
   vi.mocked(callModel).mockImplementation(async (request) => {
-    const output = request.step === "write_email" || request.step === "write_note" ? drafts.shift() : { problems: (reviews.shift() ?? []).map((reason) => ({ quote: "q", reason })) };
+    const output = request.step === "write_email" ? drafts.shift() : { problems: (reviews.shift() ?? []).map((reason) => ({ quote: "q", reason })) };
     return { output, modelCallId: "call" } as Awaited<ReturnType<typeof callModel>>;
   });
 }
@@ -115,29 +114,5 @@ test("tells both calls where the post was seen, and caches the owner's material"
   expect(JSON.stringify(write.messages)).toContain("saw this post on LinkedIn");
   expect(JSON.stringify(check.messages)).toContain("saw this post on LinkedIn");
   expect(write.messages[1]).toMatchObject({ role: "user", content: [{ type: "text", cache: true }] });
-});
-
-test("a note uses the note steps and pattern, and has no subject or signature", async () => {
-  const noteDraft = { ...goodDraft, emailPattern: "job-board-note", subject: "Not wanted", signature: "Not wanted" };
-  fakeModel([noteDraft], [[]]);
-  const noteWriter: WriterContext = {
-    ...writer,
-    route: "note",
-    recipientEmail: null,
-    patterns: [{ id: "p2", name: "job-board-note", content: "**Length:** 3–30 words" }],
-  };
-  const graph = buildWriterGraph(new MemorySaver());
-
-  const state = await graph.invoke(START_STATE, {
-    configurable: { thread_id: "note" },
-    context: { writer: noteWriter, models: undefined },
-  });
-
-  expect(writerOutcome(state)).toBe("ready");
-  expect(state.draft).toMatchObject({ subject: "", signature: "", body: goodDraft.body });
-  expect(stepsCalled("write_email")).toHaveLength(0);
-  const [[write]] = stepsCalled("write_note");
-  expect(stepsCalled("check_note")).toHaveLength(1);
-  expect(JSON.stringify(write.messages)).toContain("No links, no greeting and no sign-off");
 });
 

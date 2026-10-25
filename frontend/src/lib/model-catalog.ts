@@ -10,8 +10,6 @@ export const MODEL_STEPS = [
   "answer_form",
   "check_form_answers",
   "score_listing",
-  "write_note",
-  "check_note",
 ] as const;
 export type ModelStep = (typeof MODEL_STEPS)[number];
 

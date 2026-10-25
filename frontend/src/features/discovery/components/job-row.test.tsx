@@ -23,7 +23,7 @@ const JOB: JobView = {
   score: 84,
   reasons: "Strengths:\n- React",
   label: null,
-  note: { status: "ready", body: "I build React apps.", cvVariant: "ai_full_stack", blockedReason: null, email: null },
+  email: null,
   failure: null,
 };
 
@@ -39,15 +39,13 @@ beforeEach(() => {
   vi.mocked(labelListing).mockReset();
 });
 
-test("shows the job, its score, its note to copy, the CV and the link to Himalayas", () => {
+test("shows the job, its score and the link to Himalayas, with nothing written for a job with only a link", () => {
   renderRow();
 
   expect(screen.getByRole("heading", { name: "Full Stack Engineer" })).toBeInTheDocument();
   expect(screen.getByText("Acme, Worldwide, remote, sponsors visas")).toBeInTheDocument();
   expect(screen.getByText("84")).toBeInTheDocument();
-  expect(screen.getByText("I build React apps.")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument();
-  expect(screen.getByText("Send your ai full stack CV.")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Copy" })).not.toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Open the job on Himalayas" })).toHaveAttribute("href", JOB.url);
 });
 
@@ -85,22 +83,22 @@ test("a mark that was not saved goes back, and says why", async () => {
   expect(screen.getByRole("button", { name: "Apply" })).toHaveAttribute("aria-pressed", "false");
 });
 
-test("an unclear job says what to check, and a stopped note says why and to write it yourself", () => {
+test("an unclear job says what to check, and a stopped email says why and to write it yourself", () => {
   renderRow({
     ...JOB,
     eligibility: "unclear",
     eligibilityReason: "Mentions work authorisation or where you must live",
-    note: {
+    email: {
       status: "blocked",
+      to: "jobs@acme.com",
       body: null,
-      cvVariant: null,
-      blockedReason: "The body has 140 words; the job-board-note pattern needs 40 to 90.\nRemove the banned phrase \"leverage\".",
-      email: null,
+      inGmail: false,
+      blockedReason: "The body has 140 words; the post-reply pattern needs 60 to 120.\nRemove the banned phrase \"leverage\".",
     },
   });
 
   expect(screen.getByText(/Mentions work authorisation/)).toBeInTheDocument();
-  expect(screen.getByText(/Write this one yourself/)).toBeInTheDocument();
+  expect(screen.getByText(/Write to jobs@acme.com yourself/)).toBeInTheDocument();
   expect(screen.getByText(/The body has 140 words/)).toBeInTheDocument();
   expect(screen.getByText(/Remove the banned phrase/)).toBeInTheDocument();
 });
@@ -139,20 +137,17 @@ test("a Hacker News job links to its post there", () => {
   expect(screen.getByRole("link", { name: "Open the job on Hacker News" })).toHaveAttribute("href", "https://news.ycombinator.com/item?id=1");
 });
 
-test("an email for a post that gave an address says who it goes to and that it is in Gmail, with no CV line", () => {
-  renderRow({
-    ...JOB,
-    note: { status: "ready", body: "Hello, I build React apps.", cvVariant: "full_stack", blockedReason: null, email: { to: "jobs@acme.com", inGmail: true } },
-  });
+test("an email for a post that gave an address says who it goes to and that it is in Gmail, to copy too", () => {
+  renderRow({ ...JOB, email: { status: "ready", to: "jobs@acme.com", body: "Hello, I build React apps.", inGmail: true, blockedReason: null } });
 
   expect(screen.getByText("Email to jobs@acme.com:")).toBeInTheDocument();
   expect(screen.getByText(/in your Gmail drafts, with your CV attached/)).toBeInTheDocument();
   expect(screen.getByText("Hello, I build React apps.")).toBeInTheDocument();
-  expect(screen.queryByText(/Send your/)).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument();
 });
 
 test("an email still being written says so", () => {
-  renderRow({ ...JOB, note: { status: "preparing", body: null, cvVariant: null, blockedReason: null, email: { to: "jobs@acme.com", inGmail: false } } });
+  renderRow({ ...JOB, email: { status: "preparing", to: "jobs@acme.com", body: null, inGmail: false, blockedReason: null } });
 
-  expect(screen.getByText("Writing the email…")).toBeInTheDocument();
+  expect(screen.getByText("Writing the email to jobs@acme.com…")).toBeInTheDocument();
 });

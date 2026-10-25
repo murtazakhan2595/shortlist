@@ -3,31 +3,33 @@ import type { OpenFailure } from "@/server/queue/failed-steps";
 import { AutoRefresh } from "@/components/ui/auto-refresh";
 import { formatUsd } from "@/lib/format";
 import { NIGHTLY_SOURCES } from "@/lib/source-names";
-import type { JobsListView } from "../data";
+import type { JobsListView, SourceJobs } from "../data";
 import { JobRow } from "./job-row";
+import { SourceTabs } from "./source-tabs";
 
 const RUN_DATE = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Karachi" });
 
 type RenderFailure = (failure: OpenFailure) => ReactNode;
 
 /**
- * The night's list: the top jobs to apply to, then the rest that were scored, then what the filter dropped.
- * renderFailure shows a step that failed every attempt: the run's own at the top, a job's on the job.
+ * The night's jobs, one tab per source: its top jobs, then the rest it kept, by score. renderFailure shows a
+ * step that failed every attempt: the run's own at the top, a job's on the job.
  */
 export function JobsList({ list, renderFailure }: { list: JobsListView | null; renderFailure: RenderFailure }) {
   if (!list) {
     return (
       <p className="max-w-prose text-ink-muted">
         No list yet. Every night at 02:00, Shortlist finds new jobs on {NIGHTLY_SOURCES.map((source) => source.name).join(" and ")},
-        ranks them against your profile and prepares a note or email for the best ones. They appear here.
+        ranks them against your profile and writes an email for the best ones that give an address. They appear here.
       </p>
     );
   }
 
-  const { run, top, alsoScored, dropped } = list;
+  const { run } = list;
   const running = run.status === "running";
   // A step of the run that failed for good needs the owner, so the page stops checking for progress on its own.
   const stuck = list.failures.length > 0 || run.warning !== null;
+  const onList = list.sources.reduce((total, source) => total + source.top.length, 0);
   return (
     <div className="flex flex-col gap-8">
       {run.warning && (
@@ -41,49 +43,16 @@ export function JobsList({ list, renderFailure }: { list: JobsListView | null; r
         {running && !stuck && <AutoRefresh />}
         {running ? "Still working on the list from " : "Found on "}
         {RUN_DATE.format(new Date(run.startedAt))}: {run.fetched} {run.fetched === 1 ? "job" : "jobs"} read, {run.kept} new
-        ones kept after the filter, {top.length} on your list. Cost {formatUsd(run.costUsd)}.
+        ones kept after the filter, {onList} on your lists. Cost {formatUsd(run.costUsd)}.
       </p>
 
-      {top.length > 0 ? (
-        <ol className="flex flex-col border-b border-rule">
-          {top.map((job) => (
-            <JobRow key={job.id} job={job} failureNotice={job.failure && renderFailure(job.failure)} />
-          ))}
-        </ol>
-      ) : (
-        !running && <p className="text-ink-muted">No job fitted well enough to make the list this time.</p>
-      )}
-
-      {alsoScored.length > 0 && (
-        <details>
-          <summary className="cursor-pointer text-lg font-semibold">Also scored ({alsoScored.length})</summary>
-          <p className="pt-2 text-sm text-ink-muted">
-            Below the list: a lower score, or more than your daily target. Mark any you would apply to anyway.
-          </p>
-          <ul className="flex flex-col pt-2">
-            {alsoScored.map((job) => (
-              <JobRow key={job.id} job={job} failureNotice={job.failure && renderFailure(job.failure)} />
-            ))}
-          </ul>
-        </details>
-      )}
-
-      {dropped.length > 0 && (
-        <details>
-          <summary className="cursor-pointer text-lg font-semibold">Dropped by the filter ({dropped.length})</summary>
-          <p className="pt-2 text-sm text-ink-muted">Never scored. If one should not have been dropped, the filter needs a fix.</p>
-          <ul className="flex flex-col pt-2">
-            {dropped.map((job) => (
-              <li key={job.id} className="flex flex-col gap-1 border-t border-rule py-3 text-sm">
-                <a href={job.url} target="_blank" rel="noreferrer" className="font-medium underline">
-                  {job.title}, {job.company}
-                </a>
-                <span className="text-ink-muted">{job.eligibilityReason}</span>
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
+      <SourceTabs
+        tabs={list.sources.map((source) => ({
+          source: source.source,
+          label: `${source.name} (${source.top.length + source.more.length})`,
+          content: <SourceList jobs={source} running={running} renderFailure={renderFailure} />,
+        }))}
+      />
 
       <p className="text-sm text-ink-muted">
         Jobs from{" "}
@@ -97,6 +66,38 @@ export function JobsList({ list, renderFailure }: { list: JobsListView | null; r
         ))}
         . Apply through each job&apos;s own link.
       </p>
+    </div>
+  );
+}
+
+/** One source's jobs: its top ones, numbered, then the rest it kept, by score. */
+function SourceList({ jobs, running, renderFailure }: { jobs: SourceJobs; running: boolean; renderFailure: RenderFailure }) {
+  if (jobs.top.length === 0 && jobs.more.length === 0) {
+    return !running && <p className="text-ink-muted">No new jobs from {jobs.name} this time.</p>;
+  }
+  return (
+    <div className="flex flex-col gap-8">
+      {jobs.top.length > 0 ? (
+        <ol className="flex flex-col border-b border-rule">
+          {jobs.top.map((job) => (
+            <JobRow key={job.id} job={job} failureNotice={job.failure && renderFailure(job.failure)} />
+          ))}
+        </ol>
+      ) : (
+        !running && <p className="text-ink-muted">No job from {jobs.name} fitted well enough to make the top this time.</p>
+      )}
+
+      {jobs.more.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-lg font-semibold">More from {jobs.name} ({jobs.more.length})</h2>
+          <p className="text-sm text-ink-muted">By score, below the top. Mark any you would apply to anyway.</p>
+          <ul className="flex flex-col">
+            {jobs.more.map((job) => (
+              <JobRow key={job.id} job={job} failureNotice={job.failure && renderFailure(job.failure)} />
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

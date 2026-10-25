@@ -51,10 +51,9 @@ export const E4_WRITER: EvalCheck<WriterCase, WriterStateValues> = {
   passBar: 1,
   caseSchema: WriterCaseSchema,
   async run(testCase, model, link) {
-    const material = await loadWriterMaterial("email");
+    const material = await loadWriterMaterial();
     const writer = {
       ...material,
-      route: "email" as const,
       link,
       post: {
         text: readPrivateFile(testCase.file).toString("utf8"),

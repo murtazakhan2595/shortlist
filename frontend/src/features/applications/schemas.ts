@@ -38,19 +38,14 @@ export type EmailDraft = {
 
 /**
  * Everything a draft is written from: the post and the owner's material, loaded at every stage. The
- * material is the owner's (OwnerMaterial), with only the email patterns this route may follow.
+ * material is the owner's (OwnerMaterial), with only the email patterns the writer may follow.
  */
 export type WriterContext = Omit<OwnerMaterial, "emailPatterns"> & {
-  /**
-   * "email": an email for a captured post with a contact address. "note": a short note the owner pastes
-   * into the application of a listing that has only an apply link (X2, Q5).
-   */
-  route: "email" | "note";
   /** Model calls are linked to these, so each draft can be explained afterwards (B1). */
   link: { runId?: string; applicationId?: string };
   post: { text: string; role: string | null; company: string | null; posterName: string | null; seenOn: string };
-  /** Always the address from the capture, never one a model wrote (principle 4). Null for a note. */
-  recipientEmail: string | null;
+  /** Always the address read from the post by code, never one a model wrote (principle 4). */
+  recipientEmail: string;
   patterns: OwnerMaterial["emailPatterns"];
 };
 

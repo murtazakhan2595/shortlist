@@ -47,7 +47,7 @@ async function addRun(): Promise<string> {
   return data.id;
 }
 
-async function addListing(runId: string, name: string, topRank: number | null = null): Promise<string> {
+async function addListing(runId: string, name: string, topRank: number | null = null, contactEmail: string | null = null): Promise<string> {
   const { data, error } = await database
     .from("listings")
     .insert({
@@ -61,6 +61,7 @@ async function addListing(runId: string, name: string, topRank: number | null = 
       fingerprint: `cap-${name}-${runId}`,
       run_id: runId,
       top_rank: topRank,
+      contact_email: contactEmail,
     })
     .select("id")
     .single();
@@ -93,9 +94,9 @@ test("at the cap, a listing is not scored, and the run goes on to choose from th
   expect(queued).toEqual([{ step: "select_top_listings", payload: { runId } }]);
 });
 
-test("at the cap, the list is still chosen, but no notes are queued", async () => {
+test("at the cap, the list is still chosen, but no emails are queued", async () => {
   const runId = await addRun();
-  const listingId = await addListing(runId, "scored");
+  const listingId = await addListing(runId, "scored", null, "jobs@acme.example");
   const score = await database.from("scores").insert({ listing_id: listingId, score: 80, reasons: "test" });
   if (score.error) throw score.error;
 
@@ -108,9 +109,9 @@ test("at the cap, the list is still chosen, but no notes are queued", async () =
   await database.from("scores").delete().eq("listing_id", listingId);
 });
 
-test("at the cap, a note already queued is stopped without a model call, saying why", async () => {
+test("at the cap, a listing's email already queued is stopped without a model call, saying why", async () => {
   const runId = await addRun();
-  const listingId = await addListing(runId, "top", 1);
+  const listingId = await addListing(runId, "top", 1, "jobs@acme.example");
 
   await prepareListingApplication({ listingId });
   const [{ payload }] = queued;
