@@ -85,7 +85,7 @@ const NON_TECHNICAL_CATEGORIES = [
   "Product",
   "Education",
 ];
-const TECHNICAL_TITLE =
+export const TECHNICAL_TITLE =
   /engineer|developer|programmer|software|full[- ]?stack|front[- ]?end|back[- ]?end|web|mobile|\bios\b|android|\bai\b|\bml\b|machine learning|\bllm|data|devops|cloud|platform|architect|automation|integration|technical|technology|\bit\b|\bqa\b|\bsre\b|python|java|react|node|typescript|javascript|\.net|php|laravel/i;
 
 function isNonTechnical(listing: Listing): boolean {
@@ -100,11 +100,15 @@ const LEVELS_ABOVE_RANGE = ["Manager", "Director", "Executive"];
 const TITLE_ABOVE_RANGE = /\b(lead|staff|principal|head of|director|vp|vice president|chief|cto)\b/i;
 const MAX_YEARS_REQUIRED = 5;
 
-/** A title can name several roles ("Staff Engineer, Senior Engineer"): dropped only when every one is above. */
 function isAboveSeniorityRange(listing: Listing): boolean {
   const labelledAbove = listing.seniority.length > 0 && listing.seniority.every((level) => LEVELS_ABOVE_RANGE.includes(level));
-  const roles = listing.title.split(/[,;/&]|\band\b/i).filter((role) => role.trim() !== "");
-  return labelledAbove || (roles.length > 0 && roles.every((role) => TITLE_ABOVE_RANGE.test(role)));
+  return labelledAbove || isTitleAboveRange(listing.title);
+}
+
+/** A title can name several roles ("Staff Engineer, Senior Engineer"): above only when every one is. */
+export function isTitleAboveRange(title: string): boolean {
+  const roles = title.split(/[,;/&]|\band\b/i).filter((role) => role.trim() !== "");
+  return roles.length > 0 && roles.every((role) => TITLE_ABOVE_RANGE.test(role));
 }
 
 // "5+ years of experience", "3-5 years of professional backend experience", "7 years' experience". Only a
@@ -191,6 +195,17 @@ function remoteScope(text: string): "open" | "limited" | "unsaid" {
   if (places.length > 0) return "limited";
   if (REMOTE_IN_AREA_WORDS.test(text) || REMOTE_IN_AREA_CODES.test(text)) return "limited";
   return "unsaid";
+}
+
+// A job board's location field: "Remote", "Remote - US", "Canada (Remote)", "Remote; London".
+const REMOTE_LOCATION = /\b(remote|distributed|anywhere)\b/i;
+const WORK_MODEL_WORDS = /\b(remote|distributed|anywhere|fully|work from home|wfh)\b|100%/gi;
+
+/** Open only when it says remote and names no place, or a place that includes the owner's country. */
+export function isOpenRemoteLocation(location: string): boolean {
+  if (OPEN_TO_OWNER.test(location)) return true;
+  if (!REMOTE_LOCATION.test(location)) return false;
+  return location.replace(WORK_MODEL_WORDS, "").replace(/[\s\p{P}]/gu, "") === "";
 }
 
 function checkLocation(listing: Listing): { excluded?: string; doubt?: string } {

@@ -187,6 +187,39 @@ export type Database = {
           },
         ]
       }
+      company_boards: {
+        Row: {
+          checked_at: string | null
+          company: string | null
+          created_at: string
+          matched_at: string | null
+          next_check_at: string | null
+          provider: string
+          slug: string
+          status: string
+        }
+        Insert: {
+          checked_at?: string | null
+          company?: string | null
+          created_at?: string
+          matched_at?: string | null
+          next_check_at?: string | null
+          provider: string
+          slug: string
+          status?: string
+        }
+        Update: {
+          checked_at?: string | null
+          company?: string | null
+          created_at?: string
+          matched_at?: string | null
+          next_check_at?: string | null
+          provider?: string
+          slug?: string
+          status?: string
+        }
+        Relationships: []
+      }
       cv_files: {
         Row: {
           created_at: string
@@ -641,6 +674,26 @@ export type Database = {
       }
     }
     Functions: {
+      add_boards_to_check: { Args: { boards: Json }; Returns: undefined }
+      boards_to_check: {
+        Args: { how_many: number; providers: string[] }
+        Returns: {
+          checked_at: string | null
+          company: string | null
+          created_at: string
+          matched_at: string | null
+          next_check_at: string | null
+          provider: string
+          slug: string
+          status: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "company_boards"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       complete_step: {
         Args: { message_id: number; queue_name: string }
         Returns: undefined

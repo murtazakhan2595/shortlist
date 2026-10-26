@@ -374,6 +374,24 @@ Owner's decisions (24 October 2026): a post with an email gets a Gmail draft; th
 - **Top N per source, by score.** The daily target is now the number of top jobs from each source ("Top jobs per source" in Settings). Each source's top is by score, at least 45, at most two from one company; an unclear job is ranked by its score like the rest and keeps its "check first" line.
 - **Jobs page.** One tab per source, each with its top jobs and then the rest it kept, by score. Listings the filter dropped are no longer shown; they stay in the database, so a job is not saved twice and the filter can be checked.
 
+### Sprint 8: Company boards (Greenhouse, Lever, Ashby)
+
+**Goal:** jobs from companies that hire through Greenhouse, Lever and Ashby reach the nightly list, read only from boards that have remote developer jobs open to Pakistan.
+
+Owner's decisions (26 October 2026): a watchlist kept by code, not every board every night; answers to a job's published questions are written only when the owner taps "Draft answers", never for every job; one Jobs page tab per provider.
+
+Checked before the build (26 October 2026): Greenhouse's Job Board API says its data "is publicly available, so authentication is not required for any GET endpoints", with no published rate limit. Feashliaa's lists hold 8,333 Greenhouse, 4,368 Lever and 3,161 Ashby boards (MIT, refreshed daily). Of 200 Greenhouse boards sampled, 118 answered, and 19 had a remote developer job whose location named no region.
+
+| ID | Track | Item | Done when |
+|---|---|---|---|
+| 8.1 | A | Company watchlist | Every night the boards on Feashliaa's lists are added, and up to 2,500 due boards are read, titles only, with no model call: a board with a remote developer job open to Pakistan is watched, one with none is idle and read again after 30 days, one that no longer exists is gone. A board linked from a kept post is added, or checked again that night (D8) |
+| 8.2 | A | Greenhouse reader | Each night's run reads the watched Greenhouse boards and fetches the full post only for new jobs whose title passes; they are converted to the common format and filtered strictly on location; a watched board with no such job for 30 days goes back to idle |
+| 8.3 | A | Lever and Ashby readers | The same for Lever and Ashby boards, with Ashby's pay read from its posting |
+| 8.4 | C | Answers from published questions | A Greenhouse job has a "Draft answers" button that reads its questions from the API and prepares the answers as a form does, with no screenshots; nothing is written until the owner asks (X7) |
+| 8.5 | D | Pages | The Jobs page has a tab for each provider, and each job links back to its board |
+
+**Exit check:** a week after 8.1 is live, every board has been checked once and the watchlist holds the boards with remote developer jobs; Greenhouse, Lever and Ashby jobs reach the nightly list.
+
 ## 8. Risks
 
 | Risk | What to do |
