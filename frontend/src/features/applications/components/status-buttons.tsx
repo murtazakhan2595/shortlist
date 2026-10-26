@@ -9,7 +9,7 @@ type OwnerStatus = (typeof OWNER_SET_STATUSES)[number];
 
 const LABELS: Record<OwnerStatus, string> = { sent: "Sent", skipped: "Skipped", replied: "Replied", interview: "Interview" };
 
-/** Where the owner has got to with an application, one tap each (U2, Q7). The tap shows at once and is saved behind it. */
+/** The tap shows at once and is saved behind it. */
 export function StatusButtons({ applicationId, status, name }: { applicationId: string; status: string; name: string }) {
   const router = useRouter();
   const [current, setCurrent] = useState(status);

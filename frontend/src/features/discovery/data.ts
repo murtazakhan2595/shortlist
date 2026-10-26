@@ -3,17 +3,13 @@ import { NIGHTLY_SOURCES } from "@/lib/source-names";
 import { requireOwner } from "@/server/auth/require-owner";
 import { findOpenFailures, type OpenFailure } from "@/server/queue/failed-steps";
 
-// Data Access Layer for discovery: the feature's reads, each starting with the owner check.
-
-/** One listing as the jobs page shows it. */
 export type JobView = {
   id: string;
   title: string;
   company: string;
   location: string | null;
-  /** Where the job came from: "himalayas" or "hackernews". */
   source: string;
-  /** The job's page on its source: where to apply or read the post, and the credit its terms ask for (D7). */
+  /** Also the credit the source's terms ask for. */
   url: string;
   tags: string[];
   eligibility: string;
@@ -22,28 +18,19 @@ export type JobView = {
   score: number | null;
   reasons: string | null;
   label: "apply" | "skip" | null;
-  /** The email written when the post gave an address (7.4), which goes to the owner's Gmail drafts. */
   email: { status: string; to: string; body: string | null; inGmail: boolean; blockedReason: string | null } | null;
-  /** Scoring this job, or starting or writing its email, failed every attempt (5.6). */
   failure: OpenFailure | null;
 };
 
-/** One run's list is a night's work: one taking longer than this has stopped somewhere. */
+// A run taking longer than this has stopped somewhere.
 const RUN_FINISHES_WITHIN_HOURS = 6;
-/** The schedule starts a run every 24 hours; a little longer allows for a late start. */
+// Runs start every 24 hours; the extra allows for a late start.
 const RUN_STARTS_EVERY_HOURS = 26;
 
-/**
- * One source's jobs from its latest night that kept any: its top N (the daily target), then the rest it kept,
- * by score. earlierRun is that night's start when it is not the latest run, so a source with nothing new (Hacker
- * News between monthly threads) keeps its last list instead of going empty (owner, 26 October 2026).
- */
+// From each source's latest run that kept any jobs, so a source with nothing new (Hacker News between
+// monthly threads) keeps its last list. earlierRun is set when that is not the latest run.
 export type SourceJobs = { source: string; name: string; top: JobView[]; more: JobView[]; earlierRun: string | null };
 
-/**
- * The latest daily run and its listings, by source (owner, 25 October 2026). Listings the filter dropped are
- * kept in the database, so a job is not saved twice and the filter can be checked, but are not shown.
- */
 export type JobsListView = {
   run: {
     startedAt: string;
@@ -51,16 +38,14 @@ export type JobsListView = {
     fetched: number;
     kept: number;
     costUsd: number;
-    /** Why the owner should look: the run did not finish, or no run started on time. Null when all is well (5.6). */
     warning: string | null;
   };
-  /** Steps of the run itself (fetching, choosing the list) that failed every attempt. A job's own are on the job. */
+  /** The run's own failed steps; a job's failures are on the job. */
   failures: OpenFailure[];
-  /** Every nightly source, in the order the night reads them, even one with no new jobs. */
+  /** Every nightly source, even one with no new jobs. */
   sources: SourceJobs[];
 };
 
-/** The latest daily run, with each source's jobs from its latest night that kept any, or null before the first run. */
 export async function getJobsList(): Promise<JobsListView | null> {
   const { db } = await requireOwner();
   const run = await db
@@ -73,7 +58,6 @@ export async function getJobsList(): Promise<JobsListView | null> {
   if (run.error) throw new Error(`Could not load the latest daily run: ${run.error.message}`);
   if (!run.data) return null;
 
-  // Each source's latest daily run that kept a job it shows.
   const sourceRuns = await Promise.all(
     NIGHTLY_SOURCES.map(async ({ id }) => {
       const latest = await db
@@ -108,8 +92,6 @@ export async function getJobsList(): Promise<JobsListView | null> {
   );
   if (calls.error) throw new Error(`Could not load the run's cost: ${calls.error.message}`);
 
-  // Failures name the run (fetching, choosing the list), a listing (scoring, starting its email) or its
-  // email's application (writing it).
   const runId = run.data.id;
   const failures = await findOpenFailures(db, [
     runId,
@@ -118,7 +100,7 @@ export async function getJobsList(): Promise<JobsListView | null> {
   ]);
 
   const jobs: JobView[] = listings.map((listing) => {
-    // Notes written before 25 October 2026 are not shown: only emails are prepared now.
+    // Older notes are not shown: only emails are prepared now.
     const email = listing.applications.find((application) => application.route === "email" && application.recipient_email);
     const ownIds = [listing.id, ...listing.applications.map((own) => own.id)];
     return {
@@ -160,8 +142,7 @@ export async function getJobsList(): Promise<JobsListView | null> {
       warning: runWarning(run.data, new Date()),
     },
     failures: failures.filter((failure) => failure.targetIds.includes(runId)),
-    // A listing dropped after ranking, because the owner blocked its company, keeps its rank (check E2) but
-    // leaves the list: it is excluded, so it was not loaded.
+    // A listing whose company was blocked after ranking keeps its rank but is excluded, so it was not loaded.
     sources: NIGHTLY_SOURCES.map(({ id, name }) => {
       const fromSource = jobs.filter((job) => job.source === id);
       const sourceRun = shownRuns.find((shown) => shown.source === id);
@@ -176,7 +157,6 @@ export async function getJobsList(): Promise<JobsListView | null> {
   };
 }
 
-/** Why the latest daily run needs the owner's attention, or null (PLAN.md item 5.6). */
 export function runWarning(run: { status: string; started_at: string }, now: Date): string | null {
   const hoursSinceStart = (now.getTime() - new Date(run.started_at).getTime()) / 3_600_000;
   if (run.status === "running" && hoursSinceStart > RUN_FINISHES_WITHIN_HOURS) {
@@ -190,7 +170,6 @@ export function runWarning(run: { status: string; started_at: string }, now: Dat
   return null;
 }
 
-/** Why the latest daily run needs the owner's attention, or null, also before the first run (5.6). */
 export async function getLatestRunWarning(): Promise<string | null> {
   const { db } = await requireOwner();
   const { data, error } = await db

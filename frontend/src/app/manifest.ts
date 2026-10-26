@@ -1,9 +1,8 @@
 import type { MetadataRoute } from "next";
 import { SHARE_PATH, SHARED_SCREENSHOTS_FIELD } from "@/lib/shared-post";
 
-// The install manifest (PLAN.md item 2.5, C1). Installed from Chrome on Android, Shortlist appears in the
-// share menu: a shared screenshot or text is posted to SHARE_PATH, where the service worker (public/sw.js)
-// keeps it and opens the capture page.
+// Installed from Chrome on Android, the app appears in the share menu: a share is posted to SHARE_PATH,
+// where public/sw.js keeps it and opens the capture page.
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Shortlist",

@@ -2,9 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
-  // On a phone, the network drops while the app is in the background. Without this, a page refresh that
-  // fails then reloads the whole page, which also fails and shows the browser's error page. With it,
-  // Next.js waits for the connection and retries the refresh.
+  // Without this, a refresh that fails while a phone is offline reloads into the browser's error page.
   experimental: { useOffline: true },
   // The service worker must never be cached, so a new version reaches the phone on its next visit.
   async headers() {

@@ -5,15 +5,12 @@ import { slugify } from "@/server/job-key";
 import { getAdminClient } from "@/server/supabase/admin";
 import type { Eligibility, Listing } from "../schemas";
 
-// The filter (PLAN.md item 4.3; D3, D3a, D4, Q2 to Q4): plain code that runs before any model call.
-// A listing is "excluded" only when it clearly does not fit the owner; then it is dropped and never scored.
-// A listing that might not fit is "unclear": it is kept and scored, and ranked lower. Everything else is
-// "eligible". When in doubt, a rule keeps the listing: judging fit is the scoring step's job (D5).
+// Plain code that runs before any model call. An "excluded" listing clearly does not fit and is never
+// scored; an "unclear" one is kept, scored and ranked lower. When in doubt, a rule keeps the listing:
+// judging fit is the scoring step's job.
 
-/** The owner's filter settings, which the owner can change in the app (U4). */
 export type FilterSettings = { payFloorUsdMonth: number; excludedCountries: string[]; blockedCompanies: string[] };
 
-/** Where the owner lives and works from. */
 const OWNER_COUNTRY = "Pakistan";
 
 export async function loadFilterSettings(): Promise<FilterSettings> {
@@ -29,12 +26,11 @@ export async function loadFilterSettings(): Promise<FilterSettings> {
   };
 }
 
-/** The first rule a listing clearly fails, else what makes it unclear, else eligible. */
 export function eligibilityOf(listing: Listing, settings: FilterSettings): Eligibility {
   const excludedBecause = exclusionReason(listing, settings);
   if (excludedBecause) return { eligibility: "excluded", eligibility_reason: excludedBecause };
 
-  const doubts = doubtsAbout(listing);
+  const doubts = unclearReasons(listing);
   if (doubts.length > 0) return { eligibility: "unclear", eligibility_reason: doubts.join("; ") };
   return { eligibility: "eligible", eligibility_reason: null };
 }
@@ -53,31 +49,24 @@ function exclusionReason(listing: Listing, settings: FilterSettings): string | n
   if (CLEARANCE_OR_CITIZENSHIP.test(listing.description)) return "Asks for a security clearance or citizenship";
   if (listing.source === HACKER_NEWS_SOURCE) {
     if (JOB_SEEKER_POST.test(listing.description)) return "Someone looking for work, not a job";
-    const place = whereFrom(listing);
+    const place = checkLocation(listing);
     if (place.excluded) return place.excluded;
   }
   return countryReason(listing, settings.excludedCountries);
 }
 
-// ---------------------------------------------------------------------------
-// Companies the owner blocked
-// ---------------------------------------------------------------------------
+// --- Blocked companies ---
 
 export const BLOCKED_COMPANY_REASON = "A company you blocked";
 
-/**
- * True when the company is one the owner blocked. Names are compared as the duplicate key writes them, so
- * capitals and punctuation do not matter ("KDCI." is "kdci"), but a part never matches a whole: blocking
- * "micro1" does not block "Microsoft".
- */
+// Slugified, so capitals and punctuation do not matter, but a part never matches a whole: blocking
+// "micro1" does not block "Microsoft".
 export function isBlockedCompany(company: string, blockedCompanies: string[]): boolean {
   const key = slugify(company);
   return key !== "" && blockedCompanies.some((blocked) => slugify(blocked) === key);
 }
 
-// ---------------------------------------------------------------------------
-// Technical roles
-// ---------------------------------------------------------------------------
+// --- Technical roles ---
 
 // Categories that are clearly not engineering. A listing is dropped only when every category it has is one
 // of these and its title has no technical word, so a "DevOps Engineer" filed under Operations is kept.
@@ -105,9 +94,7 @@ function isNonTechnical(listing: Listing): boolean {
   return onlyNonTechnical && !TECHNICAL_TITLE.test(listing.title);
 }
 
-// ---------------------------------------------------------------------------
-// Seniority and experience (Q2: mid-level and senior, up to five years required)
-// ---------------------------------------------------------------------------
+// --- Seniority and experience: mid-level and senior, up to five years required ---
 
 const LEVELS_ABOVE_RANGE = ["Manager", "Director", "Executive"];
 const TITLE_ABOVE_RANGE = /\b(lead|staff|principal|head of|director|vp|vice president|chief|cto)\b/i;
@@ -124,25 +111,19 @@ function isAboveSeniorityRange(listing: Listing): boolean {
 // number of years followed by "experience" counts, so "10 years in business" about the company does not.
 const YEARS_OF_EXPERIENCE = /(\d{1,2})\s*\+?\s*(?:(?:-|–|to)\s*\d{1,2}\s*\+?\s*)?years?['’]?\s+(?:of\s+)?(?:[\w./-]+\s+){0,4}?experience/gi;
 
-/**
- * The fewest years of experience the description asks for, or null if it names none. Where it names several
- * ("6+ years of backend experience, 2+ years with React"), the fewest counts, so a listing is dropped only
- * when every requirement is above the range.
- */
+// Where several are named ("6+ years of backend, 2+ years with React"), the fewest counts, so a listing
+// is dropped only when every requirement is above the range.
 export function minimumYearsRequired(description: string): number | null {
   const years = [...description.matchAll(YEARS_OF_EXPERIENCE)].map((match) => Number(match[1])).filter((value) => value > 0);
   return years.length > 0 ? Math.min(...years) : null;
 }
 
-// ---------------------------------------------------------------------------
-// Pay (Q3: dropped only when stated below the floor)
-// ---------------------------------------------------------------------------
+// --- Pay: dropped only when stated below the floor ---
 
 // Rough rates: a few percent either way does not matter for a floor. Pay in another currency counts as unstated.
 const USD_PER_UNIT: Record<string, number> = { USD: 1, EUR: 1.1, GBP: 1.3, CAD: 0.73, AUD: 0.66 };
 const MONTHS_PER_PERIOD: Record<string, number> = { hour: 1 / 160, month: 1, year: 12 };
 
-/** The most the listing says it pays, in US dollars a month, or null when it does not say in a known currency. */
 export function monthlyPayUsd(listing: Listing): number | null {
   const pay = listing.salary_max ?? listing.salary_min;
   const rate = USD_PER_UNIT[listing.salary_currency ?? ""];
@@ -151,14 +132,11 @@ export function monthlyPayUsd(listing: Listing): number | null {
   return (pay * rate) / months;
 }
 
-// ---------------------------------------------------------------------------
-// Where candidates may be (D3, D3a)
-// ---------------------------------------------------------------------------
+// --- Where candidates may be ---
 
 const CLEARANCE_OR_CITIZENSHIP =
   /security clearance|clearance (is )?required|active (secret|top secret|ts\/sci)|must be an? (u\.?s\.?|us|united states|eu|uk|canadian|australian) citizen|(u\.?s\.?|us) citizens? only|citizenship (is )?required/i;
 
-/** An excluded country (D3a): the listing is open only there, or says the employer is based there. */
 function countryReason(listing: Listing, excludedCountries: string[]): string | null {
   const openOnlyToExcluded =
     listing.countries.length > 0 && listing.countries.every((country) => excludedCountries.includes(country));
@@ -172,18 +150,12 @@ function countryReason(listing: Listing, excludedCountries: string[]): string | 
   return null;
 }
 
-// ---------------------------------------------------------------------------
-// Where the work is done, for sources with no list of countries (sprint 7)
-// ---------------------------------------------------------------------------
-
-// A Hacker News post says in words where its job can be done. Its job is kept when it is remote and not
-// limited to a region that leaves out the owner's country, or when the employer offers a visa or relocation
-// (Q4). A remote job that does not say from where is kept as unclear. The post's first line decides when it
-// says where; the body is read only when it does not, as a body's "worldwide" is often about something else.
+// --- Where the work is done, for sources with no list of countries ---
+// The post's first line decides when it says where; the body is read only when it does not, as a body's
+// "worldwide" is often about something else.
 
 export const REMOTE = /\bremote\b|work from anywhere/i;
-// A "Who wants to be hired?" post put in the hiring thread by mistake, in that thread's form:
-// "Location: ... Remote: ... Willing to relocate: ...".
+// A "Who wants to be hired?" post put in the hiring thread by mistake ("Location: ... Willing to relocate: ...").
 const JOB_SEEKER_POST = /^location:[\s\S]*\bwilling to relocate:/i;
 const NOT_REMOTE = /\b(no|not|non)[\s-]remote\b|\b(on-?site|in[- ]office) only\b/i;
 // Only phrases about where the work can be done: "a global company" says nothing about that.
@@ -208,13 +180,11 @@ const VISA_OFFERED =
 const NO_VISA =
   /\b(no|not|cannot|can['’]t|can ?not|unable to|won['’]t|will not|don['’]t|do not|doesn['’]t|does not)\s+(able to\s+|offer\s+|provide\s+|currently\s+|new\s+)*(visa\s+)?sponsor/i;
 
-/** True when the text offers visa sponsorship or relocation, and does not also say there is none. */
 export function offersVisa(text: string): boolean {
   return VISA_OFFERED.test(text) && !NO_VISA.test(text);
 }
 
-/** What a piece of text says about where a remote job can be done from. */
-function placeIn(text: string): "open" | "limited" | "unsaid" {
+function remoteScope(text: string): "open" | "limited" | "unsaid" {
   if (OPEN_TO_OWNER.test(text)) return "open";
   // A preference ("CET ±3 preferred") is not a limit.
   const places = [...text.matchAll(REMOTE_WITH_PLACE)].map((match) => match[1]).filter((place) => !/prefer/i.test(place));
@@ -223,35 +193,32 @@ function placeIn(text: string): "open" | "limited" | "unsaid" {
   return "unsaid";
 }
 
-/** Whether a post's job can be done from the owner's country: excluded, in doubt, or neither. */
-function whereFrom(listing: Listing): { excluded?: string; doubt?: string } {
+function checkLocation(listing: Listing): { excluded?: string; doubt?: string } {
   const text = listing.description;
   if (offersVisa(text)) return {};
   if (!REMOTE.test(text) || NOT_REMOTE.test(text)) return { excluded: "On-site or hybrid, with no visa sponsorship" };
 
   const [firstLine, ...body] = text.split("\n");
-  const firstLineSays = placeIn(firstLine);
-  const says = firstLineSays === "unsaid" ? placeIn(body.join("\n")) : firstLineSays;
+  const firstLineSays = remoteScope(firstLine);
+  const says = firstLineSays === "unsaid" ? remoteScope(body.join("\n")) : firstLineSays;
   if (says === "limited") return { excluded: `Remote only within a region that leaves out ${OWNER_COUNTRY}` };
   if (says === "unsaid") return { doubt: "Remote, but it does not say from where" };
   return {};
 }
 
-// ---------------------------------------------------------------------------
-// Doubts: kept, scored, ranked lower (D4)
-// ---------------------------------------------------------------------------
+// --- Doubts: kept, scored, ranked lower ---
 
 const WORK_AUTHORISATION =
   /authori[sz]ed to work in|right to work in|work authori[sz]ation|(no|not able to|unable to|cannot|can't|will not|won't) (offer |provide )?(visa )?sponsor|must (reside|live|be located|be based) in/i;
 
-function doubtsAbout(listing: Listing): string[] {
+function unclearReasons(listing: Listing): string[] {
   const doubts: string[] = [];
   // Not dropped: a list can name a region, such as "Asia", that includes the owner's country.
   if (listing.countries.length > 0 && !listing.countries.includes(OWNER_COUNTRY)) {
     doubts.push(`Lists ${listing.countries.join(", ")}, not ${OWNER_COUNTRY}`);
   }
   if (listing.source === HACKER_NEWS_SOURCE) {
-    const place = whereFrom(listing);
+    const place = checkLocation(listing);
     if (place.doubt) doubts.push(place.doubt);
   }
   if (WORK_AUTHORISATION.test(listing.description)) doubts.push("Mentions work authorisation or where you must live");

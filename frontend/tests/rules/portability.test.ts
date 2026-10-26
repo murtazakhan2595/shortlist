@@ -4,7 +4,7 @@ import { describe, expect, test } from "vitest";
 import packageJson from "../../package.json";
 import { codeFiles, filesMatching, repoRoot } from "./repo";
 
-// PLAN.md section 3, portability rules: moving host must need only configuration changes.
+// Moving host must need only configuration changes.
 
 const HOST_PACKAGE = /^(@vercel\/|vercel$|@netlify\/|netlify$|@aws-amplify\/|aws-amplify$)/;
 
@@ -31,8 +31,7 @@ describe("nothing ties the app to its host", () => {
   });
 
   test("no work after the response is sent (rule 3)", () => {
-    // The service worker runs in the owner's browser, where event.waitUntil is the standard way to finish
-    // its own work; the rule is about the server.
+    // event.waitUntil is standard in the browser's service worker; the rule is about the server.
     const serverFiles = files.filter((file) => file !== "frontend/public/sw.js");
 
     expect(

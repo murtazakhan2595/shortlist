@@ -117,7 +117,7 @@ Readability comes first. The owner must be able to explain every line.
 - **Port only what is used.** Take the parts of a library or open-source file the current task needs, and say in a comment what was left out.
 - Reuse before writing: look for an existing helper, component or type first. Extract shared code once it is needed twice, not before.
 - Strict TypeScript. No `any`, no non-null assertions to silence the compiler. Validate model output and external input with Zod.
-- Comments say why, not what. No commented-out code.
+- Comments say why, not what. Write one only when the code can't say it: a source's terms or limits, a non-obvious rule, a trap. No file-header essays that retell the code, no requirement or plan IDs (D3, X7, PLAN.md item 4.3), no dates or "owner's decision" history (that goes in commits and the docs). No commented-out code.
 - No dead code, no speculative abstractions, no placeholder tests.
 
 ## Design

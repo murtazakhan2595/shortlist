@@ -1,7 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-// The installable app and Android's share menu (PLAN.md item 2.5). A real phone share cannot be driven
-// from a test, so this posts the same form Android posts, to the real service worker.
+// A real phone share can't be driven from a test, so this posts Android's form to the real service worker.
 
 test("the install manifest is open without signing in, and offers Shortlist as a share target", async ({ request }) => {
   const response = await request.get("/manifest.webmanifest");
@@ -17,7 +16,6 @@ test("the install manifest is open without signing in, and offers Shortlist as a
 
 test("the service worker keeps a shared screenshot and its link, and opens the capture page", async ({ page }) => {
   await page.goto("/sign-in");
-  // The worker takes control of the page once it is active.
   await page.waitForFunction(async () => (await navigator.serviceWorker.ready) && navigator.serviceWorker.controller !== null);
 
   const result = await page.evaluate(async () => {

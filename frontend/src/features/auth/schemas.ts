@@ -1,8 +1,7 @@
 import { z } from "zod";
 import type { Result } from "@/lib/result";
 
-// Contracts for the auth feature (U6). Email and password only: a magic link would open in the
-// browser instead of the installed app, and there is one account, so no email setup is needed.
+// Email and password only: a magic link would open in the browser instead of the installed app.
 //
 // Server Actions:
 //   signIn(SignInState, FormData) -> SignInState   (redirects home on success)

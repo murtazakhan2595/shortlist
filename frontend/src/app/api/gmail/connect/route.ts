@@ -7,7 +7,6 @@ import { GMAIL_STATE_COOKIE } from "@/server/gmail/schemas";
 // The state must come back within this time, or the owner starts again.
 const STATE_MAX_AGE_SECONDS = 10 * 60;
 
-// GET /api/gmail/connect: sends the owner to Google to allow Gmail drafts, once (AGENTS.md, Contracts).
 export async function GET(request: Request): Promise<Response> {
   try {
     await requireOwner();

@@ -14,7 +14,6 @@ const VARIANT_NAMES: Record<CvVariant, string> = {
   ai_full_stack: "AI full-stack",
 };
 
-/** The current CV of each kind, and a way to replace it with a new PDF (P2). */
 export function CvFiles({ cvs }: { cvs: { variant: string; fileName: string }[] }) {
   return (
     <ul className="flex flex-col">
@@ -71,7 +70,6 @@ function CvRow({ variant, fileName }: { variant: CvVariant; fileName: string | n
   );
 }
 
-/** Uploads the PDF straight to storage through a one-time link, then makes it the current CV of its kind. */
 async function uploadCv(variant: CvVariant, file: File): Promise<Result<null>> {
   if (file.type !== "application/pdf") return fail("invalid_input", "Choose a PDF file");
   if (file.size > MAX_UPLOAD_BYTES) return fail("invalid_input", "The CV must be under 10 MB");

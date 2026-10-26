@@ -5,12 +5,10 @@ import { wakeWorker } from "@/server/queue/queue";
 import { runNextStep } from "@/server/queue/run-next-step";
 import { STEP_HANDLERS } from "./step-handlers";
 
-// The step budget (AGENTS.md, Portability), set here so it does not depend on the host's default.
-// A standard Next.js option, which the host reads from the build.
+// Set here so the step budget does not depend on the host's default.
 export const maxDuration = 60;
 
-// POST /api/worker: runs one queued step (AGENTS.md, Contracts).
-// Called by Supabase when a step is added, and by Supabase Cron every minute.
+// Only Supabase calls this (a database trigger and Cron), so it checks the internal secret, not a session.
 export async function POST(request: Request): Promise<Response> {
   if (!isInternalCaller(request)) {
     return Response.json(fail("unauthorized", "Missing or wrong internal API secret"), { status: 401 });

@@ -5,9 +5,6 @@ import { requireOwner } from "@/server/auth/require-owner";
 import { findOpenFailures, type OpenFailure } from "@/server/queue/failed-steps";
 import { DAILY_LIST_DAYS } from "./schemas";
 
-// Data Access Layer for applications: the feature's reads, each starting with the owner check.
-
-/** What the owner sees of a prepared application. */
 export type ApplicationView = {
   status: string;
   recipientEmail: string | null;
@@ -16,18 +13,16 @@ export type ApplicationView = {
   presentedTitle: string | null;
   cvFileName: string | null;
   emailPattern: string | null;
-  /** The problems that stopped a draft, one per line (X4). */
+  /** One problem per line. */
   blockedReason: string | null;
-  /** True once the email is saved as a draft in the owner's Gmail (X1). */
   inGmail: boolean;
-  /** What every model call for this application cost, from reading the post to the last check (B1). */
+  /** Every model call for this application, reading the post included. */
   costUsd: number;
   modelCalls: number;
-  /** A step writing the draft or saving it to Gmail that failed every attempt, until tried again. */
+  /** A writer or Gmail step that failed every attempt, until retried. */
   failure: OpenFailure | null;
 };
 
-/** The application prepared from a capture, or null if there is none yet. */
 export async function getApplicationForCapture(captureId: string): Promise<ApplicationView | null> {
   if (!z.uuid().safeParse(captureId).success) return null;
 
@@ -69,7 +64,6 @@ export async function getApplicationForCapture(captureId: string): Promise<Appli
   };
 }
 
-/** One application on the daily list (U1): what the job is, where it came from, and what was prepared. */
 export type ApplicationSummary = {
   id: string;
   route: "email" | "note" | "form";
@@ -77,19 +71,14 @@ export type ApplicationSummary = {
   createdAt: string;
   role: string | null;
   company: string | null;
-  /** Where the job was found: "LinkedIn" for a captured post, the job board's name for a listing, null for a form. */
   source: string | null;
-  /** The listing's score and tags, for a note. */
   score: number | null;
   tags: string[];
-  /** True once an email is a draft in the owner's Gmail. */
   inGmail: boolean;
-  /** Where to see it in full: the captured post, the Jobs page, or the form. */
   href: string;
 };
 
 
-/** The applications of the last DAILY_LIST_DAYS days, newest first. */
 export async function getRecentApplications(): Promise<ApplicationSummary[]> {
   const { db } = await requireOwner();
   // Read after the owner check: the time is only known per request (Cache Components).

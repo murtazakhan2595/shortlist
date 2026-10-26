@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, expect, test, vi } from "vitest";
 import {
   deleteExpiredListings,
-  fetchingGaveUp,
+  skipFailedSource,
   fetchListings,
   himalayasListing,
   saveNewListings,
@@ -12,9 +12,7 @@ import type { HimalayasJob } from "@/server/himalayas";
 import { getAdminClient } from "@/server/supabase/admin";
 import { TEST_RUN_STARTED_AT } from "./test-runs";
 
-// The daily run's first steps against the real database, with Himalayas and Hacker News replaced by fakes.
-// The SQL rules themselves are tested in supabase/tests/database/listings.test.sql; this checks the app's
-// rows arrive whole and the sources are read one after another.
+// The SQL rules are tested in supabase/tests/database/listings.test.sql.
 const himalayasJobs = vi.hoisted(() => ({ value: [] as unknown[] }));
 vi.mock("@/server/himalayas", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/server/himalayas")>()),
@@ -26,7 +24,6 @@ vi.mock("@/server/hacker-news", async (importOriginal) => ({
   fetchHackerNewsPosts: vi.fn(async () => hackerNewsPosts.value),
 }));
 
-// Queued steps are collected here instead of going to the real queue.
 const queued = vi.hoisted((): { step: string; payload: unknown }[] => []);
 vi.mock("@/server/queue/queue", () => ({
   enqueueStep: async (step: string, payload: unknown) => queued.push({ step, payload }),
@@ -101,8 +98,7 @@ test("saves new listings whole, saves nothing the second time, and deletes expir
     run_id: runId,
   });
 
-  // Another test file may delete the expired listing first (they share the one database), so the count is
-  // not checked; what is left is.
+  // Another test file may delete the expired listing first, so only what is left is checked.
   await deleteExpiredListings();
   const { data: left } = await database.from("listings").select("title").eq("company", company);
   expect(left).toEqual([{ title: "Engineer open" }]);
@@ -159,12 +155,12 @@ test("a source that failed every attempt is skipped, and the night goes on", asy
   const run = await database.from("runs").insert({ id: gaveUpRunId, kind: "daily", started_at: TEST_RUN_STARTED_AT });
   if (run.error) throw run.error;
 
-  await fetchingGaveUp({ runId: gaveUpRunId });
+  await skipFailedSource({ runId: gaveUpRunId });
   expect(queued.splice(0)).toEqual([
     { step: "fetch_listings", payload: { runId: gaveUpRunId, source: "hackernews", readSoFar: 0 } },
   ]);
 
   // The last source giving up still finishes fetching: nothing was saved, so the run goes straight to its list.
-  await fetchingGaveUp({ runId: gaveUpRunId, source: "hackernews", readSoFar: 0 });
+  await skipFailedSource({ runId: gaveUpRunId, source: "hackernews", readSoFar: 0 });
   expect(queued.splice(0)).toEqual([{ step: "select_top_listings", payload: { runId: gaveUpRunId } }]);
 });

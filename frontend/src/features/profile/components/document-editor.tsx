@@ -7,10 +7,7 @@ import { Label } from "@/components/ui/label";
 import { saveDocument } from "../actions";
 import type { DocumentKind } from "../schemas";
 
-/**
- * One document as plain text, to read or edit (P6, Q8). Saving adds a new version; the old one is kept.
- * It sends the version it shows, so a version saved meanwhile (such as a form answer) is never overwritten.
- */
+// Sends the version it shows, so a version saved meanwhile (such as a form answer) is never overwritten.
 export function DocumentEditor({
   kind,
   name,

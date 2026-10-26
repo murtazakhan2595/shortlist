@@ -14,27 +14,10 @@ import type { Json, Tables } from "@/server/supabase/database.types";
 import { ApplicationPayloadSchema, type WriterContext } from "../schemas";
 import { buildWriterGraph, START_STATE, type WriterStateValues, writerOutcome } from "./writer";
 
-// The writer's queue steps (PLAN.md items 2.2, 2.6, 4.6 and 7.4), in the order they run:
-//
-// 1. prepare_email_application: a capture with an email gets its application row, unless the same job
-//    already has one (then the capture is a duplicate). Queued when a post is read.
-//    prepare_listing_application: a listing in its night's top N whose post gives an email address gets its
-//    application row, an email as a capture has (7.4), unless the same job already has one. Queued by
-//    select_top_listings. A listing with only an apply link gets nothing written: notes were dropped
-//    (owner, 25 October 2026).
-// 2. advance_writer: runs the next stage of the writer's loop (writer.ts) and queues itself again, until
-//    the loop ends and the application is saved as ready or blocked. A ready email goes on to
-//    create_gmail_draft (gmail-draft.ts). One stage per call keeps every call
-//    within the 60-second budget; LangGraph saves the loop's state in Postgres between calls.
-//
-// All are safe to run twice. A capture or listing that already has its application only moves the writer on. A call
-// to advance_writer first claims a short lease on the application, and does nothing if it is taken; an
-// extra call only moves the loop one stage further. If a call dies, its lease runs out and the queue's
-// retry carries on from the last saved stage. create_gmail_draft takes the same lease (gmail-draft.ts).
-//
-// A listing's email is part of the nightly run, so it stops once this month's spending reaches the cap
-// (B2): it is saved as blocked, saying so. An email for a capture is the owner's own request and is always
-// written.
+// The writer's queue steps: prepare_*_application -> advance_writer (one stage per call) -> create_gmail_draft.
+// One stage per call keeps each call inside the 60-second budget; LangGraph saves state in Postgres between calls.
+// All are safe to run twice: advance_writer claims a lease first, so two workers never run the same graph.
+// Listing emails stop at the monthly spending cap; capture emails are the user's own request and always run.
 
 const CapturePayloadSchema = z.object({ captureId: z.uuid() });
 const ListingPayloadSchema = z.object({ listingId: z.uuid() });
@@ -44,17 +27,13 @@ const LEASE_SECONDS = 75;
 
 export const STOPPED_AT_CAP = "Stopped: this month's model spending reached your cap. Raise it in Settings, or write this one yourself.";
 
-// A long job description is cut, as for scoring (score-listings.ts), so one listing cannot make every
-// write and check call slow or dear.
+// So one long listing cannot make every write and check call slow or expensive.
 const MAX_DESCRIPTION_LENGTH = 15_000;
 
-/** The patterns the writer may follow (P7), named after the headings in private/email-patterns.md.
- * The referral pattern is not used by the writer. */
+// The referral pattern is not used by the writer.
 const EMAIL_PATTERNS = ["post-reply", "proof-first-cold-email"];
 
-// ---------------------------------------------------------------------------
-// 1. prepare_email_application
-// ---------------------------------------------------------------------------
+// --- prepare_email_application ---
 
 export async function prepareEmailApplication(payload: Json): Promise<void> {
   const { captureId } = CapturePayloadSchema.parse(payload);
@@ -80,8 +59,7 @@ export async function prepareEmailApplication(payload: Json): Promise<void> {
     return;
   }
 
-  // If another run of this step inserts first, the unique fingerprint makes this fail, and the retry
-  // takes the branch above.
+  // A racing insert fails on the unique fingerprint; the retry takes the branch above.
   const created = await db
     .from("applications")
     .insert({ capture_id: captureId, route: "email", recipient_email: contactEmail, fingerprint })
@@ -92,21 +70,15 @@ export async function prepareEmailApplication(payload: Json): Promise<void> {
   await enqueueStep(STEP_NAMES.advanceWriter, { applicationId: created.data.id });
 }
 
-/**
- * The duplicate key (C5, X6) uses the contact email in the company's place, as captures often do not name
- * the company. A reshare of the same post, to the same address for the same role, gets the same key.
- * Without a role, the post's own text stands in for it, so two different jobs at one address are not
- * taken for one.
- */
+// Uses the contact email in place of the company, which captures often omit. Without a role, a hash of
+// the post text stands in, so two different jobs at one address are not merged.
 export function captureFingerprint(contactEmail: string, role: string | null, postText: string): string {
   if (role) return jobKey(contactEmail, role);
   const words = postText.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
   return jobKey(contactEmail, `post-${createHash("sha1").update(words).digest("hex").slice(0, 12)}`);
 }
 
-// ---------------------------------------------------------------------------
-// 1. prepare_listing_application
-// ---------------------------------------------------------------------------
+// --- prepare_listing_application ---
 
 export async function prepareListingApplication(payload: Json): Promise<void> {
   const { listingId } = ListingPayloadSchema.parse(payload);
@@ -116,7 +88,7 @@ export async function prepareListingApplication(payload: Json): Promise<void> {
   if (listing.error) throw new Error(`Could not load listing ${listingId}: ${listing.error.message}`);
   if (!listing.data?.top_rank || !listing.data.contact_email) return;
 
-  // The listing's own duplicate key (D2, X6), so the same job gets one application from any source.
+  // The listing's duplicate key, so the same job gets one application from any source.
   const { fingerprint, contact_email: contactEmail } = listing.data;
   const existing = await db.from("applications").select("id, listing_id").eq("fingerprint", fingerprint).maybeSingle();
   if (existing.error) throw new Error(`Could not look for an earlier application: ${existing.error.message}`);
@@ -126,9 +98,8 @@ export async function prepareListingApplication(payload: Json): Promise<void> {
   }
   if (existing.data) return;
 
-  // If another run of this step inserts first, the unique fingerprint makes this fail, and the retry
-  // takes the branch above.
-  // The recipient is the address code read from the post when it was saved, never one a model wrote (X5).
+  // A racing insert fails on the unique fingerprint; the retry takes the branch above.
+  // The recipient is the address code parsed from the post, never one a model wrote.
   const created = await db
     .from("applications")
     .insert({ listing_id: listingId, route: "email", recipient_email: contactEmail, fingerprint })
@@ -139,9 +110,7 @@ export async function prepareListingApplication(payload: Json): Promise<void> {
   await enqueueStep(STEP_NAMES.advanceWriter, { applicationId: created.data.id });
 }
 
-// ---------------------------------------------------------------------------
-// 2. advance_writer
-// ---------------------------------------------------------------------------
+// --- advance_writer ---
 
 export async function advanceWriter(payload: Json): Promise<void> {
   const { applicationId } = ApplicationPayloadSchema.parse(payload);
@@ -153,10 +122,6 @@ export async function advanceWriter(payload: Json): Promise<void> {
   if (next) await enqueueStep(next, { applicationId });
 }
 
-/**
- * Runs one stage, or saves the outcome once the loop has ended. Returns the step that comes next for the
- * application: another stage, the Gmail draft of a ready email, or none.
- */
 async function runNextStage(applicationId: string): Promise<string | null> {
   const application = await getAdminClient()
     .from("applications")
@@ -204,7 +169,6 @@ async function captureWriter(applicationId: string, capture: CaptureForWriter, r
   };
 }
 
-/** The email for a listing whose post gave an address (7.4). */
 async function listingWriter(
   applicationId: string,
   listing: ListingForWriter | null,
@@ -225,7 +189,6 @@ async function listingWriter(
   };
 }
 
-/** Saves a note as blocked because the monthly cap was reached. */
 async function stopAtCap(applicationId: string): Promise<void> {
   const { error } = await getAdminClient()
     .from("applications")
@@ -235,14 +198,12 @@ async function stopAtCap(applicationId: string): Promise<void> {
   if (error) throw new Error(`Could not stop application ${applicationId}: ${error.message}`);
 }
 
-/** The capture is closed and its run finished. */
 async function finishCapture(capture: CaptureForWriter): Promise<void> {
   const done = await getAdminClient().from("captures").update({ status: "done" }).eq("id", capture.id).eq("status", "processing");
   if (done.error) throw new Error(`Could not close capture ${capture.id}: ${done.error.message}`);
   if (capture.run_id) await finishRun(capture.run_id);
 }
 
-/** Runs the loop's next stage, and saves the outcome once the loop has ended. Returns the application's status. */
 async function runOneStage(applicationId: string, writer: WriterContext): Promise<string> {
   const graph = buildWriterGraph(getCheckpointer());
   const thread = { configurable: { thread_id: applicationId } };
@@ -258,7 +219,6 @@ async function runOneStage(applicationId: string, writer: WriterContext): Promis
   return saveOutcome(applicationId, writer, after.values);
 }
 
-/** Saves the last draft, as ready, or as blocked with the problems that stopped it. */
 async function saveOutcome(applicationId: string, writer: WriterContext, state: WriterStateValues): Promise<string> {
   const db = getAdminClient();
   const outcome = writerOutcome(state);
@@ -286,11 +246,9 @@ async function saveOutcome(applicationId: string, writer: WriterContext, state: 
   return outcome;
 }
 
-// ---------------------------------------------------------------------------
-// The lease: one worker at a time on an application
-// ---------------------------------------------------------------------------
+// --- lease: one worker at a time on an application ---
 
-/** Claims the application for LEASE_SECONDS. Returns the lease, or null if another worker holds it. */
+/** Returns the lease, or null if another worker holds it. */
 export async function claimLease(applicationId: string): Promise<string | null> {
   const now = new Date();
   const { data, error } = await getAdminClient()
@@ -304,10 +262,7 @@ export async function claimLease(applicationId: string): Promise<string | null> 
   return data?.writer_lease_until ?? null;
 }
 
-/**
- * Runs the work, then releases the lease. Only this lease is released: one that ran out and was claimed by
- * another worker stays theirs. If the work fails, its error is the one passed on, even if releasing fails too.
- */
+// Releases only this lease: one that ran out and was claimed by another worker stays theirs.
 export async function whileLeased<T>(applicationId: string, lease: string, work: () => Promise<T>): Promise<T> {
   const release = () =>
     getAdminClient().from("applications").update({ writer_lease_until: null }).eq("id", applicationId).eq("writer_lease_until", lease);
@@ -325,7 +280,6 @@ export async function whileLeased<T>(applicationId: string, lease: string, work:
   return result;
 }
 
-/** The owner's material, with the patterns the route can follow. */
 export async function loadWriterMaterial(): Promise<Omit<WriterContext, "link" | "post" | "recipientEmail">> {
   const { emailPatterns, ...material } = await loadOwnerMaterial();
   const patterns = emailPatterns.filter((pattern) => EMAIL_PATTERNS.includes(pattern.name));

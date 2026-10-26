@@ -2,8 +2,7 @@ import "server-only";
 import { z } from "zod";
 import type { Json } from "@/server/supabase/database.types";
 
-// A step that does no work, used by `pnpm queue-check` to prove the worker picks steps up:
-// through the instant trigger, and through the every-minute schedule (PLAN.md item 1.8).
+// A step that does no work, used by `pnpm queue-check` to prove the worker picks steps up.
 
 export const QUEUE_CHECK_STEP = "queue_check";
 

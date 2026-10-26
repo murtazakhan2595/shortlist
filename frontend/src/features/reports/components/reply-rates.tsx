@@ -5,7 +5,6 @@ function withShare(count: number, sent: number): string {
   return `${count} (${Math.round((count / sent) * 100)}%)`;
 }
 
-/** Reply and interview rates per source and per email pattern, over the applications marked sent (U5). */
 export function ReplyRates({ rates }: { rates: ReplyRatesData }) {
   if (rates.bySource.length === 0) {
     return (

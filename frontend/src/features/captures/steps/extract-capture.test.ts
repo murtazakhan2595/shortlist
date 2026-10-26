@@ -74,7 +74,7 @@ describe("checkExtraction", () => {
     }
   });
 
-  test("never treats a LinkedIn link as a form (C8)", () => {
+  test("never treats a LinkedIn link as a form", () => {
     const linkedIn = answer({ formUrl: "https://www.linkedin.com/jobs/view/123" });
 
     expect(checkExtraction(linkedIn, screenshotPost).formUrl).toBeNull();

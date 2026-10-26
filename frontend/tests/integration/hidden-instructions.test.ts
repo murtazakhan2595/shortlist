@@ -13,12 +13,8 @@ import { STEP_NAMES } from "@/server/queue/step-names";
 import { getAdminClient } from "@/server/supabase/admin";
 import { TEST_RUN_STARTED_AT } from "./test-runs";
 
-// Hidden instructions in posts, forms and job listings (PLAN.md item 5.5; principle 4): they cause no
-// action and never change a draft's recipient. The model here is a fake that does whatever the hidden
-// text asks, so each test shows what code holds even when a real model is fooled.
-//
-// What code cannot hold: a post can name any address, and the model reads which one is for applying. The
-// owner sees the address in the Gmail draft before sending anything (owner's decision, 20 October 2026).
+// The fake model obeys the hidden text, so each test shows what the code holds when a real model is fooled.
+// Code cannot tell which address a post means for applying; the owner checks it in the draft.
 const invokeModel = vi.hoisted(() => vi.fn());
 vi.mock("@/server/models/chat-models", () => ({ createStructuredModel: () => ({ invoke: invokeModel }) }));
 
@@ -193,7 +189,6 @@ describe("a form with hidden instructions", () => {
       modelAnswer({ role: null, company: null, jobText: null, questions: [{ question: "Nationality", options: [] }, { question: HIDDEN, options: [] }] }),
     );
     await readForm({ applicationId, pages: [page] });
-    // The fake answers as the hidden text asks.
     invokeModel.mockResolvedValueOnce(
       modelAnswer({
         answers: [

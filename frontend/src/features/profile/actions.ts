@@ -15,10 +15,8 @@ import {
   SaveDocumentInputSchema,
 } from "./schemas";
 
-// Server Actions for the owner's material (contracts in ./schemas.ts). Writes use the owner's client, so
-// the access rules apply too.
+// Writes use the owner's client, so the database access rules apply too.
 
-/** Saves an edited document as a new version; the old version is kept (P6, Q8). */
 export async function saveDocument(request: SaveDocumentInput): Promise<Result<DocumentSaved>> {
   const input = SaveDocumentInputSchema.safeParse(request);
   if (!input.success) return fail("invalid_input", input.error.issues[0].message);
@@ -39,7 +37,7 @@ export async function saveDocument(request: SaveDocumentInput): Promise<Result<D
   }
 }
 
-/** A one-time link the browser uploads a new CV to, straight into private storage (P2). */
+// A one-time link, so the browser uploads straight into private storage.
 export async function createCvUploadUrl(request: PdfUploadRequest): Promise<Result<SignedUpload>> {
   const input = PdfUploadRequestSchema.safeParse(request);
   if (!input.success) return fail("invalid_input", input.error.issues[0].message);
@@ -52,7 +50,7 @@ export async function createCvUploadUrl(request: PdfUploadRequest): Promise<Resu
   }
 }
 
-/** Makes an uploaded CV the current one of its kind. Drafts already made keep the CV they were made with. */
+// Drafts already made keep the CV they were made with.
 export async function saveCvFile(request: SaveCvFileInput): Promise<Result<CvFileSaved>> {
   const input = SaveCvFileInputSchema.safeParse(request);
   if (!input.success) return fail("invalid_input", input.error.issues[0].message);

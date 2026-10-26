@@ -9,10 +9,8 @@ import {
   UpdateStepModelInputSchema,
 } from "./schemas";
 
-// Server Actions for settings (contracts in ./schemas.ts; U4). Writes use the owner's client, so the
-// access rules apply too. Each takes effect from the next step that reads it: no restart is needed.
+// Writes use the owner's client, so the database access rules apply too.
 
-/** Saves the nightly run's settings: jobs a night, monthly cap, lowest pay, excluded countries and blocked companies. */
 export async function updateSettings(request: UpdateSettingsInput): Promise<Result<UpdateSettingsInput>> {
   const input = UpdateSettingsInputSchema.safeParse(request);
   if (!input.success) return fail("invalid_input", input.error.issues[0].message);
@@ -35,7 +33,6 @@ export async function updateSettings(request: UpdateSettingsInput): Promise<Resu
   return ok(input.data);
 }
 
-/** Sets the model and reasoning effort one step uses (B3). Only a model with a known price can be chosen. */
 export async function updateStepModel(request: UpdateStepModelInput): Promise<Result<UpdateStepModelInput>> {
   const input = UpdateStepModelInputSchema.safeParse(request);
   if (!input.success) return fail("invalid_input", input.error.issues[0].message);

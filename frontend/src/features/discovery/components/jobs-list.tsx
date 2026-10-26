@@ -11,10 +11,6 @@ const RUN_DATE = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numer
 
 type RenderFailure = (failure: OpenFailure) => ReactNode;
 
-/**
- * The night's jobs, one tab per source: its top jobs, then the rest it kept, by score. renderFailure shows a
- * step that failed every attempt: the run's own at the top, a job's on the job.
- */
 export function JobsList({ list, renderFailure }: { list: JobsListView | null; renderFailure: RenderFailure }) {
   if (!list) {
     return (
@@ -27,7 +23,7 @@ export function JobsList({ list, renderFailure }: { list: JobsListView | null; r
 
   const { run } = list;
   const running = run.status === "running";
-  // A step of the run that failed for good needs the owner, so the page stops checking for progress on its own.
+  // A run that failed for good will not progress, so the page stops refreshing itself.
   const stuck = list.failures.length > 0 || run.warning !== null;
   const onList = list.sources.reduce((total, source) => total + source.top.length, 0);
   return (
@@ -70,7 +66,6 @@ export function JobsList({ list, renderFailure }: { list: JobsListView | null; r
   );
 }
 
-/** One source's jobs: its top ones, numbered, then the rest it kept, by score. Older ones say which night. */
 function SourceList({ jobs, running, renderFailure }: { jobs: SourceJobs; running: boolean; renderFailure: RenderFailure }) {
   if (jobs.top.length === 0 && jobs.more.length === 0) {
     return !running && <p className="text-ink-muted">No new jobs from {jobs.name} this time.</p>;

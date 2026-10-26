@@ -40,10 +40,7 @@ test("a long question from a form is cut short before it goes into the answer ba
   expect(withFormAnswer(bank, question, "Web apps and AI.").match(/Tell us about yourself/g)).toHaveLength(1);
 });
 
-/**
- * A stand-in for the database's answer bank: just the reads and inserts addToAnswerBank makes. beforeRead
- * runs before each read, so a test can save a version in between, as the owner would on the Profile page.
- */
+// beforeRead lets a test save a version between addToAnswerBank's read and its save.
 function fakeAnswerBank(first: string, beforeRead: (readNumber: number, save: (content: string) => void) => void) {
   const versions = [first];
   const save = (content: string) => versions.push(content);
@@ -72,7 +69,6 @@ function fakeAnswerBank(first: string, beforeRead: (readNumber: number, save: (c
 }
 
 test("an answer saved while the owner edits the answer bank keeps both changes", async () => {
-  // The owner's edit lands between addToAnswerBank's read and its save.
   const { db, versions } = fakeAnswerBank(BANK, (read, save) => {
     if (read === 2) save(`${BANK}Phone: 0300\n`);
   });

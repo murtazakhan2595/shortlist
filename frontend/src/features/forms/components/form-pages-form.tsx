@@ -19,10 +19,7 @@ const MODES: { value: Mode; label: string }[] = [
   { value: "text", label: "Pasted text" },
 ];
 
-/**
- * Pages for a form: screenshots of the form, and of the job post or description, in one go (F1). Without
- * an applicationId it starts a new form and opens it; with one it adds the pages to that form (F3).
- */
+/** Without an applicationId it starts a new form and opens it. */
 export function FormPagesForm({ applicationId }: { applicationId?: string }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("screenshot");
@@ -106,7 +103,6 @@ export function FormPagesForm({ applicationId }: { applicationId?: string }) {
   );
 }
 
-/** Uploads the screenshots, then sends their paths as the form's next pages. */
 async function submitScreenshots(files: File[], applicationId: string | undefined): Promise<Result<FormPagesAdded>> {
   if (files.length === 0) return fail("invalid_input", "Choose at least one screenshot");
   if (files.length > MAX_FORM_PAGES_PER_REQUEST) {

@@ -2,8 +2,6 @@ import Link from "next/link";
 import { Wordmark } from "@/components/ui/wordmark";
 import { getContactEmail } from "@/server/env";
 
-// The frame for the public privacy and terms pages, which Google's consent screen links to.
-// They need no sign-in (src/proxy.ts lets them through).
 export default function LegalLayout({ children }: LayoutProps<"/">) {
   const contactEmail = getContactEmail();
 

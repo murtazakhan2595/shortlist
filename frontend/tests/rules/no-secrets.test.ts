@@ -1,16 +1,12 @@
 import { describe, expect, test } from "vitest";
 import { readRepoFile, repoFiles, textFiles } from "./repo";
 
-// Principle 6: no secrets and no personal data in the repository.
 // Secrets in file contents are caught by gitleaks in CI; this file covers env files and personal data.
 
 const ENV_FILE = /(^|\/)\.env($|\.)/;
 const ALLOWED_ENV_FILE = /(^|\/)\.env\.example$/;
 
-/**
- * The owner's personal details (email, phone, name, ...), one per line, from the
- * PERSONAL_DATA_PATTERNS secret. The list itself never enters the repository.
- */
+// From the PERSONAL_DATA_PATTERNS secret, one per line; the list itself never enters the repository.
 function personalDataPatterns(): string[] {
   return (process.env.PERSONAL_DATA_PATTERNS ?? "")
     .split("\n")

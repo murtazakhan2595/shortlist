@@ -7,7 +7,6 @@ const RESULT_MESSAGES: Record<GmailConnectResult, string> = {
   failed: "Gmail could not be connected. Try again; if it keeps failing, check the server log.",
 };
 
-/** Whether drafts can be made in the owner's Gmail, and the one-time link to allow it (X1). */
 export function GmailConnection({ connected, result }: { connected: boolean; result?: GmailConnectResult }) {
   return (
     <section aria-labelledby="gmail-heading" className="flex flex-col gap-3">

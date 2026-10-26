@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { codeFiles, readRepoFile } from "./repo";
 
-// Principle 6: every reused file is credited.
 // A ported file starts with a header such as:
 //   // Ported from: https://github.com/owner/repo/blob/<commit>/path (MIT)
 const PORTED_FROM = /Ported from:\s*(\S+)/g;

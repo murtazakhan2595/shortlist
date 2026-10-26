@@ -8,33 +8,17 @@ import { getAdminClient } from "@/server/supabase/admin";
 import type { Json, Tables } from "@/server/supabase/database.types";
 import { type FormAnswerStatus, FormPayloadSchema } from "../schemas";
 
-// The form's two answering steps (PLAN.md items 3.2 and 3.3; F4, F5, F6, X4), in the order they run:
-//
-// 1. answer_form: one model call answers up to QUESTIONS_PER_STEP questions not answered yet, from the
-//    profile and the answer bank. Each is answered, marked "needs your input", or marked as something the
-//    form needs that cannot be written, such as a CV or a video. Code then checks each answer, and answers
-//    go to be checked. While questions are left, the step queues itself again.
-// 2. check_form_answers: a second model call checks up to QUESTIONS_PER_STEP new answers against the
-//    profile and the answer bank, as the writer's check does. An answer it cannot support is removed and its
-//    question goes to the owner (principle 2). Once nothing is left to answer or check, the form is ready.
-//
-// There is no rewrite loop as in the writer: the owner knows the answer to a question the check rejects.
-//
-// Both are safe to run twice: each works only on questions still in the status it expects, and changes a
-// question only if it is still in that status.
+// answer_form -> check_form_answers -> ready. No rewrite loop as in the writer: a rejected answer goes to
+// the user, who knows it. Safe to run twice: each step only changes questions still in the status it expects.
 
-// A long form answered in one call can run past the time limit, so each call takes this many questions,
-// as read_form takes one page per call.
+// A long form answered in one call can run past the time limit.
 export const QUESTIONS_PER_STEP = 10;
 
 type Question = Pick<Tables<"form_answers">, "id" | "position" | "question" | "options" | "answer">;
 
-/** The job the form is for, as read from its pages. */
 type Job = { role: string | null; company: string | null; text: string | null };
 
-// ---------------------------------------------------------------------------
-// 1. answer_form
-// ---------------------------------------------------------------------------
+// --- answer_form ---
 
 export async function answerForm(payload: Json): Promise<void> {
   const { applicationId } = FormPayloadSchema.parse(payload);
@@ -50,9 +34,7 @@ export async function answerForm(payload: Json): Promise<void> {
   await enqueueStep(questionsLeft ? STEP_NAMES.answerForm : STEP_NAMES.checkFormAnswers, { applicationId });
 }
 
-// ---------------------------------------------------------------------------
-// 2. check_form_answers
-// ---------------------------------------------------------------------------
+// --- check_form_answers ---
 
 export async function checkFormAnswers(payload: Json): Promise<void> {
   const { applicationId } = FormPayloadSchema.parse(payload);
@@ -68,14 +50,12 @@ export async function checkFormAnswers(payload: Json): Promise<void> {
   else await markReadyWhenDone(applicationId);
 }
 
-/** An answer the check found unsupported is removed, and the owner is told why. */
 export function afterCheck(question: Question, problems: Map<number, string>): SettledQuestion {
   const problem = problems.get(question.position);
   if (problem) return { id: question.id, status: "needs_input", answer: null, note: `The suggested answer was not supported: ${problem}` };
   return { id: question.id, status: "answered", answer: question.answer, note: null };
 }
 
-/** The form is ready once no question waits to be answered or checked. Pages added later make it preparing again. */
 async function markReadyWhenDone(applicationId: string): Promise<void> {
   const db = getAdminClient();
   const waiting = await db
@@ -89,10 +69,6 @@ async function markReadyWhenDone(applicationId: string): Promise<void> {
   const ready = await db.from("applications").update({ status: "ready" }).eq("id", applicationId).eq("status", "preparing");
   if (ready.error) throw new Error(`Could not mark form ${applicationId} ready: ${ready.error.message}`);
 }
-
-// ---------------------------------------------------------------------------
-// Loading and saving
-// ---------------------------------------------------------------------------
 
 async function loadQuestions(applicationId: string, status: FormAnswerStatus): Promise<Question[]> {
   const { data, error } = await getAdminClient()
@@ -122,9 +98,7 @@ async function saveQuestion({ id, ...fields }: SettledQuestion, from: FormAnswer
   if (error) throw new Error(`Could not save question ${id}: ${error.message}`);
 }
 
-// ---------------------------------------------------------------------------
-// Answering: one model call for every question, then the checks code can make
-// ---------------------------------------------------------------------------
+// --- answering: one model call per batch, then code checks ---
 
 const AnswersSchema = z.object({
   answers: z
@@ -177,7 +151,7 @@ async function answerQuestions(
     schema: AnswersSchema,
     messages: [
       { role: "system", content: ANSWER_INSTRUCTIONS },
-      // The owner's material comes first and ends with a cache breakpoint: it is the same in every call.
+      // Same in every call, so it goes first and ends with a cache breakpoint.
       { role: "user", content: [{ type: "text", text: materialText(material), cache: true }] },
       { role: "user", content: `${jobText(job)}\n\nThe questions to answer:\n${questionList(questions)}` },
     ],
@@ -186,12 +160,7 @@ async function answerQuestions(
   return output.answers;
 }
 
-/**
- * The checks code can make on the model's answers. Every question gets exactly one outcome; an answer
- * that is missing, empty, or not one of the form's choices goes to the owner instead. A question that
- * needs the owner keeps the model's draft, with its guesses in [brackets], for the owner to finish: it
- * is not checked, as the owner reads every word of it before saving.
- */
+// A needs_input draft is not model-checked: the user reads every word of it before saving.
 export function settleAnswers(questions: Question[], answers: ModelAnswer[]): SettledQuestion[] {
   return questions.map(({ id, position, options }) => {
     const given = answers.find((answer) => answer.position === position);
@@ -212,15 +181,13 @@ export function settleAnswers(questions: Question[], answers: ModelAnswer[]): Se
   });
 }
 
-/** True when every choice in the answer ("Yes", or "AWS; Docker" for checkboxes) is one the form offers. */
+/** Checkbox answers are "AWS; Docker". */
 function isOfferedChoice(answer: string, options: string[]): boolean {
   const offered = new Set(options.map((option) => option.toLowerCase()));
   return answer.split(";").every((choice) => offered.has(choice.trim().toLowerCase()));
 }
 
-// ---------------------------------------------------------------------------
-// Checking: a strict review of every new answer against the owner's material (X4, principle 2)
-// ---------------------------------------------------------------------------
+// --- checking: every new answer against the profile and answer bank ---
 
 const CheckSchema = z.object({
   problems: z
@@ -260,10 +227,6 @@ async function checkAnswers(
   });
   return new Map(output.problems.map(({ position, reason }) => [position, reason]));
 }
-
-// ---------------------------------------------------------------------------
-// Prompt text
-// ---------------------------------------------------------------------------
 
 function materialText(material: OwnerMaterial): string {
   return [

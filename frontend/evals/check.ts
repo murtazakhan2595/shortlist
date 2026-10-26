@@ -1,13 +1,13 @@
 import type { z } from "zod";
 import type { ModelSettings } from "@/server/models/chat-models";
 
-// A quality check (REQUIREMENTS.md section 7): runs the real step on one test case and grades the answer.
+// A quality check: runs the real step on one test case and grades the answer.
 // Test cases are private (they hold other people's details) and live in private/evals/<check id>/cases/.
 
 export type Grade = { pass: boolean; reason: string };
 
 export type EvalCheck<Case, Output> = {
-  /** E1 to E5, as in REQUIREMENTS.md section 7. */
+  /** E1 to E5. */
   id: string;
   name: string;
   /** The share of cases that must pass, from 0 to 1. */

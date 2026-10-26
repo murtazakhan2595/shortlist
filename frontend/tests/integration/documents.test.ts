@@ -3,8 +3,7 @@ import { afterAll, expect, test } from "vitest";
 import { saveDocumentIfChanged } from "@/server/documents";
 import { getAdminClient } from "@/server/supabase/admin";
 
-// Document versioning against the real database, on a document name only this test uses.
-// (CV swapping is covered by the database tests, so the owner's real CVs are never touched.)
+// A document name only this test uses, so the owner's real documents are never touched.
 const database = getAdminClient();
 const name = `integration-test-${randomUUID()}`;
 
@@ -22,7 +21,6 @@ test("adds a document, skips it when unchanged, adds a new version when it chang
     version: 2,
   });
 
-  // An edit that started from version 1 is refused now that version 2 exists, and saves nothing.
   expect(await saveDocumentIfChanged(database, { ...document, content: "Hi Ken!" }, 1)).toMatchObject({
     status: "conflict",
     version: 2,

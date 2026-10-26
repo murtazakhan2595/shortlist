@@ -4,7 +4,6 @@ import { useState } from "react";
 
 const COPIED_FOR_MS = 2_000;
 
-/** Copies the text to the clipboard and says so for a moment. */
 export function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
 

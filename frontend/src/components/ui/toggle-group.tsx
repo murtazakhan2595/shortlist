@@ -1,4 +1,4 @@
-/** A choice between a few options, shown side by side; radio buttons underneath, so the keyboard works (as in shadcn/ui). */
+// Radio buttons underneath, so the keyboard works.
 export function ToggleGroup<Value extends string>({
   legend,
   name,

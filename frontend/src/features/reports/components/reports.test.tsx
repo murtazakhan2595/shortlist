@@ -3,7 +3,7 @@ import { expect, test } from "vitest";
 import { ReplyRates } from "./reply-rates";
 import { RunCosts } from "./run-costs";
 
-test("shows each source's replies and interviews with their share of those sent (U5)", () => {
+test("shows each source's replies and interviews with their share of those sent", () => {
   render(
     <ReplyRates
       rates={{

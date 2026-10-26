@@ -31,7 +31,7 @@ test("shows the prepared email with its recipient, subject, CV and pattern", () 
   expect(screen.getByText("(3 model calls)")).toBeInTheDocument();
 });
 
-test("shows why a draft was stopped, one problem per line (X4)", () => {
+test("shows why a draft was stopped, one problem per line", () => {
   render(
     <ApplicationDraft
       application={{ ...ready, status: "blocked", blockedReason: '"5 years": the profile says 3\n"Kubernetes": not in the profile' }}
@@ -48,7 +48,7 @@ test("shows nothing while the application is still being written", () => {
   expect(container).toBeEmptyDOMElement();
 });
 
-test("says when the email is in Gmail, and while it is still being saved there (X1)", () => {
+test("says when the email is in Gmail, and while it is still being saved there", () => {
   const { rerender } = render(<ApplicationDraft application={ready} />);
   expect(screen.getByRole("status")).toHaveTextContent("Saved as a draft in Gmail");
   expect(screen.getByRole("link", { name: "Open Gmail drafts" })).toHaveAttribute("href", "https://mail.google.com/mail/#drafts");

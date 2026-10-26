@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 import type { ApplicationSummary } from "../data";
-import { DailyList, dayName, prepared } from "./daily-list";
+import { DailyList, dayName, preparedSummary } from "./daily-list";
 
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
@@ -46,14 +46,14 @@ test("names days in Pakistan time", () => {
 });
 
 test("says what was prepared for each kind of application", () => {
-  expect(prepared({ route: "email", status: "ready", inGmail: true })).toBe("email draft in Gmail");
-  expect(prepared({ route: "email", status: "blocked", inGmail: false })).toBe("email stopped by the checks");
-  expect(prepared({ route: "note", status: "preparing", inGmail: false })).toBe("note being written");
-  expect(prepared({ route: "note", status: "sent", inGmail: false })).toBe("note to paste");
-  expect(prepared({ route: "form", status: "ready", inGmail: false })).toBe("form answers to copy");
+  expect(preparedSummary({ route: "email", status: "ready", inGmail: true })).toBe("email draft in Gmail");
+  expect(preparedSummary({ route: "email", status: "blocked", inGmail: false })).toBe("email stopped by the checks");
+  expect(preparedSummary({ route: "note", status: "preparing", inGmail: false })).toBe("note being written");
+  expect(preparedSummary({ route: "note", status: "sent", inGmail: false })).toBe("note to paste");
+  expect(preparedSummary({ route: "form", status: "ready", inGmail: false })).toBe("form answers to copy");
 });
 
-test("shows each day's applications with source, what was prepared, score and tags (U1)", () => {
+test("shows each day's applications with source, what was prepared, score and tags", () => {
   render(<DailyList applications={[email, note]} now={now} />);
 
   const today = screen.getByRole("region", { name: "Today" });
@@ -63,7 +63,7 @@ test("shows each day's applications with source, what was prepared, score and ta
   expect(within(today).getByText("82")).toBeInTheDocument();
 });
 
-test("one tap marks an application, and the mark shows at once (U2)", async () => {
+test("one tap marks an application, and the mark shows at once", async () => {
   updateApplicationStatus.mockResolvedValue({ ok: true, data: { applicationId: email.id, status: "sent" } });
   render(<DailyList applications={[email]} now={now} />);
 

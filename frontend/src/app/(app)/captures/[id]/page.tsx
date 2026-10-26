@@ -17,7 +17,6 @@ export default function CapturedPostPage({ params }: PageProps<"/captures/[id]">
         Capture another post
       </Link>
       <h1 className="text-2xl font-bold">Captured post</h1>
-      {/* The capture is read per request, so it streams in behind a boundary (Cache Components). */}
       <Suspense fallback={<p className="text-ink-muted">Loading…</p>}>
         <Capture params={params} />
       </Suspense>

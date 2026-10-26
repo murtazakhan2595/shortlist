@@ -1,14 +1,14 @@
 import "server-only";
 import type { ModelPrice } from "@/lib/model-catalog";
 
-/** The parts of inputTokens read from and written to the provider's prompt cache are counted apart. */
+/** cachedInputTokens and cacheWriteTokens are parts of inputTokens. */
 export type TokenUsage = { inputTokens: number; cachedInputTokens: number; cacheWriteTokens: number; outputTokens: number };
 
 export const NO_TOKENS: TokenUsage = { inputTokens: 0, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 0 };
 
 const TOKENS_PER_PRICE_UNIT = 1_000_000;
 
-/** Cost in US dollars, rounded to the 6 decimal places model_calls stores. Output tokens include reasoning. */
+/** Rounded to the 6 decimal places model_calls stores. Output tokens include reasoning. */
 export function calculateCostUsd(usage: TokenUsage, price: ModelPrice): number {
   const uncachedInputTokens = usage.inputTokens - usage.cachedInputTokens - usage.cacheWriteTokens;
   const cost =

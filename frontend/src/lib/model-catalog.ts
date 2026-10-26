@@ -1,6 +1,4 @@
-// The model steps, providers, effort levels and the models the app may use, with their prices.
-// These are constants: they change only with the code. Which model each step uses is the owner's
-// choice and lives in the step_models table (B3, U4).
+// Which model each step uses is a setting, kept in the step_models table; the options here change only with the code.
 
 export const MODEL_STEPS = [
   "extract_capture",
@@ -21,17 +19,14 @@ export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
 
 export type ModelPrice = {
   inputUsdPerMillionTokens: number;
-  /** Input read from the provider's prompt cache, when a prompt starts the same way as a recent one. */
   cachedInputUsdPerMillionTokens: number;
-  /** Input written to the prompt cache, so later prompts can read it. */
   cacheWriteInputUsdPerMillionTokens: number;
   outputUsdPerMillionTokens: number;
 };
 
-// Input and output prices from each provider's own pricing page, checked on 13 October 2026 (PLAN.md section 4).
-// Cache prices from OpenAI's prompt caching guide, 19 October 2026: on these models a cache write costs 1.25 times
-// the input price and a read 0.1 times (0.05 for gpt-6.1-sol).
-// A model that is not listed here cannot be used, so the cost of every call is known (B1).
+// Prices as of October 2026, from OpenAI's pricing page and prompt caching guide:
+// a cache write costs 1.25 times the input price and a read 0.1 times (0.05 for gpt-6.1-sol).
+// A model not listed here cannot be used, so every call's cost is known.
 export const MODEL_PRICES: Record<ModelProvider, Record<string, ModelPrice>> = {
   openai: {
     "gpt-6-luna": {

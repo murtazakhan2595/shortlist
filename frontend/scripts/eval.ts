@@ -1,9 +1,5 @@
-// Runs a quality check against one or more models and writes its results table (PLAN.md item 1.6).
-//
-//   pnpm eval E1 --models gpt-6.1-sol@low,gpt-6-luna@low
-//
-// Cases come from private/evals/<check>/cases/. The table is written to evals/results/<check>.md.
-// Every model call is real and costs money; the eval run's total is shown at the end.
+// pnpm eval <check> --models gpt-6.1-sol@low,gpt-6-luna@low
+// Every model call is real and costs money. Cases come from private/evals/<check>/cases/.
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -17,7 +13,6 @@ import { EVAL_CHECKS } from "../evals/checks";
 import { runEval } from "../evals/harness";
 import { toMarkdown } from "../evals/report";
 
-/** "gpt-6-luna@low" -> the priced model and its effort level. */
 function parseModel(text: string): ModelSettings {
   const [model, effort] = text.split("@");
   const provider = MODEL_PROVIDERS.find((candidate) => model in MODEL_PRICES[candidate]);
@@ -42,7 +37,6 @@ async function finishEvalRun(runId: string, status: "succeeded" | "failed"): Pro
   await getAdminClient().from("runs").update({ status, finished_at: new Date().toISOString() }).eq("id", runId);
 }
 
-/** The cost of the run's model calls, per model and effort level. */
 async function costsByModel(runId: string): Promise<Map<string, number>> {
   const { data, error } = await getAdminClient()
     .from("model_calls")

@@ -7,10 +7,7 @@ export type AdminClient = SupabaseClient<Database>;
 
 let adminClient: AdminClient | undefined;
 
-/**
- * A database client with the secret key, which bypasses the owner-only access rules.
- * For background work only (queue steps, scheduled runs); owner requests go through requireOwner().
- */
+// Bypasses the owner-only access rules. For background work only; owner requests go through requireOwner().
 export function getAdminClient(): AdminClient {
   const env = getServerEnv();
   adminClient ??= createClient<Database>(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY, {

@@ -2,7 +2,6 @@ import type { OpenFailure } from "@/server/queue/failed-steps";
 import { STEP_NAMES } from "@/server/queue/step-names";
 import { FailureActions } from "./failure-actions";
 
-// What each step was doing, in the owner's words.
 const DOING: Record<string, string> = {
   [STEP_NAMES.extractCapture]: "Reading the post",
   [STEP_NAMES.prepareEmailApplication]: "Starting the email",
@@ -25,10 +24,6 @@ const FAILED_AT = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Asia/Karachi",
 });
 
-/**
- * A step that failed every attempt: what it was doing, why it failed, and buttons to try it again or
- * dismiss it. With href, also a link to the page of what it was working on.
- */
 export function FailureNotice({ failure, href }: { failure: OpenFailure; href?: string }) {
   return (
     <div role="alert" className="flex flex-col gap-2 rounded-md border border-danger p-4">

@@ -1,9 +1,7 @@
-// The checks code makes on a draft before a model reviews it (PLAN.md item 2.2; X4). Exact text checks,
-// so they cannot be argued with: every number, link and technology must already be in the sources, the
-// body must fit the pattern's length, and no banned phrase may appear.
-// The first check is an idea from career-ops verify-cv-facts.mjs. The banned phrases are
+// Exact text checks run before the model check, so they cannot be argued with.
+// The number check is an idea from career-ops verify-cv-facts.mjs. The banned phrases are
 // Ported from: https://github.com/MadsLorentzen/ai-job-search/blob/5d9e0977f01465166f25abf0826bd61e7c8cac25/.claude/skills/job-application-assistant/03-writing-style.md (MIT)
-// merged with the owner's own list (private/email-patterns.md section 4).
+// plus our own additions.
 
 import { escapeRegExp } from "@/lib/regex";
 import type { EmailDraft, WriterContext } from "../schemas";
@@ -33,9 +31,8 @@ const BANNED_PATTERNS = [
   { pattern: /—/, description: "an em dash (use a comma, period or colon)" },
 ];
 
-// Technologies a draft may only name if the profile or the answer bank does. A draft must write a term as
-// it is written here ("Express", not "express"), so ordinary words are not taken for tools; "Go" is left
-// out for that reason. Add a term when a post brings up a new one.
+// Matched case-sensitively in drafts ("Express", not "express") so ordinary words are not taken for tools;
+// "Go" is left out for that reason.
 const TECH_TERMS = [
   "TypeScript", "JavaScript", "Python", "Java", "Kotlin", "Swift", "Golang", "Rust", "C#", "C++", "Ruby", "PHP",
   "Scala", "Elixir", "Dart", "SQL", "React", "React Native", "Next.js", "Vue", "Nuxt", "Angular", "Svelte",
@@ -54,15 +51,13 @@ const LINK = /\bhttps?:\/\/[^\s)>\]]+|\b(?:[a-z0-9-]+\.)+(?:com|io|dev|me|pk|org
 const LENGTH_RULE = /\*\*Length:\*\*\s*(\d+)\s*[–-]\s*(\d+)\s*words/;
 const MAX_SUBJECT_LENGTH = 120;
 
-/** Every problem code can find, in words the writer can act on. Empty when the draft passes. */
+/** Problems are worded so the writer can act on them. */
 export function findDraftProblems(draft: EmailDraft, writer: WriterContext): string[] {
   const text = `${draft.subject}\n${draft.body}\n${draft.signature}`;
   const aboutOwner = normalise(`${writer.profile}\n${writer.answerBank}`);
   const everything = `${aboutOwner}\n${normalise(writer.post.text)}`;
-  // A number or technology from the post is allowed in the body only as part of the role's name ("your Vue
-  // Developer role", "Engineer 2"), and a number also as part of the company's or poster's name ("10Pearls"):
-  // anywhere else it would read as a claim about the owner ("5 years"). The subject may quote the post. The
-  // model check catches a claim made around a name.
+  // In the body, a number or technology from the post is allowed only inside the role, company or poster
+  // name ("Engineer 2", "10Pearls"); elsewhere it reads as a claim ("5 years"). The subject may quote the post.
   const claimSources = `${aboutOwner}\n${normalise(writer.post.role ?? "")}`;
   const numberSources = `${claimSources}\n${normalise(`${writer.post.company ?? ""}\n${writer.post.posterName ?? ""}`)}`;
   const bodyText = `${draft.body}\n${draft.signature}`;
@@ -96,7 +91,7 @@ function lengthProblems(draft: EmailDraft, patternContent: string): string[] {
   if (!draft.subject.trim()) problems.push("The subject line is empty.");
   if (draft.subject.length > MAX_SUBJECT_LENGTH) problems.push(`The subject line is over ${MAX_SUBJECT_LENGTH} characters.`);
 
-  // The pattern states its own length ("**Length:** 60–120 words"), so editing a pattern changes the check.
+  // Read from the pattern text ("**Length:** 60–120 words"), so editing a pattern changes the check.
   const rule = patternContent.match(LENGTH_RULE);
   const words = countWords(draft.body);
   if (rule && (words < Number(rule[1]) || words > Number(rule[2]))) {
@@ -105,7 +100,6 @@ function lengthProblems(draft: EmailDraft, patternContent: string): string[] {
   return problems;
 }
 
-/** Every number in the text that is not in the sources, each once, without thousands commas. */
 function numbersMissingFrom(text: string, sources: string): string[] {
   return unique(text.matchAll(NUMBER), (number) => number.replace(/,/g, "")).filter((number) => !containsWhole(sources, number));
 }
@@ -114,20 +108,17 @@ function unique(matches: Iterable<RegExpMatchArray>, clean: (match: string) => s
   return [...new Set([...matches].map(([match]) => clean(match)))];
 }
 
-/** Lowercase, with commas inside numbers removed, so "2,500" in a draft matches "2500" in a source. */
+/** So "2,500" in a draft matches "2500" in a source. */
 function normalise(text: string): string {
   return text.toLowerCase().replace(/(\d),(?=\d)/g, "$1");
 }
 
-/** The number as a whole, so 5 is not found inside 50 or 2025. */
+/** So 5 is not found inside 50 or 2025. */
 function containsWhole(text: string, number: string): boolean {
   return new RegExp(`(^|[^\\d.])${escapeRegExp(number)}(?![\\d]|\\.\\d)`).test(text);
 }
 
-/**
- * A term as a whole word, so "Java" is not found inside "JavaScript" or "SQL" inside "PostgreSQL".
- * Drafts are matched with the term's own capitals (""); sources ignore case ("i").
- */
+/** Whole word, so "Java" is not found inside "JavaScript". Drafts match case (""); sources ignore it ("i"). */
 function containsTerm(text: string, term: string, flags: "" | "i"): boolean {
   return new RegExp(`(^|[^A-Za-z0-9.#+])${escapeRegExp(term)}(?![A-Za-z0-9#+]|\\.[A-Za-z])`, flags).test(text);
 }

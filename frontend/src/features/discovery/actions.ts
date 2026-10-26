@@ -11,10 +11,9 @@ import {
 } from "./schemas";
 import { BLOCKED_COMPANY_REASON, isBlockedCompany } from "./steps/eligibility";
 
-// Server Actions for discovery (contracts in ./schemas.ts). Writes use the owner's client, so the access
-// rules apply too.
+// Writes use the owner's client, so the access rules apply too.
 
-/** Marks a listing apply or skip (U7). The marks are the test set for match quality (check E2). */
+/** The marks are also the test set for match quality. */
 export async function labelListing(request: LabelListingInput): Promise<Result<LabelListingInput>> {
   const input = LabelListingInputSchema.safeParse(request);
   if (!input.success) return fail("invalid_input", input.error.issues[0].message);
@@ -32,11 +31,7 @@ export async function labelListing(request: LabelListingInput): Promise<Result<L
   return ok({ listingId, label });
 }
 
-/**
- * Blocks the listing's company: it is added to the blocked companies in Settings, so the nightly filter
- * drops its jobs from now on, and its listings in the same night's list move to the dropped ones at once.
- * One the owner marked apply stays. A note already written is kept with its application.
- */
+/** Also drops the company's listings from the same run at once, except those marked apply. */
 export async function blockCompany(request: BlockCompanyInput): Promise<Result<CompanyBlocked>> {
   const input = BlockCompanyInputSchema.safeParse(request);
   if (!input.success) return fail("invalid_input", input.error.issues[0].message);

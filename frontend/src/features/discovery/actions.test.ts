@@ -1,8 +1,7 @@
 import { beforeEach, expect, test, vi } from "vitest";
 import { blockCompany } from "./actions";
 
-// blockCompany with the owner check and database replaced: the owner's real settings and listings are
-// never written by tests. Reads answer from the rows below; writes are recorded.
+// The database is faked, so tests never write the owner's real settings and listings.
 const db = vi.hoisted(() => ({
   listing: { company: "KDCI", run_id: "run-1" } as { company: string; run_id: string | null } | null,
   blocked: ["micro1"],

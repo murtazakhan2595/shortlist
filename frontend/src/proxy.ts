@@ -1,8 +1,8 @@
 import type { NextRequest } from "next/server";
 import { redirectKeepingSession, updateSession } from "@/server/supabase/proxy";
 
-// Runs before every page (Next.js Proxy). Signed-out visitors go to the sign-in page;
-// the owner check itself happens in requireOwner(), close to the data.
+// Only sends signed-out visitors to sign-in. This is not the security check: that is requireOwner(),
+// close to the data.
 
 const SIGN_IN_PATH = "/sign-in";
 const HOME_PATH = "/";

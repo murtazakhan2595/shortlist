@@ -5,9 +5,7 @@ import { advanceWriter, prepareEmailApplication } from "@/features/applications/
 import { getCheckpointer } from "@/server/queue/checkpointer";
 import { getAdminClient } from "@/server/supabase/admin";
 
-// The writer's queued steps against the real database, its LangGraph checkpoints in Postgres and the
-// owner's real material, with a fake model. Queued steps are collected here instead of going to the
-// real queue, and run one by one, as the worker would.
+// Queued steps are collected here and run one by one, as the worker would.
 const invokeModel = vi.hoisted(() => vi.fn());
 vi.mock("@/server/models/chat-models", () => ({ createStructuredModel: () => ({ invoke: invokeModel }) }));
 
@@ -89,7 +87,6 @@ describe("the writer's queued steps", () => {
     return { captureId: capture.data.id, runId: run.data.id };
   }
 
-  /** Runs queued steps in order, as the worker would, until none are left. */
   async function runQueuedSteps(maxSteps = 10) {
     for (let count = 0; queued.length > 0 && count < maxSteps; count++) {
       const next = queued.shift();
@@ -140,7 +137,6 @@ describe("the writer's queued steps", () => {
     expect(calls?.every((call) => call.application_id === applicationId)).toBe(true);
     expect(gmailDraftsQueued).toEqual([{ applicationId }]);
 
-    // Run again, both steps change nothing and call no model.
     await prepareEmailApplication({ captureId });
     await runQueuedSteps();
     expect(invokeModel).toHaveBeenCalledTimes(2);
@@ -169,7 +165,7 @@ describe("the writer's queued steps", () => {
     expect(invokeModel).toHaveBeenCalledTimes(2);
   });
 
-  test("a second capture of the same job, to the same address, is marked a duplicate (C5, X6)", async () => {
+  test("a second capture of the same job, to the same address, is marked a duplicate", async () => {
     const email = `jobs-${randomUUID()}@acme.example`;
     const first = await createCapture(email);
     await prepareEmailApplication({ captureId: first.captureId });

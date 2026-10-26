@@ -4,9 +4,7 @@ import { requireOwner } from "@/server/auth/require-owner";
 import { findOpenFailures, type OpenFailure } from "@/server/queue/failed-steps";
 import type { Tables } from "@/server/supabase/database.types";
 
-// Data Access Layer for captures: the feature's reads, each starting with the owner check.
-
-/** What the capture page shows: only the fields it needs, never the raw post or file paths. */
+/** Never the raw post or file paths. */
 export type CaptureView = {
   id: string;
   inputType: Tables<"captures">["input_type"];
@@ -18,11 +16,10 @@ export type CaptureView = {
   formUrl: string | null;
   postUrl: string | null;
   createdAt: string;
-  /** A step reading the post or starting its email that failed every attempt, until tried again. */
   failure: OpenFailure | null;
 };
 
-/** The capture with this id, or null if there is none (the id comes from the URL, so it may be anything). */
+/** The id comes from the URL, so it may be anything. */
 export async function getCapture(id: string): Promise<CaptureView | null> {
   if (!z.uuid().safeParse(id).success) return null;
 

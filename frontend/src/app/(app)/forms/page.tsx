@@ -22,7 +22,6 @@ export default function FormsPage() {
         <h2 id="recent-heading" className="text-lg font-semibold">
           Recent forms
         </h2>
-        {/* Read per request, so it streams in behind a boundary (Cache Components). */}
         <Suspense fallback={<p className="text-ink-muted">Loading…</p>}>
           <Recent />
         </Suspense>

@@ -3,7 +3,7 @@ import type { ModelSettings } from "@/server/models/chat-models";
 import type { LoadedCase } from "./cases";
 import type { CaseFailure, EvalCheck, ModelResult } from "./check";
 
-// Runs every case of a check against each model and counts the passes (PLAN.md item 1.6).
+// Runs every case of a check against each model and counts the passes.
 // Costs are added afterwards from model_calls, by the eval run they are linked to.
 
 // A few cases at a time, so a run is quick without hitting the provider's rate limits.

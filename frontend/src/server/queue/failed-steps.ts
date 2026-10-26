@@ -4,27 +4,22 @@ import { z } from "zod";
 import type { Database, Tables } from "@/server/supabase/database.types";
 import { enqueueStep } from "./queue";
 
-// Steps that failed every attempt (PLAN.md item 5.6). The worker records each in failed_steps
-// (run-next-step.ts). A failure stays open until the owner tries the step again: that removes its row
-// and queues the step once more, with the same payload, so it carries on where it stopped.
+// Steps that failed every attempt. Retrying removes the row and queues the step again with the same payload.
 
 export type OpenFailure = {
   id: string;
   step: string;
   error: string;
   failedAt: string;
-  /** The captures, applications, listings or runs the step was working on, from its payload. */
   targetIds: string[];
 };
 
-// The ids a step's payload names what it works on by. A failure belongs to any of them.
 const PAYLOAD_IDS = ["captureId", "applicationId", "listingId", "runId"] as const;
 
 type FailedStepRow = Pick<Tables<"failed_steps">, "id" | "step" | "error" | "failed_at" | "payload">;
 
 type PayloadIds = Partial<Record<(typeof PAYLOAD_IDS)[number], string>>;
 
-/** The ids in a step's payload, by what they name. */
 function payloadIds(payload: FailedStepRow["payload"]): PayloadIds {
   const fields = payload !== null && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
   const ids: PayloadIds = {};
@@ -42,20 +37,14 @@ function toOpenFailure(row: FailedStepRow): OpenFailure {
 
 const QUEUE = "steps";
 
-/**
- * The open failures of steps that worked on any of these captures, applications, listings or runs,
- * newest first. Takes the owner's client.
- *
- * Open failures are few, so all are read and matched here. Putting the ids in the query instead made its
- * URL grow with the list: a night of 150 listings would pass the database API's limit.
- */
+// Open failures are few, so all are read and matched here. Putting the ids in the query made its URL
+// grow with the list: 150 listings would pass the database API's URL limit.
 export async function findOpenFailures(db: SupabaseClient<Database>, ids: string[]): Promise<OpenFailure[]> {
   if (ids.length === 0) return [];
   const wanted = new Set(ids);
   return (await findAllOpenFailures(db)).filter((failure) => failure.targetIds.some((id) => wanted.has(id)));
 }
 
-/** Every open failure, newest first. Takes the owner's client. */
 export async function findAllOpenFailures(db: SupabaseClient<Database>): Promise<OpenFailure[]> {
   const { data, error } = await db
     .from("failed_steps")
@@ -66,10 +55,7 @@ export async function findAllOpenFailures(db: SupabaseClient<Database>): Promise
   return data.map(toOpenFailure);
 }
 
-/**
- * Closes a failure without trying the step again, and stops what it was working on from waiting for it.
- * Returns false if it was already closed. Takes the owner's client.
- */
+/** Returns false if it was already closed. */
 export async function dismissFailedStep(db: SupabaseClient<Database>, failedStepId: string): Promise<boolean> {
   const { data, error } = await db.from("failed_steps").delete().eq("id", failedStepId).eq("queue", QUEUE).select("payload");
   if (error) throw new Error(`Could not dismiss the failed step: ${error.message}`);
@@ -81,12 +67,8 @@ export async function dismissFailedStep(db: SupabaseClient<Database>, failedStep
 
 export const DISMISSED_REASON = "A step failed and was dismissed, so this was not finished.";
 
-/**
- * What a dismissed step was working on would otherwise wait for it for good. Each is changed only while it
- * still waits: a form goes back to ready, so pages can be added again; an email or note is blocked, so it
- * can still be marked sent or skipped; a capture fails; a run fails. A listing needs nothing: its run went
- * on without it when the step gave up.
- */
+// Otherwise the work would wait for the dismissed step for good. A listing needs nothing: its run went on
+// without it when the step gave up.
 async function stopWaitingWork(db: SupabaseClient<Database>, ids: PayloadIds): Promise<void> {
   const updates = [];
   if (ids.applicationId) {
@@ -115,11 +97,7 @@ async function stopWaitingWork(db: SupabaseClient<Database>, ids: PayloadIds): P
 
 const PayloadSchema = z.record(z.string(), z.json());
 
-/**
- * Queues a failed step again with its payload, and closes the failure. Returns false if it was already
- * tried again. Removing the row is the claim: of two requests at once, only one removes it, so the step
- * is queued once. Takes the owner's client.
- */
+// Removing the row is the claim: of two requests at once only one removes it, so the step is queued once.
 export async function retryFailedStep(db: SupabaseClient<Database>, failedStepId: string): Promise<boolean> {
   const { data: failure, error } = await db
     .from("failed_steps")
@@ -134,7 +112,7 @@ export async function retryFailedStep(db: SupabaseClient<Database>, failedStepId
   try {
     await enqueueStep(failure.step, PayloadSchema.parse(failure.payload));
   } catch (queueError) {
-    // Nothing would run the step, so the failure is put back for the owner to try again.
+    // Nothing would run the step, so the failure is put back.
     await db.from("failed_steps").insert(failure);
     throw queueError;
   }

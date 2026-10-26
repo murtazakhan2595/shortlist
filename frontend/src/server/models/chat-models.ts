@@ -7,9 +7,7 @@ import type { z } from "zod";
 import type { ModelProvider, ReasoningEffort } from "@/lib/model-catalog";
 import { getServerEnv } from "@/server/env";
 
-// The only file that knows how each provider is called. Adding a provider means adding a case here.
-// Open-source models served through an OpenAI-compatible API (for example DeepSeek or Groq) can reuse
-// ChatOpenAI with that service's base URL and key.
+// OpenAI-compatible APIs (DeepSeek, Groq) can reuse ChatOpenAI with their own base URL and key.
 
 export type ModelSettings = { provider: ModelProvider; model: string; effort: ReasoningEffort };
 
@@ -28,10 +26,6 @@ function requireKey(name: "OPENAI_API_KEY"): string {
   return key;
 }
 
-/**
- * A model that answers in the shape of the schema, returning the raw message too, for its token counts.
- * Uses the provider's native JSON schema output.
- */
 export function createStructuredModel<Schema extends z.ZodObject>(
   settings: ModelSettings,
   schema: Schema,

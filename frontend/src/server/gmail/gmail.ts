@@ -5,14 +5,9 @@ import { getServerEnv } from "@/server/env";
 import { getAdminClient } from "@/server/supabase/admin";
 import type { DraftEmail } from "./schemas";
 
-// The owner's Gmail, through plain calls to Google's APIs (PLAN.md item 2.3, X1, X5): one-time consent,
-// a short-lived access token from the saved refresh token, and drafts. The googleapis package is not used:
-// it is very large, and these few calls are all that is needed.
-//
-// Nothing here can send mail. Gmail's send endpoints are never called (hard rule 1; tests/rules/no-send.test.ts),
-// and the language model has no access to this module (hard rule 4).
+// Gmail drafts through plain fetch calls; the googleapis package is too large for these few calls.
+// Nothing here can send mail (tests/rules/no-send.test.ts checks it), and the model never reaches this module.
 
-/** The only Gmail permission the app asks for: create and edit drafts. */
 export const GMAIL_COMPOSE_SCOPE = "https://www.googleapis.com/auth/gmail.compose";
 
 const CONSENT_URL = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -26,16 +21,11 @@ export class GmailScopeError extends Error {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Consent, once
-// ---------------------------------------------------------------------------
-
-/** A random value for the consent round trip; the callback checks it came back unchanged. */
 export function newConsentState(): string {
   return randomBytes(32).toString("base64url");
 }
 
-/** Google's consent page. access_type and prompt make Google return a refresh token every time. */
+// access_type and prompt make Google return a refresh token every time.
 export function gmailConsentUrl(redirectUri: string, state: string): string {
   const url = new URL(CONSENT_URL);
   url.search = new URLSearchParams({
@@ -50,7 +40,6 @@ export function gmailConsentUrl(redirectUri: string, state: string): string {
   return url.toString();
 }
 
-/** Swaps the code Google returned for tokens, and keeps the refresh token in Supabase Vault. */
 export async function saveGmailConsent(code: string, redirectUri: string): Promise<void> {
   const token = await requestToken({ grant_type: "authorization_code", code, redirect_uri: redirectUri });
   if (!token.refresh_token) throw new Error("Google returned no refresh token");
@@ -63,11 +52,7 @@ export async function isGmailConnected(): Promise<boolean> {
   return (await savedRefreshToken()) !== null;
 }
 
-// ---------------------------------------------------------------------------
-// Drafts
-// ---------------------------------------------------------------------------
-
-/** A short-lived token for the Gmail API, or null when the owner has not connected Gmail yet. */
+/** Null when Gmail is not connected yet. */
 export async function getGmailAccessToken(): Promise<string | null> {
   const refreshToken = await savedRefreshToken();
   if (!refreshToken) return null;
@@ -75,10 +60,7 @@ export async function getGmailAccessToken(): Promise<string | null> {
   return token.access_token;
 }
 
-/**
- * The id of a draft already in Gmail to this recipient with this subject, if there is one.
- * Gmail replaces the Message-ID of every draft with its own, so a draft is found by what it says instead.
- */
+// Gmail replaces every draft's Message-ID with its own, so a draft is found by recipient and subject.
 export async function findDraft(accessToken: string, to: string, subject: string): Promise<string | null> {
   const url = new URL(DRAFTS_URL);
   url.searchParams.set("q", `in:drafts to:${z.email().parse(to)} subject:"${subject.replace(/"/g, "")}"`);
@@ -97,11 +79,8 @@ export async function createDraft(accessToken: string, email: DraftEmail): Promi
   return created.id;
 }
 
-/**
- * The email in MIME format: a plain-text body and one attached file.
- * The subject is written by a model from a job post, which is untrusted (hard rule 4), so it is always
- * encoded: a line break in it can never start a new header such as Bcc.
- */
+// The subject comes from a model reading an untrusted job post, so it is always encoded:
+// a line break in it can never start a new header such as Bcc.
 export function buildEmail(email: DraftEmail): string {
   const to = z.email().parse(email.to);
   const fileName = email.attachment.fileName.replace(/["\\\r\n]/g, "");
@@ -129,11 +108,7 @@ export function buildEmail(email: DraftEmail): string {
   ].join("\r\n");
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Google's token answer. refresh_token comes only with consent; scope lists every permission granted. */
+// refresh_token comes only with consent; scope lists every permission granted.
 const GoogleTokenSchema = z.object({
   access_token: z.string().min(1),
   refresh_token: z.string().min(1).optional(),
@@ -145,7 +120,6 @@ const DraftListSchema = z.object({ drafts: z.array(DraftSchema).optional() });
 // An encoded word may be at most 75 characters (RFC 2047), so a long subject becomes several.
 const ENCODED_WORD_BYTES = 45;
 
-/** Encodes a header value as UTF-8 encoded words, one per chunk, folded onto separate lines. */
 function encodeHeader(value: string): string {
   const words: string[] = [];
   let chunk = "";
@@ -160,7 +134,7 @@ function encodeHeader(value: string): string {
   return words.map((word) => `=?UTF-8?B?${Buffer.from(word).toString("base64")}?=`).join("\r\n ");
 }
 
-/** Base64 in lines of 76 characters, as MIME requires. */
+// MIME requires lines of at most 76 characters.
 function base64Lines(content: Buffer): string {
   return content.toString("base64").replace(/.{76}/g, "$&\r\n").trimEnd();
 }
@@ -177,17 +151,13 @@ async function savedRefreshToken(): Promise<string | null> {
   return data || null;
 }
 
-/**
- * Asks Google for tokens. Every answer lists the permissions the token carries; anything other than
- * exactly gmail.compose is refused (X5), so a token with wider access is never saved or used.
- */
+// A token with any scope other than exactly gmail.compose is refused, so wider access is never saved or used.
 async function requestToken(grant: Record<string, string>): Promise<z.infer<typeof GoogleTokenSchema>> {
   const { clientId, clientSecret } = googleClient();
   const response = await fetch(TOKEN_URL, {
     method: "POST",
     body: new URLSearchParams({ ...grant, client_id: clientId, client_secret: clientSecret }),
   });
-  // Google's error answer names the problem (such as invalid_grant) and holds no token.
   if (!response.ok) throw new Error(`Google refused the token request: ${await response.text()}`);
 
   const token = GoogleTokenSchema.parse(await response.json());

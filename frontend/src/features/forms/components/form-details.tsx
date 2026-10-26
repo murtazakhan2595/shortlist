@@ -5,10 +5,7 @@ import type { FormView } from "../data";
 import { FormQuestions } from "./form-questions";
 import { formTitle } from "./recent-forms";
 
-/**
- * One form: the job it is for, where answering stands, and every question with its answer. failureNotice
- * is shown in place of the progress when a step failed every attempt.
- */
+/** failureNotice replaces the progress when a step failed every attempt. */
 export function FormDetails({ form, failureNotice }: { form: FormView; failureNotice?: ReactNode }) {
   return (
     <div className="flex flex-col gap-6">
@@ -59,7 +56,6 @@ function Progress({ form }: { form: FormView }) {
   return <p className="text-lg font-semibold">{parts.join(", ")}.</p>;
 }
 
-/** "3 screenshots", "pasted text", or both. */
 function pagesRead(form: FormView): string {
   const parts = [];
   if (form.screenshots > 0) parts.push(`${form.screenshots} ${form.screenshots === 1 ? "screenshot" : "screenshots"}`);

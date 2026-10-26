@@ -9,12 +9,10 @@ export const metadata: Metadata = { title: "Reports" };
 
 const LOADING = <p className="text-ink-muted">Loading…</p>;
 
-// Spending per run and per month, and reply and interview rates per source and per email pattern (PLAN.md item 5.3; U5).
 export default function ReportsPage({ searchParams }: PageProps<"/reports">) {
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-5 py-8">
       <h1 className="text-2xl font-bold">Reports</h1>
-      {/* Each is read per request, so it streams in behind a boundary (Cache Components). */}
       <Section id="rates-heading" title="Replies and interviews">
         <Suspense fallback={LOADING}>
           <Rates />

@@ -73,7 +73,7 @@ test("a database error is reported, not thrown", async () => {
   });
 });
 
-test("sets one step's model, and only a priced one (B1, B3)", async () => {
+test("sets one step's model, and only a priced one", async () => {
   const choice = { step: "score_listing" as const, provider: "openai" as const, model: "gpt-6.1-sol", effort: "low" as const };
 
   expect((await updateStepModel(choice)).ok).toBe(true);

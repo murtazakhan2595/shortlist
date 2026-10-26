@@ -4,27 +4,24 @@ import { requireOwner } from "@/server/auth/require-owner";
 import { findOpenFailures, type OpenFailure } from "@/server/queue/failed-steps";
 import type { Tables } from "@/server/supabase/database.types";
 
-// Data Access Layer for forms: the feature's reads, each starting with the owner check.
-
 export type FormQuestion = Pick<Tables<"form_answers">, "id" | "position" | "question" | "options" | "answer" | "status" | "note">;
 
-/** What the form page shows: the job, the questions in order, and what answering them cost (B1). */
 export type FormView = {
   id: string;
-  /** "preparing" while pages are read or questions answered; then "ready". More pages can be added once ready. */
+  /** More pages can be added once "ready". */
   status: string;
   role: string | null;
   company: string | null;
   screenshots: number;
   hasPastedText: boolean;
   questions: FormQuestion[];
-  /** The latest step for this form that failed every attempt, until the owner tries it again. */
+  /** The latest step that failed every attempt, until retried. */
   failure: OpenFailure | null;
   costUsd: number;
   modelCalls: number;
 };
 
-/** The form with this id, or null if there is none (the id comes from the URL, so it may be anything). */
+// The id comes from the URL, so it may be anything.
 export async function getForm(id: string): Promise<FormView | null> {
   if (!z.uuid().safeParse(id).success) return null;
 
@@ -60,7 +57,6 @@ export async function getForm(id: string): Promise<FormView | null> {
   };
 }
 
-/** A line in the list of recent forms. */
 export type FormSummary = {
   id: string;
   role: string | null;
@@ -72,7 +68,6 @@ export type FormSummary = {
 
 const RECENT_FORMS = 10;
 
-/** The latest forms, newest first, so the owner can go back to one to finish it. */
 export async function getRecentForms(): Promise<FormSummary[]> {
   const { db } = await requireOwner();
   const { data, error } = await db

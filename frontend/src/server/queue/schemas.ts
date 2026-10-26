@@ -1,7 +1,6 @@
 import "server-only";
 
-// Contract for POST /api/worker, called by a database trigger when a step is queued and by Supabase Cron
-// every minute. It runs a few queued steps and returns what happened. See AGENTS.md "Contracts".
+// Contract for POST /api/worker, called by a database trigger on enqueue and by Supabase Cron every minute.
 
 export type WorkerRunSummary = {
   stepsRun: number;

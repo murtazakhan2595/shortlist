@@ -31,7 +31,6 @@ export function CaptureForm() {
   const [error, setError] = useState<string>();
   const [isPending, startTransition] = useTransition();
 
-  // Arriving from Android's share menu, the form starts with what was shared (item 2.5).
   useSharedPost((shared) => {
     setMode(shared.mode);
     setText(shared.text);
@@ -128,7 +127,6 @@ export function CaptureForm() {
   );
 }
 
-/** Uploads the screenshots, then submits their paths as one capture. */
 async function submitScreenshots(files: File[], postUrl: string | undefined): Promise<Result<CaptureSubmitted>> {
   if (files.length === 0) return fail("invalid_input", "Choose at least one screenshot");
   if (files.length > MAX_SCREENSHOTS_PER_CAPTURE) {

@@ -8,21 +8,15 @@ import { type ModelSettings, createStructuredModel } from "./chat-models";
 import { calculateCostUsd, NO_TOKENS, type TokenUsage } from "./cost";
 import { type ModelMessage, toLangChainMessages } from "./messages";
 
-// Every model call in the app goes through callModel (PLAN.md item 1.4; B1, B3).
-// It reads the step's model from step_models, asks for an answer in the schema's shape,
-// records the call and its cost in model_calls (also when it fails), and returns the checked answer.
-
-// Leaves room inside the 60-second step budget (AGENTS.md, Portability). Reading a full-page screenshot
-// took 22 seconds, as the model writes about 30 tokens a second from an image.
+// Leaves room inside the 60-second step budget. Reading a full-page screenshot took 22 seconds.
 export const MODEL_CALL_TIMEOUT_MS = 50_000;
 
 export type ModelCallRequest<Schema extends z.ZodObject> = {
   step: ModelStep;
   schema: Schema;
   messages: ModelMessage[];
-  /** What the cost belongs to, so every draft can be explained afterwards. */
   link?: { runId?: string; applicationId?: string };
-  /** Used by evaluations to try another model on the same step; the app always uses step_models. */
+  /** For evaluations only; the app always uses step_models. */
   model?: ModelSettings;
 };
 
@@ -49,7 +43,7 @@ export async function callModel<Schema extends z.ZodObject>(
     durationMs,
     error: attempt.ok ? null : describeError(attempt.error),
   }).catch((recordError: unknown) => {
-    // A successful call is not used unrecorded: its cost must count toward the monthly cap (B1, B2).
+    // A successful call is not used unrecorded: its cost must count toward the monthly cap.
     if (attempt.ok) throw recordError;
     // A failed call's own error says more, so that one is passed on; the lost cost row is logged.
     console.error("A failed model call could not be recorded:", describeError(recordError));
