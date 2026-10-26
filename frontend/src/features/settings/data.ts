@@ -5,21 +5,16 @@ import { isGmailConnected } from "@/server/gmail/gmail";
 import { loadSpendingCap, type SpendingCap } from "@/server/spending";
 import { type UpdateSettingsInput, type UpdateStepModelInput, UpdateStepModelInputSchema } from "./schemas";
 
-// Data Access Layer for settings: the feature's reads, each starting with the owner check.
-
-/** True once the owner has allowed Gmail drafts (X1). */
 export async function getGmailConnected(): Promise<boolean> {
   await requireOwner();
   return isGmailConnected();
 }
 
-/** This month's model spending against the monthly cap (B2). */
 export async function getSpendingCap(): Promise<SpendingCap> {
   const { db } = await requireOwner();
   return loadSpendingCap(db);
 }
 
-/** The settings of the nightly run, as the settings form edits them (U4). */
 export async function getRunSettings(): Promise<UpdateSettingsInput> {
   const { db } = await requireOwner();
   const { data, error } = await db
@@ -36,7 +31,6 @@ export async function getRunSettings(): Promise<UpdateSettingsInput> {
   };
 }
 
-/** The model each step uses (B3, U4), in the order the steps run. */
 export async function getStepModels(): Promise<UpdateStepModelInput[]> {
   const { db } = await requireOwner();
   const { data, error } = await db.from("step_models").select("step, provider, model, effort");

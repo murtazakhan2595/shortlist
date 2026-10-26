@@ -9,8 +9,6 @@ import { getOpenFailures } from "@/features/failed-steps/data";
 import { CapReached } from "@/features/settings/components/cap-reached";
 import { getSpendingCap } from "@/features/settings/data";
 
-// The morning routine (PLAN.md item 5.1): what needs the owner first, then each day's applications with
-// what was prepared, marked sent, skipped, replied or interview with one tap.
 export default function HomePage() {
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-5 py-8">
@@ -23,7 +21,6 @@ export default function HomePage() {
           Answer a form
         </Link>
       </div>
-      {/* Read per request, so they stream in behind boundaries (Cache Components). */}
       <Suspense fallback={null}>
         <NeedsAttention />
       </Suspense>

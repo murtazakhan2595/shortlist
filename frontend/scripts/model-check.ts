@@ -1,7 +1,4 @@
-// Sprint 1 exit check (PLAN.md item 1.4): one real model call through the model module,
-// then the cost row it recorded. Costs about $0.0001 on gpt-6-luna.
-//
-// Run: pnpm model-check
+// One real model call, then the cost row it recorded. Costs about $0.0001 on gpt-6-luna.
 
 import { z } from "zod";
 import { callModel } from "@/server/models/call-model";

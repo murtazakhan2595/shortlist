@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { expect, test } from "vitest";
 import { MonthlySpend } from "./monthly-spend";
 
-test("shows the chosen month's total and steps, with a link to every month (B1)", () => {
+test("shows the chosen month's total and steps, with a link to every month", () => {
   render(
     <MonthlySpend
       spend={{

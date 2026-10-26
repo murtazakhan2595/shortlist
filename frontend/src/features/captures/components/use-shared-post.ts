@@ -1,18 +1,16 @@
 import { useEffect, useEffectEvent } from "react";
 import { SHARE_CACHE, SHARED_SCREENSHOT_KEY_PREFIX, SHARED_TEXT_KEY } from "@/lib/shared-post";
 
-// A post shared to Shortlist from Android's share menu (PLAN.md item 2.5, C1). The service worker
-// (public/sw.js) keeps it in a browser cache; the capture form takes it from there to fill itself in.
+// A post shared from Android's share menu. The service worker (public/sw.js) keeps it in a browser cache;
+// the capture form takes it from there.
 
 export type SharedPost = { screenshots: File[]; text: string };
 
-/** How the capture form starts after a share. */
 export type SharedForm = {
   mode: "text" | "screenshot";
   text: string;
   postUrl: string;
   screenshots: File[];
-  /** Shown above the form when the share alone is not enough to capture the post. */
   notice?: string;
 };
 
@@ -33,7 +31,7 @@ export function formFromSharedPost({ screenshots, text }: SharedPost): SharedFor
   return { mode: "screenshot", text: "", postUrl, screenshots: [], notice: LINK_ONLY_NOTICE };
 }
 
-/** After a share (/capture?shared=1), hands the shared post to onShared once, and removes it from the cache. */
+/** Hands the shared post to onShared once, and removes it from the cache. */
 export function useSharedPost(onShared: (form: SharedForm) => void): void {
   const handleShared = useEffectEvent(onShared);
   useEffect(() => {

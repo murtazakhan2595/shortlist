@@ -5,7 +5,6 @@ const RUN_DATE = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "nume
 
 const STATUS_NAMES: Record<string, string> = { running: "not finished", failed: "failed" };
 
-/** What each nightly run found, put on the list and cost (U5, B1). */
 export function RunCosts({ runs }: { runs: RunCost[] }) {
   if (runs.length === 0) return <p className="text-ink-muted">No nightly run yet.</p>;
   return (

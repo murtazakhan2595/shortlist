@@ -9,7 +9,6 @@ function monthName(month: string): string {
   return MONTH_NAME.format(new Date(`${month}-01T00:00:00Z`));
 }
 
-/** What the model calls cost in one month, in total and per step, with a link to each month (B1). */
 export function MonthlySpend({ spend }: { spend: MonthlySpendView }) {
   return (
     <section aria-labelledby="spend-heading" className="flex flex-col gap-4 border-t border-rule pt-6">

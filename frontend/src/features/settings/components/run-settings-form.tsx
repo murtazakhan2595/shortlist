@@ -16,10 +16,6 @@ function commaList(text: string): string[] {
     .filter(Boolean);
 }
 
-/**
- * The nightly run's settings (U4): how many jobs a night, the monthly cap, the lowest pay, excluded countries
- * and blocked companies.
- */
 export function RunSettingsForm({ settings }: { settings: UpdateSettingsInput }) {
   const router = useRouter();
   const [message, setMessage] = useState<{ ok: boolean; text: string }>();

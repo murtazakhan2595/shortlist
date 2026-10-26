@@ -2,22 +2,15 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Tables } from "@/server/supabase/database.types";
 
-// Saving the owner's documents: profile, answer bank, voice examples and email patterns (Q8).
 // Saving never overwrites: a change is stored as a new version, so every draft can point to what it used.
 
 export type DocumentToSave = Pick<Tables<"documents">, "kind" | "name" | "content">;
 
-/** "conflict": nothing was saved, because a newer version than the edit started from exists (its id and version). */
+/** "conflict": nothing was saved because a newer version exists; its id and version are returned. */
 export type SavedDocument = { status: "added" | "updated" | "unchanged" | "conflict"; documentId: string; version: number };
 
-/**
- * Saves the document as a new version unless its latest version already has the same content.
- * Takes the owner's client in the app and the admin client in scripts.
- *
- * baseVersion is the version an edit started from. If a newer version was saved since, for example an
- * answer saved from a form while the owner edited the answer bank, nothing is saved, so that change is
- * never silently dropped.
- */
+// baseVersion is the version an edit started from. If a newer one was saved since (say, a form answer while
+// the answer bank was being edited), nothing is saved, so that change is never silently dropped.
 export async function saveDocumentIfChanged(
   db: SupabaseClient<Database>,
   document: DocumentToSave,
@@ -46,27 +39,20 @@ export async function saveDocumentIfChanged(
   return { status: current ? "updated" : "added", documentId: data.id, version };
 }
 
-// ---------------------------------------------------------------------------
-// Answers the owner gives on forms, kept in the answer bank for the next form that asks (F5)
-// ---------------------------------------------------------------------------
+// --- Form answers, kept in the answer bank for the next form that asks ---
 
 const ANSWER_BANK = { kind: "answer_bank", name: "main" } as const;
 const FORM_ANSWERS_HEADING = "## Answers given on forms";
 const FORM_ANSWERS_INTRO =
   "The owner's own answers to form questions, saved from the app. Each question is copied from a form; only the answer is the owner's.";
 
-// The answer bank is trusted material, but a question is read from a form, which is untrusted (principle 4).
-// Keeping it short leaves no room for a long hidden instruction to be carried into the bank.
+// Questions come from untrusted forms; a short cap leaves no room to carry a hidden instruction into the bank.
 export const MAX_SAVED_QUESTION_LENGTH = 300;
 
 // Enough for an edit saved on the Profile page at the same moment; more would mean something is wrong.
 const ANSWER_BANK_SAVE_ATTEMPTS = 2;
 
-/**
- * Adds the owner's answer to the answer bank as a new version, and returns that version. The answer is
- * added to the version just read; if another version was saved in between, it is added to that one instead,
- * so neither change is lost.
- */
+// If another version is saved between the read and the write, the answer is added to that one instead.
 export async function addToAnswerBank(db: SupabaseClient<Database>, question: string, answer: string): Promise<number> {
   for (let attempt = 1; attempt <= ANSWER_BANK_SAVE_ATTEMPTS; attempt++) {
     const { data, error } = await db
@@ -85,10 +71,7 @@ export async function addToAnswerBank(db: SupabaseClient<Database>, question: st
   throw new Error("The answer bank kept changing while the answer was saved. Try again.");
 }
 
-/**
- * The answer bank with this answer in its "Answers given on forms" section, which is added at the end the
- * first time. A question answered before has its old answer replaced, so the bank never holds two.
- */
+/** A question answered before has its old answer replaced, so the bank never holds two. */
 export function withFormAnswer(answerBank: string, question: string, answer: string): string {
   const questionLine = `- Question: ${shortened(oneLine(question))}`;
   const entry = `${questionLine}\n  Answer: ${oneLine(answer)}`;
@@ -96,7 +79,6 @@ export function withFormAnswer(answerBank: string, question: string, answer: str
   const headingAt = answerBank.indexOf(FORM_ANSWERS_HEADING);
   if (headingAt === -1) return `${answerBank.trimEnd()}\n\n${FORM_ANSWERS_HEADING}\n\n${FORM_ANSWERS_INTRO}\n\n${entry}\n`;
 
-  // The section runs to the next heading of the same level, or to the end.
   const bodyAt = headingAt + FORM_ANSWERS_HEADING.length;
   const nextHeadingAt = answerBank.indexOf("\n## ", bodyAt);
   const sectionEnd = nextHeadingAt === -1 ? answerBank.length : nextHeadingAt;

@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { answerFormQuestion } from "../actions";
 
-/** The owner's own answer to one question, saved to the answer bank unless they untick it (F5). */
 export function OwnerAnswerForm({ formAnswerId, initialAnswer = "" }: { formAnswerId: string; initialAnswer?: string }) {
   const router = useRouter();
   const [answer, setAnswer] = useState(initialAnswer);

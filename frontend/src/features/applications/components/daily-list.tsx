@@ -14,7 +14,6 @@ export function dayName(date: Date, now: Date): string {
   return DAY.format(date);
 }
 
-/** Applications by the day they were prepared, newest first (U1). */
 export function DailyList({ applications, now }: { applications: ApplicationSummary[]; now: Date }) {
   if (applications.length === 0) {
     return (
@@ -44,7 +43,7 @@ export function DailyList({ applications, now }: { applications: ApplicationSumm
 
 function ApplicationRow({ application }: { application: ApplicationSummary }) {
   const name = [application.role, application.company].filter(Boolean).join(" at ") || FALLBACK_NAMES[application.route];
-  const details = [application.source, prepared(application), ...application.tags].filter(Boolean).join(", ");
+  const details = [application.source, preparedSummary(application), ...application.tags].filter(Boolean).join(", ");
   return (
     <li className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-3 border-t border-rule py-4">
       <div className="flex min-w-0 flex-col gap-1">
@@ -76,8 +75,7 @@ const FALLBACK_NAMES: Record<ApplicationSummary["route"], string> = {
   form: "A form",
 };
 
-/** What was prepared, in a few words. */
-export function prepared({ route, status, inGmail }: Pick<ApplicationSummary, "route" | "status" | "inGmail">): string {
+export function preparedSummary({ route, status, inGmail }: Pick<ApplicationSummary, "route" | "status" | "inGmail">): string {
   if (status === "preparing") return BEING_PREPARED[route];
   if (route === "email") {
     if (status === "blocked") return "email stopped by the checks";

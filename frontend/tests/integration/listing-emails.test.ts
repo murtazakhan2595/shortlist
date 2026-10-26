@@ -6,9 +6,7 @@ import { getCheckpointer } from "@/server/queue/checkpointer";
 import { getAdminClient } from "@/server/supabase/admin";
 import { TEST_RUN_STARTED_AT } from "./test-runs";
 
-// A listing's email when its post gave an address (7.4), through the writer's queued steps, against the real database, its LangGraph
-// checkpoints and the owner's real material, with a fake model. Queued steps are collected here and run
-// one by one, as the worker would.
+// Queued steps are collected here and run one by one, as the worker would.
 const invokeModel = vi.hoisted(() => vi.fn());
 vi.mock("@/server/models/chat-models", () => ({ createStructuredModel: () => ({ invoke: invokeModel }) }));
 
@@ -137,7 +135,7 @@ test("a top listing whose post gave an address gets an email to that address, wh
   expect(application).toMatchObject({
     route: "email",
     status: "ready",
-    // From the listing, saved by code when the post was read; never from the model's draft (X5).
+    // From the listing, saved by code when the post was read; never from the model's draft.
     recipient_email: "jobs@acme.example",
     subject: EMAIL.subject,
     current_documents: { name: "post-reply" },
@@ -146,7 +144,6 @@ test("a top listing whose post gave an address gets an email to that address, wh
   const after = queued.splice(0);
   expect(after.length).toBeGreaterThan(0);
   expect(after.every((step) => step.step === "create_gmail_draft" && (step.payload as { applicationId: string }).applicationId === applicationId)).toBe(true);
-  // Both calls were the email steps, costed against the night's run (B1).
   const { data: calls } = await database.from("model_calls").select("step").eq("run_id", runId).order("created_at");
   expect(calls?.map((call) => call.step)).toEqual(["write_email", "check_email"]);
 });

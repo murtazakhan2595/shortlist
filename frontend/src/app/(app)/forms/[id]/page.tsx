@@ -15,7 +15,6 @@ export default function FormPage({ params }: PageProps<"/forms/[id]">) {
       <Link href="/forms" className="self-start text-sm text-ink-muted hover:text-ink hover:underline">
         All forms
       </Link>
-      {/* The form is read per request, so it streams in behind a boundary (Cache Components). */}
       <Suspense fallback={<p className="text-ink-muted">Loading…</p>}>
         <Form params={params} />
       </Suspense>

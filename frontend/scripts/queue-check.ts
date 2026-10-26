@@ -1,8 +1,4 @@
-// Sprint 1 exit check (PLAN.md item 1.8): proves a queued step is picked up by the deployed worker.
-//
-//   pnpm queue-check              through the instant trigger (expect a few seconds)
-//   pnpm queue-check --schedule   through the every-minute schedule only (expect up to a minute)
-//
+// Proves the deployed worker picks up a queued step. --schedule skips the instant trigger.
 // Needs the app deployed and the app_url and internal_api_secret Vault secrets set.
 
 import { enqueueStep, queueLength } from "@/server/queue/queue";

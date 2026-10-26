@@ -13,49 +13,34 @@ import type { Eligibility, Listing } from "../schemas";
 import { eligibilityOf, loadFilterSettings, offersVisa, REMOTE } from "./eligibility";
 import { queueScoring } from "./score-listings";
 
-// Queue step fetch_listings, the daily run's first steps (PLAN.md items 4.1 to 4.3 and 4.5; sprint 7).
-// Queued every night by start_daily_run (supabase/migrations/*_daily_run.sql) for the first source; each
-// source's step queues the next one's, so the sources are read one after another, one per short call. Each:
-//
-// 1. fetches its source's jobs posted since the last run,
-// 2. converts them to one format (D2) and decides each one's eligibility before any model call (D3, D4),
-// 3. saves the new ones (D2, X6). Excluded listings are saved too, so the filter's choices can be checked,
-// 4. queues the next source. After the last one, it deletes expired listings, records the run's counts and
-//    queues the kept listings to be scored (score-listings.ts).
-//
-// A source that fails every attempt is skipped (fetchingGaveUp): the night goes on with the others, and the
-// owner sees the failure. Safe to run twice: the second run saves nothing new, the number read travels in
-// the payload, and only listings without a score are queued.
-//
-// Once this month's spending reaches the cap (B2), the run fetches nothing: nothing could be scored.
+// The daily run's first step, one source per call: each source's step queues the next, and the last
+// queues scoring. Excluded listings are saved too, so the filter's choices can be checked.
+// Safe to run twice: listings already saved are skipped, and only unscored ones are queued.
 
-/** The sources, in the order a night reads them. */
 const SOURCES = [HIMALAYAS_SOURCE, HACKER_NEWS_SOURCE] as const;
 type Source = (typeof SOURCES)[number];
 
 const FetchListingsPayloadSchema = z.object({
   runId: z.uuid(),
   source: z.enum(SOURCES).default(SOURCES[0]),
-  /** How many jobs the earlier sources read this night. */
   readSoFar: z.number().int().min(0).default(0),
 });
 type FetchListingsPayload = z.infer<typeof FetchListingsPayloadSchema>;
 
-/** Each source's jobs since the given time, in the common format. */
-const FETCH_FROM: Record<Source, (since: Date, runId: string) => Promise<Listing[]>> = {
+const FETCHERS: Record<Source, (since: Date, runId: string) => Promise<Listing[]>> = {
   [HIMALAYAS_SOURCE]: async (since, runId) => (await fetchHimalayasJobs(since)).map((job) => himalayasListing(job, runId)),
-  // The thread is read whole each night; posts saved before are skipped when saving.
+  // The thread is read whole each time; posts saved before are skipped when saving.
   [HACKER_NEWS_SOURCE]: async (_since, runId) => (await fetchHackerNewsPosts()).map((post) => hackerNewsListing(post, runId)),
 };
 
-// The first run reads back a day. Later runs read back to the last run's start, less a margin for jobs
-// published while it ran; a job read twice is saved once.
+// The overlap catches jobs published while the last run ran; a job read twice is saved once.
 const FIRST_RUN_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 const OVERLAP_MS = 60 * 60 * 1000;
 
 export async function fetchListings(payload: Json): Promise<void> {
   const { runId, source, readSoFar } = FetchListingsPayloadSchema.parse(payload);
 
+  // At the spending cap nothing could be scored, so nothing is fetched.
   if ((await loadSpendingCap(getAdminClient())).reached) {
     // Expired listings are still removed, as Himalayas' terms ask.
     await deleteExpiredListings();
@@ -64,22 +49,21 @@ export async function fetchListings(payload: Json): Promise<void> {
   }
 
   const [since, settings] = await Promise.all([fetchSince(runId), loadFilterSettings()]);
-  const listings = (await FETCH_FROM[source](since, runId)).map((listing) => ({
+  const listings = (await FETCHERS[source](since, runId)).map((listing) => ({
     ...listing,
     ...eligibilityOf(listing, settings),
   }));
 
   await saveNewListings(listings);
-  await goOn({ runId, source, readSoFar: readSoFar + listings.length });
+  await queueNextSourceOrScore({ runId, source, readSoFar: readSoFar + listings.length });
 }
 
-/** After a source failed every attempt: the night goes on without it (AGENTS.md, Architecture rule 12). */
-export async function fetchingGaveUp(payload: Json): Promise<void> {
-  await goOn(FetchListingsPayloadSchema.parse(payload));
+/** After a source's last failed attempt, so the run goes on with the other sources. */
+export async function skipFailedSource(payload: Json): Promise<void> {
+  await queueNextSourceOrScore(FetchListingsPayloadSchema.parse(payload));
 }
 
-/** Queues the next source, or, after the last one, finishes fetching and starts scoring. */
-async function goOn({ runId, source, readSoFar }: FetchListingsPayload): Promise<void> {
+async function queueNextSourceOrScore({ runId, source, readSoFar }: FetchListingsPayload): Promise<void> {
   const next = SOURCES[SOURCES.indexOf(source) + 1];
   if (next) {
     await enqueueStep(STEP_NAMES.fetchListings, { runId, source: next, readSoFar });
@@ -90,7 +74,6 @@ async function goOn({ runId, source, readSoFar }: FetchListingsPayload): Promise
   await queueScoring(runId);
 }
 
-/** Where this run starts reading: the last finished daily run's start, or a day back for the first run. */
 async function fetchSince(runId: string): Promise<Date> {
   const { data, error } = await getAdminClient()
     .from("runs")
@@ -106,7 +89,6 @@ async function fetchSince(runId: string): Promise<Date> {
   return new Date(new Date(data.started_at).getTime() - OVERLAP_MS);
 }
 
-/** How many jobs the night read from every source, and how many new ones were kept for scoring (not excluded). */
 async function recordCounts(runId: string, read: number): Promise<void> {
   const db = getAdminClient();
   const kept = await db
@@ -120,15 +102,12 @@ async function recordCounts(runId: string, read: number): Promise<void> {
   if (saved.error) throw new Error(`Could not record the run's counts: ${saved.error.message}`);
 }
 
-// ---------------------------------------------------------------------------
-// One format for every source (D2)
-// ---------------------------------------------------------------------------
+// --- One format for every source ---
 
 const SALARY_PERIODS: Record<string, Listing["salary_period"]> = { hourly: "hour", monthly: "month", annual: "year" };
 
-/** A Himalayas job in the common format. */
 export function himalayasListing(job: HimalayasJob, runId: string): Listing {
-  const tags = ["remote"]; // Himalayas lists remote jobs only (D6).
+  const tags = ["remote"]; // Himalayas lists remote jobs only.
   if (job.employmentType === "Contractor") tags.push("contractor");
 
   return {
@@ -148,7 +127,7 @@ export function himalayasListing(job: HimalayasJob, runId: string): Listing {
     categories: job.parentCategories,
     tags,
     description: htmlToText(job.description),
-    // The same job from two sources gets the same key, so it is stored once (D2, X6).
+    // The same job from two sources gets the same key, so it is stored once.
     fingerprint: jobKey(job.companyName, job.title),
     posted_at: new Date(job.pubDate * 1000).toISOString(),
     expires_at: job.expiryDate ? new Date(job.expiryDate * 1000).toISOString() : null,
@@ -161,15 +140,11 @@ export function himalayasListing(job: HimalayasJob, runId: string): Listing {
 const ROLE_WORDS =
   /engineer|developer|programmer|designer|scientist|analyst|architect|manager|lead|head of|director|founding|intern|\bsre\b|devops|researcher|consultant/i;
 const URL = /https?:\/\/[^\s)]+/g;
-/** How long a post stays in the database. Posts are read up to 30 days old, so one is never saved twice. */
+/** Longer than the 30 days posts are read back, so a post is never saved twice. */
 const HACKER_NEWS_POST_DAYS = 45;
 
-/**
- * A Hacker News hiring post in the common format. By the thread's custom, its first line reads
- * "Company | Role | Location | ..." (some use dashes): the company comes first, the role is the first part
- * that names one, and the other parts are kept as the location. The whole post is the description, read by
- * the filter and the scoring step. Pay is left unstated, so it never drops a post.
- */
+// By the thread's custom, a post's first line reads "Company | Role | Location | ..." (some use dashes).
+// Pay is left unstated, so it never drops a post.
 export function hackerNewsListing(post: HackerNewsPost, runId: string): Listing {
   const description = hackerNewsText(post.text);
   const header = description.split("\n")[0];
@@ -222,10 +197,7 @@ export function hackerNewsListing(post: HackerNewsPost, runId: string): Listing 
 const PLAIN_EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/;
 const SPELLED_EMAIL = /([\w.+-]+)\s*[[(]\s*at\s*[\])]\s*([\w-]+(?:\s*(?:[[(]\s*dot\s*[\])]|\.)\s*[\w-]+)+)/i;
 
-/**
- * The first email address a post gives, written out plainly, or null. Read by code, never by a model, so a
- * draft's recipient is always an address that is in the post (X5).
- */
+/** Read by code, never by a model, so a draft's recipient is always an address that is in the post. */
 export function contactEmailIn(text: string): string | null {
   const plain = text.match(PLAIN_EMAIL)?.[0];
   const spelled = text.match(SPELLED_EMAIL);
@@ -238,17 +210,13 @@ export function contactEmailIn(text: string): string | null {
   return plain ? plain.replace(/\.+$/, "").toLowerCase() : null;
 }
 
-/**
- * A post's HTML as plain text. Hacker News opens each paragraph with <p> and never closes it, and shortens
- * long link text with "...", so each link is replaced by its full address first.
- */
+// Hacker News never closes <p>, and shortens long link text with "...", so links become their full address.
 function hackerNewsText(html: string): string {
   return htmlToText(html.replace(/<a\s[^>]*href="([^"]*)"[^>]*>.*?<\/a>/gi, "$1").replace(/<p>/gi, "\n\n"));
 }
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
 
-/** A job description's HTML as plain text, which is shorter and easier for a model to read. */
 export function htmlToText(html: string): string {
   return html
     .replace(/<li[^>]*>/gi, "\n- ")
@@ -263,15 +231,7 @@ export function htmlToText(html: string): string {
     .trim();
 }
 
-// ---------------------------------------------------------------------------
-// Saving and removing
-// ---------------------------------------------------------------------------
-
-/**
- * Saves the listings that are new and returns their ids (D2, X6). The database skips a listing the same
- * source gave before, the same job from another source, and a job the owner already captured or answered a
- * form for (save_new_listings). So running this twice saves nothing the second time.
- */
+/** The database skips jobs already saved from any source, captured, or answered a form for. */
 export async function saveNewListings(listings: (Listing & Eligibility)[]): Promise<string[]> {
   if (listings.length === 0) return [];
   const { data, error } = await getAdminClient().rpc("save_new_listings", { new_listings: listings });
@@ -279,7 +239,7 @@ export async function saveNewListings(listings: (Listing & Eligibility)[]): Prom
   return data;
 }
 
-/** Deletes expired listings, as Himalayas' terms ask, and returns how many (delete_expired_listings). */
+/** Himalayas' terms ask that expired listings are removed. */
 export async function deleteExpiredListings(): Promise<number> {
   const { data, error } = await getAdminClient().rpc("delete_expired_listings");
   if (error) throw new Error(`Could not delete expired listings: ${error.message}`);

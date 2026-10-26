@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { expect, test } from "vitest";
 import { CapReached } from "./cap-reached";
 
-test("says the nightly run is paused, with what was spent, once the cap is reached (B2)", () => {
+test("says the nightly run is paused, with what was spent, once the cap is reached", () => {
   render(<CapReached cap={{ spentUsd: 50.12, capUsd: 50, reached: true }} />);
 
   expect(screen.getByRole("status")).toHaveTextContent("The nightly run is paused");

@@ -7,7 +7,7 @@ import { loadWriterMaterial } from "@/features/applications/steps/writer-steps";
 import { casesDirectory, readPrivateFile } from "./cases";
 import type { EvalCheck, Grade } from "./check";
 
-// Checks E3 and E4 (REQUIREMENTS.md section 7) on the writer, run as one: each case is a saved post,
+// Checks E3 and E4 on the writer, run as one: each case is a saved post,
 // written by the real writer loop with the owner's real material.
 //   E4, graded here: the draft is ready (not blocked), names the role, and attaches the expected CV.
 //      The recipient is set by code from the capture, so it cannot be wrong; the test suite covers it.

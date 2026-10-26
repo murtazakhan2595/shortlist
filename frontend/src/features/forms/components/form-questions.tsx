@@ -2,11 +2,6 @@ import { CopyButton } from "@/components/ui/copy-button";
 import type { FormQuestion } from "../data";
 import { OwnerAnswerForm } from "./owner-answer-form";
 
-/**
- * The form's questions in order, each with where it stands (F2). They show as soon as they are read, and
- * their answers appear beside them: text to copy, a choice to pick, a draft or a blank for the owner to finish (F4, F5),
- * or something to upload (F6).
- */
 export function FormQuestions({ questions }: { questions: FormQuestion[] }) {
   return (
     <ol className="flex flex-col">

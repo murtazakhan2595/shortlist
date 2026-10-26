@@ -10,12 +10,8 @@ import { downloadScreenshot, type Screenshot, screenshotPart } from "@/server/sc
 import { getAdminClient } from "@/server/supabase/admin";
 import type { Json, Tables } from "@/server/supabase/database.types";
 
-// Queue step: read a captured post and save what it says (PLAN.md item 2.1; C3).
-// Queued when a capture is submitted (item 2.4). Safe to run twice: a capture is read only once.
-// A post with an email is handed to the writer.
-//
-// The model reads the post (readPost); code then checks what it can (checkExtraction), because a model
-// can return an email that looks right but is not in the post.
+// Safe to run twice: a capture is read only once. Code checks the model's answer (checkExtraction),
+// because a model can return an email that looks right but is not in the post.
 
 export const ExtractCapturePayloadSchema = z.object({ captureId: z.uuid() });
 
@@ -27,14 +23,11 @@ export async function extractCapture(payload: Json): Promise<void> {
   const capture = await loadCapture(captureId);
   const status = capture.status === "received" ? await readAndSave(capture) : capture.status;
 
-  // The hand-offs run again if this step is retried, so each is safe to repeat: the writer skips a
-  // capture that already has an application, and finishing a run twice changes nothing.
+  // Safe to repeat on a retry: the writer skips a capture that already has an application.
   if (status === "processing") await enqueueStep(STEP_NAMES.prepareEmailApplication, { captureId });
-  // Nothing more happens for a post without an email or a form, so its run ends here.
   if (status === "no_contact" && capture.run_id) await finishRun(capture.run_id);
 }
 
-/** Reads the post and saves what it says. Returns the capture's status as saved. */
 async function readAndSave(capture: Capture): Promise<string> {
   const post = await toPostInput(capture);
   const details = await readPost(post, { link: { runId: capture.run_id ?? undefined } });
@@ -43,10 +36,8 @@ async function readAndSave(capture: Capture): Promise<string> {
   return saved ?? (await loadCapture(capture.id)).status;
 }
 
-/**
- * Where the capture goes next. An email goes straight to the writer, from pasted text or a screenshot:
- * the draft waits in Gmail, where the owner sees the address before sending (owner's decision, 20 October 2026).
- */
+// An email goes straight to the writer, even from a screenshot: the owner sees the address in the Gmail
+// draft before sending.
 export function statusAfterReading(details: ExtractedPost): CaptureStatus {
   if (details.contactEmail) return "processing";
   if (details.formUrl) return "needs_form";
@@ -67,7 +58,6 @@ async function toPostInput(capture: Capture): Promise<PostInput> {
   return { kind: "screenshots", images: await Promise.all(capture.image_paths.map(downloadScreenshot)) };
 }
 
-/** Saves the details, unless the capture was read already. Returns the saved status, or null if nothing was saved. */
 async function saveDetails(captureId: string, details: ExtractedPost, status: CaptureStatus): Promise<string | null> {
   const { data, error } = await getAdminClient()
     .from("captures")
@@ -90,9 +80,7 @@ async function saveDetails(captureId: string, details: ExtractedPost, status: Ca
   return data?.status ?? null;
 }
 
-// ---------------------------------------------------------------------------
-// Reading the post: the prompt, the answer's shape, and the checks on it
-// ---------------------------------------------------------------------------
+// --- Reading the post ---
 
 export type PostInput = { kind: "text"; text: string } | { kind: "screenshots"; images: Screenshot[] };
 
@@ -166,28 +154,22 @@ export async function readPost(post: PostInput, options: ReadPostOptions = {}): 
 }
 
 /**
- * The checks code can make on the model's answer. An email or link is kept only if it appears word for word
- * in the post: the pasted text, or for screenshots the text the model read from them. A screenshot's
- * reading can still be wrong, so its email is also seen by the owner in the Gmail draft before anything is
- * sent. A screenshot read without its text has nothing to check against, so it gives no email or link, and
- * the writer is never handed a post it cannot read.
- *
- * Posts often use "bold" or "italic" letters made of special Unicode characters, such as 𝗷𝗼𝗯𝘀@𝗮𝗰𝗺𝗲.𝗰𝗼𝗺.
- * The model reads them as plain letters, so the post is compared, and every value kept, in plain letters
- * (Unicode NFKC normalisation).
+ * An email or link is kept only if it appears word for word in the post (for screenshots, the text the model
+ * read from them), so a screenshot read without its text gives neither. Compared in plain letters, as posts
+ * often use "bold" Unicode letters (𝗷𝗼𝗯𝘀@𝗮𝗰𝗺𝗲.𝗰𝗼𝗺) that the model reads as plain ones.
  */
 export function checkExtraction(answer: ExtractedPost, post: PostInput): ExtractedPost {
-  const screenshotText = post.kind === "screenshots" ? tidy(answer.postText) : null;
+  const screenshotText = post.kind === "screenshots" ? trimToNull(answer.postText) : null;
   const postText = plainLetters(post.kind === "text" ? post.text : (screenshotText ?? "")).toLowerCase();
   const inPost = (value: string) => postText.includes(value.toLowerCase());
 
-  const contactEmail = tidy(answer.contactEmail);
-  const formUrl = tidy(answer.formUrl);
+  const contactEmail = trimToNull(answer.contactEmail);
+  const formUrl = trimToNull(answer.formUrl);
 
   return {
-    role: tidy(answer.role),
-    company: tidy(answer.company),
-    posterName: tidy(answer.posterName),
+    role: trimToNull(answer.role),
+    company: trimToNull(answer.company),
+    posterName: trimToNull(answer.posterName),
     contactEmail: contactEmail && isEmail(contactEmail) && inPost(contactEmail) ? contactEmail : null,
     formUrl: formUrl && isFormLink(formUrl) && inPost(formUrl) ? formUrl : null,
     // Pasted text is already stored as it was given; only a screenshot's text needs reading.
@@ -195,7 +177,7 @@ export function checkExtraction(answer: ExtractedPost, post: PostInput): Extract
   };
 }
 
-function tidy(value: string | null): string | null {
+function trimToNull(value: string | null): string | null {
   const trimmed = value && plainLetters(value).trim();
   return trimmed ? trimmed : null;
 }
@@ -209,7 +191,7 @@ function isEmail(value: string): boolean {
   return z.email().safeParse(value).success;
 }
 
-/** A web link that is not on LinkedIn itself: the system never opens a LinkedIn link (C8). */
+/** The system never opens a LinkedIn link. */
 function isFormLink(value: string): boolean {
   const url = URL.parse(value);
   if (!url || (url.protocol !== "https:" && url.protocol !== "http:")) return false;

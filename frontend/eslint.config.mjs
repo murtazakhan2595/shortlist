@@ -3,8 +3,8 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
-// Imports flow one way: shared code (components, lib, server) -> features -> app.
-// Features never import from each other. See "Architecture" in AGENTS.md.
+// Imports flow one way: shared code (components, lib, server) -> features -> app. Features never import
+// from each other.
 const FEATURES_DIR = "./src/features";
 const features = existsSync(FEATURES_DIR)
   ? readdirSync(FEATURES_DIR, { withFileTypes: true })
@@ -39,17 +39,14 @@ const eslintConfig = defineConfig([
       "import/no-restricted-paths": ["error", { zones: importDirectionZones }],
     },
   },
-  // The app logs only warnings and errors on purpose; a console.log is debugging left behind.
-  // Scripts print their results, so they may use it.
+  // A console.log in the app is debugging left behind; scripts print their results, so they may use it.
   {
     files: ["src/**"],
     rules: {
       "no-console": ["error", { allow: ["info", "warn", "error"] }],
     },
   },
-  // Override default ignores of eslint-config-next.
   globalIgnores([
-    // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",
     "build/**",

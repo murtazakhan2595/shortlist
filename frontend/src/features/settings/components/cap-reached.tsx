@@ -2,7 +2,6 @@ import Link from "next/link";
 import { formatUsd } from "@/lib/format";
 import type { SpendingCap } from "@/server/spending";
 
-/** Says that the nightly run has stopped at the monthly spending cap (B2). Nothing when it has not. */
 export function CapReached({ cap }: { cap: SpendingCap }) {
   if (!cap.reached) return null;
   return (

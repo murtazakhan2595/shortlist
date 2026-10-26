@@ -6,8 +6,7 @@ import { getAdminClient } from "@/server/supabase/admin";
 import type { Database } from "@/server/supabase/database.types";
 import { getServerEnv } from "@/server/env";
 
-// Who counts as the owner (U6, principle 5), against the real Supabase project.
-// The owner's own account is never used here; the owner case is covered by supabase/tests/database/access.test.sql.
+// The owner's own account is never used here; supabase/tests/database/access.test.sql covers it.
 
 function browserLikeClient() {
   const env = getServerEnv();

@@ -3,12 +3,11 @@ import { sourceName } from "@/lib/source-names";
 import { requireOwner } from "@/server/auth/require-owner";
 import { currentMonth } from "@/server/spending";
 
-// Data Access Layer for reports (PLAN.md item 5.3; U5, B1): the feature's reads, each starting with the
-// owner check. Every figure is summed from rows the app already keeps; nothing is stored for reports.
+// Every figure is summed from rows the app already keeps; nothing is stored for reports.
 
-/** One month's model spending, in total and per step. Months are "YYYY-MM", in UTC. */
+// Months are "YYYY-MM", in UTC.
 export type MonthlySpendView = {
-  /** Every month with spending, newest first; the current month is always included. */
+  /** Newest first; the current month is always included. */
   months: string[];
   month: string;
   totalUsd: number;
@@ -40,7 +39,6 @@ export async function getMonthlySpend(requestedMonth: string | undefined): Promi
   };
 }
 
-/** One nightly run: what it found, what made the list, and what it cost. */
 export type RunCost = {
   id: string;
   startedAt: string;
@@ -52,10 +50,9 @@ export type RunCost = {
   costUsd: number;
 };
 
-/** How many nightly runs the report shows: two weeks. */
 const RUNS_SHOWN = 14;
 
-/** The latest nightly runs, newest first, each with its cost (B1). Notes written for a run count towards it. */
+// Notes written for a run count towards its cost.
 export async function getRunCosts(): Promise<RunCost[]> {
   const { db } = await requireOwner();
   const runs = await db
@@ -87,16 +84,12 @@ export async function getRunCosts(): Promise<RunCost[]> {
   }));
 }
 
-/** How the applications sent from one source, or with one email pattern, did. */
 export type ReplyRate = { name: string; sent: number; replied: number; interviews: number };
 
 export type ReplyRates = { bySource: ReplyRate[]; byPattern: ReplyRate[] };
 
-/** One sent application, as the rates count it. */
 export type SentApplication = { source: string; pattern: string | null; status: string };
 
-
-/** Reply and interview rates per source and per email pattern, over every application the owner sent (U5). */
 export async function getReplyRates(): Promise<ReplyRates> {
   const { db } = await requireOwner();
   // Sent is any application marked sent, replied or interview: a reply means it was sent.
@@ -116,7 +109,6 @@ export async function getReplyRates(): Promise<ReplyRates> {
   );
 }
 
-/** Counts sent, replied and interviews per source and per pattern, most sent first. */
 export function replyRates(sent: SentApplication[]): ReplyRates {
   return {
     bySource: countBy(sent, (application) => application.source),

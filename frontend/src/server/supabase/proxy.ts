@@ -6,11 +6,7 @@ import type { Database } from "./database.types";
 
 export type SessionCheck = { response: NextResponse; isSignedIn: boolean };
 
-/**
- * Refreshes the session cookie before the page runs, and says whether anyone is signed in.
- * This is the optimistic check: it reads only the session, never the database. Whether the
- * person signed in is the owner is checked by requireOwner(), close to the data.
- */
+// The optimistic check: it reads only the session, never the database. requireOwner() checks the owner.
 export async function updateSession(request: NextRequest): Promise<SessionCheck> {
   const env = getServerEnv();
   let response = NextResponse.next({ request });
@@ -38,7 +34,6 @@ export async function updateSession(request: NextRequest): Promise<SessionCheck>
   return { response, isSignedIn: Boolean(data?.claims.sub) };
 }
 
-/** A redirect that keeps any refreshed session cookies and their no-cache headers. */
 export function redirectKeepingSession(request: NextRequest, check: SessionCheck, path: string): NextResponse {
   const redirect = NextResponse.redirect(new URL(path, request.url));
   for (const cookie of check.response.cookies.getAll()) redirect.cookies.set(cookie);

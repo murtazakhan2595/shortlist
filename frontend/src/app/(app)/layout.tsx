@@ -2,8 +2,7 @@ import Link from "next/link";
 import { HeaderNav, TabBar } from "@/components/ui/app-nav";
 import { Wordmark } from "@/components/ui/wordmark";
 
-// The frame around every signed-in page. It reads no session itself: each page checks the owner
-// with requireOwner(), because a layout is not re-run on every navigation.
+// No owner check here: a layout is not re-run on every navigation, so each page calls requireOwner().
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <>

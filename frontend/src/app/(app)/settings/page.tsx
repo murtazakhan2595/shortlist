@@ -19,7 +19,6 @@ export default function SettingsPage({ searchParams }: PageProps<"/settings">) {
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-5 py-8">
       <h1 className="text-2xl font-bold">Settings</h1>
-      {/* Each is read per request, so it streams in behind a boundary (Cache Components). */}
       <Section id="run-heading" title="Nightly run">
         <Suspense fallback={LOADING}>
           <Cap />

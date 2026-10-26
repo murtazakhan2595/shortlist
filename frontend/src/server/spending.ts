@@ -2,18 +2,15 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/server/supabase/database.types";
 
-// The monthly spending cap (PLAN.md item 5.4; B2). Automated work (the nightly run: fetching, scoring and
-// writing notes) stops once this month's model spending reaches the cap set in settings. Work the owner
-// starts, a capture or a form, always runs.
+// The cap stops only automated (nightly) work; a capture or form the owner starts always runs.
 
 export type SpendingCap = { spentUsd: number; capUsd: number; reached: boolean };
 
-/** The current month in UTC, as model spending is summed ("2026-10"). */
+/** UTC, as monthly_spend sums it: "2026-10". */
 export function currentMonth(now = new Date()): string {
   return now.toISOString().slice(0, 7);
 }
 
-/** This month's model spending against the cap. Takes the owner's client in pages and the admin client in steps. */
 export async function loadSpendingCap(db: SupabaseClient<Database>): Promise<SpendingCap> {
   const [settings, spend] = await Promise.all([
     db.from("settings").select("monthly_cap_usd").single(),

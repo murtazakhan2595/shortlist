@@ -3,7 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 const port = 3000;
 const baseURL = `http://localhost:${port}`;
 
-// L5 end-to-end tests run against a production build, on desktop and on an Android phone size.
+// Run against a production build, on desktop and on an Android phone size.
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,

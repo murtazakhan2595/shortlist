@@ -9,17 +9,9 @@ import { getAdminClient } from "@/server/supabase/admin";
 import type { Json } from "@/server/supabase/database.types";
 import { type FormPage, ReadFormPayloadSchema } from "../schemas";
 
-// Queue step read_form (PLAN.md item 3.1; F1, F3): lists the questions on one page the owner added, and
-// reads what it says about the job. Queued by addFormPages with every page just added; each run reads the
-// first page and queues itself with the rest, then hands the form to answer_form. One page per model call
-// keeps each call short: several screenshots in one call took longer than the time limit.
-//
-// A page only adds questions: the model is told the questions already found, and code drops any it lists
-// again, because screenshots of a long form often overlap.
-//
-// Safe to run twice: once a page is read, the form lists its id in read_page_ids, and a second run skips
-// it. If a run dies between saving the questions and listing the page, the retry reads the page again,
-// and the questions it gives are already found, so none is added twice.
+// One page per model call: several screenshots in one call ran past the time limit.
+// Questions already found are dropped, because screenshots of a long form often overlap. That also makes
+// a retry safe: a page re-read after a crash adds no question twice; read_page_ids skips finished pages.
 
 type Form = { job_role: string | null; job_company: string | null; job_text: string | null; read_page_ids: string[] };
 
@@ -60,8 +52,7 @@ async function readAndSave(applicationId: string, form: Form, page: FormPage): P
     if (inserted.error) throw new Error(`Could not save the questions of form ${applicationId}: ${inserted.error.message}`);
   }
 
-  // The role and company are kept as first read. The job's text is added page after page, so a description
-  // over two screenshots is kept whole.
+  // The job text is appended, so a description spread over two screenshots is kept whole.
   const saved = await db
     .from("applications")
     .update({
@@ -74,9 +65,7 @@ async function readAndSave(applicationId: string, form: Form, page: FormPage): P
   if (saved.error) throw new Error(`Could not save what page ${page.pageId} says: ${saved.error.message}`);
 }
 
-// ---------------------------------------------------------------------------
-// Reading the pages: the prompt, the answer's shape, and the checks on it
-// ---------------------------------------------------------------------------
+// --- reading a page ---
 
 // The rules for each field live in its description, which the model receives as part of the schema.
 const ReadPageSchema = z.object({
@@ -142,7 +131,6 @@ async function pageMessage(page: FormPage, foundQuestions: string[]): Promise<Mo
   return { role: "user", content: [{ type: "text", text: `${found}\n\nA screenshot of the page:` }, screenshot] };
 }
 
-/** The questions to add: each once, tidied, and none that an earlier page already gave. */
 export function questionsToAdd(questions: ReadQuestion[], foundQuestions: string[]): ReadQuestion[] {
   const seen = new Set(foundQuestions.map(comparable));
   const added: ReadQuestion[] = [];

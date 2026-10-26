@@ -4,13 +4,10 @@ import { AutoRefresh } from "@/components/ui/auto-refresh";
 import { formatUsd } from "@/lib/format";
 import type { ApplicationView } from "../data";
 
-// Gmail's drafts folder. A link to one draft needs its message id in Gmail's own format, which the API does not give.
+// Links to the folder: the API gives no id in the format a link to one draft needs.
 const GMAIL_DRAFTS_URL = "https://mail.google.com/mail/#drafts";
 
-/**
- * The email the writer prepared, or why it was stopped, and whether it is in Gmail yet. failureNotice is
- * shown in place of "Saving to Gmail" if saving it failed every attempt.
- */
+/** failureNotice replaces "Saving to Gmail" when saving failed every attempt. */
 export function ApplicationDraft({ application, failureNotice }: { application: ApplicationView; failureNotice?: ReactNode }) {
   if (application.status === "preparing") return null;
 

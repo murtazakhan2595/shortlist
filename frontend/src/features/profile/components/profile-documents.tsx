@@ -15,7 +15,6 @@ const SECTIONS: Record<DocumentKind, { title: string; description: string }> = {
 
 const SAVED_ON = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
-/** Everything drafts and form answers are written from, grouped by kind, each document ready to edit. */
 export function ProfileDocuments({ material }: { material: OwnerMaterialView }) {
   return (
     <div className="flex flex-col gap-10">

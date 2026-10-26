@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { EvalCheck } from "./check";
 
-// Test cases are kept out of the repository (principle 6): private/evals/<check id>/cases/*.json,
+// Test cases are kept out of the repository: private/evals/<check id>/cases/*.json,
 // one case per file, named after the case.
 const PRIVATE_DIRECTORY = fileURLToPath(new URL("../../private", import.meta.url));
 const PRIVATE_EVALS_DIRECTORY = path.join(PRIVATE_DIRECTORY, "evals");

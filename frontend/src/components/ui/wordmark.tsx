@@ -3,7 +3,6 @@ const SIZES = {
   small: "text-xl",
 } as const;
 
-/** The app's name with a highlighter stroke behind its lower half, as if marked on a printed list. */
 export function Wordmark({ size }: { size: keyof typeof SIZES }) {
   return (
     <span

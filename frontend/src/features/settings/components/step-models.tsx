@@ -6,7 +6,6 @@ import { MODEL_PRICES, type ModelStep, REASONING_EFFORTS } from "@/lib/model-cat
 import { updateStepModel } from "../actions";
 import type { UpdateStepModelInput } from "../schemas";
 
-// What each step does, in the owner's words.
 const STEP_LABELS: Record<ModelStep, string> = {
   extract_capture: "Reading captured posts",
   write_email: "Writing emails",
@@ -20,7 +19,6 @@ const STEP_LABELS: Record<ModelStep, string> = {
 const SELECT =
   "h-10 rounded-md border border-rule bg-field px-2 text-base text-ink outline-offset-2 focus-visible:outline-2 focus-visible:outline-ink disabled:opacity-60";
 
-/** The model and reasoning effort each step uses (B3). Only models with a known price are offered. */
 export function StepModels({ stepModels }: { stepModels: UpdateStepModelInput[] }) {
   return (
     <ul className="flex flex-col">
@@ -39,7 +37,7 @@ function StepModelRow({ saved }: { saved: UpdateStepModelInput }) {
   const changed = choice.model !== saved.model || choice.effort !== saved.effort;
   const label = STEP_LABELS[saved.step];
 
-  function save() {
+  function saveChoice() {
     setError(undefined);
     startTransition(async () => {
       const result = await updateStepModel(choice);
@@ -81,7 +79,7 @@ function StepModelRow({ saved }: { saved: UpdateStepModelInput }) {
         {changed && (
           <button
             type="button"
-            onClick={save}
+            onClick={saveChoice}
             disabled={isPending}
             className="h-10 cursor-pointer rounded-md bg-ink px-4 text-sm font-semibold text-paper outline-offset-2 focus-visible:outline-2 focus-visible:outline-ink disabled:cursor-wait disabled:opacity-60"
           >

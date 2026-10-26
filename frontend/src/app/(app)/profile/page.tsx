@@ -15,7 +15,6 @@ export default function ProfilePage() {
           change keeps the old version.
         </p>
       </div>
-      {/* Read per request, so it streams in behind a boundary (Cache Components). */}
       <Suspense fallback={<p className="text-ink-muted">Loading…</p>}>
         <Material />
       </Suspense>

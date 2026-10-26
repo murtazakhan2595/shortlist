@@ -5,8 +5,6 @@ import { answerForm, checkFormAnswers, QUESTIONS_PER_STEP } from "@/features/for
 import { readForm } from "@/features/forms/steps/read-form";
 import { getAdminClient } from "@/server/supabase/admin";
 
-// The form's queued steps against the real database and the owner's real material, with a fake model.
-// Queued steps are collected here instead of going to the real queue.
 const invokeModel = vi.hoisted(() => vi.fn());
 vi.mock("@/server/models/chat-models", () => ({ createStructuredModel: () => ({ invoke: invokeModel }) }));
 
@@ -77,7 +75,6 @@ describe("the form's queued steps", () => {
     await readForm({ applicationId, pages: [firstPage, secondPage] });
     await readForm({ applicationId, pages: [firstPage, secondPage] });
 
-    // The first page is read once; each run hands the rest on.
     expect(invokeModel).toHaveBeenCalledTimes(1);
     expect(queued).toEqual([
       { step: "read_form", payload: { applicationId, pages: [secondPage] } },
@@ -101,7 +98,6 @@ describe("the form's queued steps", () => {
     );
     await readForm({ applicationId, pages: [secondPage] });
 
-    // The model was told what the first page gave, and the last page hands the form to answering.
     expect(JSON.stringify(invokeModel.mock.calls[1][0])).toContain("1. Name *");
     expect(queued).toEqual([{ step: "answer_form", payload: { applicationId } }]);
     expect((await loadQuestions(applicationId)).map(({ position, question, status }) => ({ position, question, status }))).toEqual([
@@ -109,7 +105,6 @@ describe("the form's queued steps", () => {
       { position: 2, question: "Do you have Docker experience?", status: "pending" },
       { position: 3, question: "Notice period?", status: "pending" },
     ]);
-    // The job stays as first read.
     const { data: jobAfter } = await database.from("applications").select("job_role").eq("id", applicationId).single();
     expect(jobAfter?.job_role).toBe("Senior Full Stack Developer");
   });
@@ -183,7 +178,6 @@ describe("the form's queued steps", () => {
     const { data: form } = await database.from("applications").select("status").eq("id", applicationId).single();
     expect(form?.status).toBe("ready");
 
-    // Every call is costed against the form (B1).
     const { count } = await database.from("model_calls").select("id", { count: "exact", head: true }).eq("application_id", applicationId);
     expect(count).toBe(2);
   });
@@ -208,7 +202,6 @@ describe("the form's queued steps", () => {
     expect(queued.map((step) => step.step)).toEqual(["answer_form", "check_form_answers"]);
     expect((await loadQuestions(applicationId)).every((question) => question.status === "checking")).toBe(true);
 
-    // Checking works the same way, and the form is ready only after the last batch.
     queued.length = 0;
     invokeModel.mockReset();
     invokeModel.mockResolvedValue(modelAnswer({ problems: [] }));

@@ -2,8 +2,7 @@ import { afterAll, expect, test } from "vitest";
 import { createCvUploadUrl, setCurrentCv } from "@/server/cvs";
 import { getAdminClient } from "@/server/supabase/admin";
 
-// CV uploads against the real storage. The owner's current CVs are never switched here: only the refusals
-// are tested. Switching the current CV is covered by supabase/tests/database/cvs.test.sql, in a transaction.
+// Only refusals are tested, so the owner's current CVs are never switched; cvs.test.sql covers switching.
 const database = getAdminClient();
 const paths: string[] = [];
 

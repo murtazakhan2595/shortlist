@@ -1,21 +1,20 @@
 import "server-only";
 import { getAdminClient } from "@/server/supabase/admin";
 
-// The owner's material that drafts and form answers are written from (P1 to P7). Loaded at every step
-// rather than kept in saved state, so state stays small and each step uses the latest version.
+// Loaded at every step rather than kept in saved state, so state stays small and each step uses the latest version.
 
 export type OwnerMaterial = {
-  /** Every profile document, each under its name as a heading. */
+  /** Every profile document under its name as a heading. */
   profile: string;
   answerBank: string;
   writingGuide: string;
   voiceExamples: string[];
   emailPatterns: { id: string; name: string; content: string }[];
-  /** The CV variants with a current file, to choose from (P2). */
+  /** Variants with a current file. */
   cvVariants: string[];
 };
 
-// The answer bank is one document, and the email patterns file's general advice is stored as one more pattern.
+// The writing guide is stored as one more email pattern.
 const ANSWER_BANK_NAME = "main";
 const WRITING_GUIDE_NAME = "writing-guide";
 

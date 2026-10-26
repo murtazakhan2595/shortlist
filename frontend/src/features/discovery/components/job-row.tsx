@@ -16,11 +16,7 @@ const MARK_STYLES: Record<Label, { on: string; off: string }> = {
   skip: { on: "border border-ink-muted bg-field text-ink-muted", off: "border border-rule text-ink-muted hover:border-ink hover:text-ink" },
 };
 
-/**
- * One job on the list, marked by hand as on a printed shortlist: apply puts a tick by it, skip strikes it
- * through (U7). The mark shows at once and is saved in the background. failureNotice shows a step for this
- * job that failed every attempt (job.failure), in place of its email.
- */
+/** The mark shows at once and is saved in the background. failureNotice replaces the email when a step failed. */
 export function JobRow({ job, failureNotice }: { job: JobView; failureNotice?: ReactNode }) {
   const router = useRouter();
   const [label, setLabel] = useState(job.label);
@@ -105,10 +101,6 @@ export function JobRow({ job, failureNotice }: { job: JobView; failureNotice?: R
   );
 }
 
-/**
- * Blocks the job's company after one confirming tap: its jobs leave tonight's list and are dropped every night
- * after. Undone by removing the company in Settings.
- */
 function BlockCompany({ listingId, company }: { listingId: string; company: string }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
@@ -159,7 +151,6 @@ function tagNames(tags: string[]): string[] {
   return tags.map((tag) => TAG_NAMES[tag] ?? tag);
 }
 
-/** The email written for a post that gave an address, which goes to the owner's Gmail drafts (7.4). */
 function Email({ email }: { email: NonNullable<JobView["email"]> }) {
   if (email.status === "preparing") return <p className="text-sm text-ink-muted">Writing the email to {email.to}…</p>;
 

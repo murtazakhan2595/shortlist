@@ -5,8 +5,7 @@ import { getOpenFailures } from "@/features/failed-steps/data";
 import { getAdminClient } from "@/server/supabase/admin";
 import { TEST_RUN_STARTED_AT } from "./test-runs";
 
-// The home page's reads against the real database. The owner check is replaced by the admin client,
-// as tests never sign in as the owner; the rows this test adds are deleted after it.
+// Tests never sign in as the owner, so the owner check is replaced by the admin client.
 vi.mock("@/server/auth/require-owner", async () => {
   const { getAdminClient: admin } = await import("@/server/supabase/admin");
   return { requireOwner: async () => ({ db: admin() }) };

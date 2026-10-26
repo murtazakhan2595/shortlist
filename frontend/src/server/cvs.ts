@@ -5,12 +5,10 @@ import type { SignedUpload } from "@/lib/uploads";
 import { getAdminClient } from "@/server/supabase/admin";
 import type { Database } from "@/server/supabase/database.types";
 
-// The owner's CVs (P2), in the private "cvs" bucket. A new one is uploaded straight from the browser to a
-// one-time link, then made the current CV of its kind; the old file is kept, as drafts point to it.
+// Old CV files are kept, as drafts point to them.
 
 const CVS_BUCKET = "cvs";
 
-/** A one-time link the browser uploads a CV to. The server picks the name. Takes the owner's client. */
 export async function createCvUploadUrl(db: SupabaseClient<Database>): Promise<SignedUpload> {
   const path = `cvs/${randomUUID()}.pdf`;
   const { data, error } = await db.storage.from(CVS_BUCKET).createSignedUploadUrl(path);
@@ -18,11 +16,8 @@ export async function createCvUploadUrl(db: SupabaseClient<Database>): Promise<S
   return { path: data.path, signedUrl: data.signedUrl };
 }
 
-/**
- * Makes an uploaded CV the current one of its kind, and returns its id. Returns null if nothing was uploaded
- * to that path. Takes the owner's client for the check; the switch itself is a database function only
- * server code may call, so there is never a moment with no current CV, or two.
- */
+// Returns null if nothing was uploaded to that path. The switch is one database function, so there is
+// never a moment with no current CV, or two.
 export async function setCurrentCv(
   db: SupabaseClient<Database>,
   cv: { variant: string; fileName: string; storagePath: string },

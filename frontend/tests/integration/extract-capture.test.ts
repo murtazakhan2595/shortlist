@@ -5,7 +5,6 @@ import { extractCapture } from "@/features/captures/steps/extract-capture";
 import type { ExtractedPost } from "@/features/captures/steps/extract-capture";
 import { getAdminClient } from "@/server/supabase/admin";
 
-// The extract_capture step against the real database and storage, with a fake model.
 const invokeModel = vi.hoisted(() => vi.fn());
 vi.mock("@/server/models/chat-models", () => ({
   createStructuredModel: () => ({ invoke: invokeModel }),
@@ -115,7 +114,6 @@ describe("extractCapture", () => {
 
     const [messages] = invokeModel.mock.calls[0];
     expect(JSON.stringify(messages)).toContain(`data:image/png;base64,${ONE_PIXEL_PNG.toString("base64")}`);
-    // The text read from the screenshot is kept, so the writer can use the whole post.
     expect(await loadCapture(captureId)).toMatchObject({
       contact_email: "hr@acme.example",
       raw_text: "We are hiring. Email hr@acme.example",

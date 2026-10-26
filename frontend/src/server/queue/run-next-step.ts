@@ -5,18 +5,10 @@ import type { Json } from "@/server/supabase/database.types";
 import type { QueueName } from "./queue";
 import type { WorkerRunSummary } from "./schemas";
 
-// Runs one queued step (PLAN.md items 1.8 and 5.6; AGENTS.md, Architecture rule 7).
-// A step that throws is retried later; after MAX_ATTEMPTS it is recorded in failed_steps, where the owner
-// sees it and can try it again (failed-steps.ts).
-
 export type StepHandler = {
-  /** Runs the step. Must be safe to run twice, because a step can be retried after doing part of its work. */
+  /** Must be safe to run twice: a step can be retried after doing part of its work. */
   run: (payload: Json) => Promise<void>;
-  /**
-   * Runs once the step has failed every attempt and the failure is recorded, for work that must not wait
-   * on it: for example, the daily run still ranks its other listings when one cannot be scored. If it fails
-   * too, the error is logged and the failure stays open; trying the step again runs it, and this, once more.
-   */
+  /** Runs once after the last failed attempt, for work that must not wait on the step (e.g. ranking the other listings). */
   giveUp?: (payload: Json) => Promise<void>;
 };
 
@@ -27,7 +19,6 @@ export const MAX_ATTEMPTS = 3;
 // Longer than the 60-second step budget: a step is retried only if its worker died or overran.
 const VISIBILITY_SECONDS = 90;
 
-// The wait before a retry grows with each attempt: 30 s, then 60 s.
 const RETRY_DELAY_SECONDS_PER_ATTEMPT = 30;
 
 export type RunOptions = {
@@ -64,7 +55,7 @@ export async function runNextStep(handlers: StepHandlers, options: RunOptions = 
   return { stepsRun: 1, stepsFailed: 0, queueEmpty: false };
 }
 
-/** The step is already recorded as failed, so an error here is logged, not thrown: nothing would retry it. */
+// The step is already recorded as failed, so an error here is logged, not thrown: nothing would retry it.
 async function giveUpAfterFailure(giveUp: NonNullable<StepHandler["giveUp"]>, step: QueuedStep): Promise<void> {
   try {
     await giveUp(step.payload);

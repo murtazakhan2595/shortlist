@@ -4,8 +4,7 @@ import { callModel } from "@/server/models/call-model";
 import type { EmailDraft, WriterContext } from "../schemas";
 import { buildWriterGraph, MAX_DRAFTS, START_STATE, writerOutcome } from "./writer";
 
-// The loop's routes, with the model replaced: each step's answer comes from the fakes below,
-// and the code check runs for real.
+// Model calls are faked; the code check runs for real.
 vi.mock("@/server/models/call-model", () => ({ callModel: vi.fn() }));
 
 const writer: WriterContext = {
@@ -30,7 +29,6 @@ const goodDraft: EmailDraft = {
 };
 const draftWithInventedNumber = { ...goodDraft, body: "Hi team, I have 9 years with React." };
 
-/** Answers each model call by its step: drafts in order for a write step, problem lists for a check step. */
 function fakeModel(drafts: EmailDraft[], reviews: string[][]) {
   vi.mocked(callModel).mockImplementation(async (request) => {
     const output = request.step === "write_email" ? drafts.shift() : { problems: (reviews.shift() ?? []).map((reason) => ({ quote: "q", reason })) };

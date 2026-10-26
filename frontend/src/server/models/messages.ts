@@ -1,12 +1,9 @@
 import "server-only";
 import { type BaseMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
 
-// The messages a step sends to a model. Our own small type, so steps do not depend on LangChain.
+// Our own small type, so steps do not depend on LangChain.
 
-/**
- * cache: true ends the part with a prompt cache breakpoint: the provider keeps everything up to here for
- * 30 minutes, and a later call that starts the same way reads it at a fraction of the price.
- */
+/** cache: true ends the part with a prompt cache breakpoint; a later call that starts the same way reads it cheaply. */
 export type ModelContentPart = { type: "text"; text: string; cache?: boolean } | { type: "image"; url: string };
 
 export type ModelMessage =

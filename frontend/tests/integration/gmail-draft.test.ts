@@ -5,8 +5,7 @@ import { claimLease, whileLeased } from "@/features/applications/steps/writer-st
 import type { DraftEmail } from "@/server/gmail/schemas";
 import { getAdminClient } from "@/server/supabase/admin";
 
-// The create_gmail_draft step against the real database and the owner's real CV in Storage, with Gmail
-// replaced by an in-memory mailbox. Queued steps are collected instead of going to the real queue.
+// Gmail is an in-memory mailbox, so no real draft is made; queued steps never reach the real queue.
 const gmail = vi.hoisted(() => ({
   connected: true,
   drafts: new Map<string, { id: string; email: DraftEmail }>(),

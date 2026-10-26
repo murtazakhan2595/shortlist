@@ -1,12 +1,10 @@
 import { z } from "zod";
 import type { OwnerMaterial } from "@/server/owner-material";
 
-// Contracts for the applications feature (PLAN.md item 1.3; U2, Q7).
-//
 // Server Actions:
 //   updateApplicationStatus(UpdateApplicationStatusInput) -> Result<UpdateApplicationStatusInput>
 
-// The statuses the owner sets with one tap. The others (preparing, ready, blocked, failed) are set by the system.
+// The others (preparing, ready, blocked, failed) are set by the system.
 export const OWNER_SET_STATUSES = ["sent", "skipped", "replied", "interview"] as const;
 
 export const UpdateApplicationStatusInputSchema = z.object({
@@ -16,15 +14,8 @@ export const UpdateApplicationStatusInputSchema = z.object({
 export type UpdateApplicationStatusInput = z.infer<typeof UpdateApplicationStatusInputSchema>;
 
 
-/** How far back the daily list on the home page goes (U1). */
 export const DAILY_LIST_DAYS = 7;
 
-// Types the writer's files share (PLAN.md item 2.2).
-
-/**
- * An email or a note as the writer produces it: the model writes it, code and a second model check it.
- * A note has no subject and no signature; both are empty.
- */
 export type EmailDraft = {
   cvVariant: string;
   presentedTitle: string;
@@ -32,22 +23,16 @@ export type EmailDraft = {
   subject: string;
   /** From the greeting to the last line before the sign-off. */
   body: string;
-  /** The sign-off and the signature block. */
   signature: string;
 };
 
-/**
- * Everything a draft is written from: the post and the owner's material, loaded at every stage. The
- * material is the owner's (OwnerMaterial), with only the email patterns the writer may follow.
- */
 export type WriterContext = Omit<OwnerMaterial, "emailPatterns"> & {
-  /** Model calls are linked to these, so each draft can be explained afterwards (B1). */
+  /** Model calls are linked to these, so each draft's cost can be traced. */
   link: { runId?: string; applicationId?: string };
   post: { text: string; role: string | null; company: string | null; posterName: string | null; seenOn: string };
-  /** Always the address read from the post by code, never one a model wrote (principle 4). */
+  /** Always the address code read from the post, never one a model wrote. */
   recipientEmail: string;
   patterns: OwnerMaterial["emailPatterns"];
 };
 
-/** The payload of the queue steps that work on one application. */
 export const ApplicationPayloadSchema = z.object({ applicationId: z.uuid() });

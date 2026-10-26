@@ -3,8 +3,7 @@ import { afterAll, beforeAll, expect, test, vi } from "vitest";
 import { getReplyRates, getRunCosts } from "@/features/reports/data";
 import { getAdminClient } from "@/server/supabase/admin";
 
-// The reports' reads against the real database. The owner check is replaced by the admin client, as tests
-// never sign in as the owner; the rows this test adds are deleted after it.
+// Tests never sign in as the owner, so the owner check is replaced by the admin client.
 vi.mock("@/server/auth/require-owner", async () => {
   const { getAdminClient: admin } = await import("@/server/supabase/admin");
   return { requireOwner: async () => ({ db: admin() }) };

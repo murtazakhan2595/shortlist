@@ -1,8 +1,6 @@
 import { z } from "zod";
 import { storagePathSchema } from "@/lib/uploads";
 
-// Contracts for the profile feature (PLAN.md item 1.3; P1 to P7, Q8).
-//
 // Server Actions:
 //   saveDocument(SaveDocumentInput)       -> Result<DocumentSaved>
 //   createCvUploadUrl(PdfUploadRequest)   -> Result<SignedUpload>   (from @/lib/uploads)
@@ -26,7 +24,6 @@ export const SaveDocumentInputSchema = z.object({
 });
 export type SaveDocumentInput = z.infer<typeof SaveDocumentInputSchema>;
 
-// Saving a CV makes it the current one for its variant.
 export const SaveCvFileInputSchema = z.object({
   variant: z.enum(CV_VARIANTS),
   fileName: z.string().trim().min(1).max(200),

@@ -3,9 +3,7 @@ import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
 import pg from "pg";
 import { getServerEnv } from "@/server/env";
 
-// Where LangGraph saves a graph's state between queued steps (PLAN.md section 3, Agent framework).
-// The tables are in the langgraph schema, created by a migration (supabase/migrations/*_writer.sql),
-// so setup() is never called here.
+// The langgraph schema's tables come from a migration (*_writer.sql), so setup() is never called here.
 
 const CHECKPOINT_SCHEMA = "langgraph";
 

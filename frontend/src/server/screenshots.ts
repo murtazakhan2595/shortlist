@@ -6,17 +6,13 @@ import type { ModelContentPart } from "@/server/models/messages";
 import { getAdminClient } from "@/server/supabase/admin";
 import type { Database } from "@/server/supabase/database.types";
 
-// Screenshots of posts and forms, in the private "screenshots" bucket. They go to a model inside the
-// request, so the provider is never given a link to private storage.
+// Screenshots go to a model inside the request, so the provider is never given a link to private storage.
 
 export type Screenshot = { mimeType: string; base64: string };
 
 const SCREENSHOTS_BUCKET = "screenshots";
 
-/**
- * A one-time link the browser uploads a screenshot to, straight into private storage. The server picks
- * the name, so a request can never point at another file. Takes the owner's client, so the access rules apply.
- */
+// The server picks the name, so a request can never point at another file.
 export async function createScreenshotUploadUrl(
   db: SupabaseClient<Database>,
   folder: "captures" | "forms",

@@ -5,7 +5,6 @@ const NOW = new Date("2026-10-21T00:00:00Z");
 const SINCE = new Date("2026-10-20T00:00:00Z");
 const HOUR = 60 * 60;
 
-/** A job as Himalayas sends it, posted the given number of hours before NOW. */
 function job(id: string, hoursAgo: number) {
   return {
     guid: `https://himalayas.app/companies/acme/jobs/${id}`,
@@ -39,7 +38,6 @@ afterEach(() => {
   fetchMock.mockReset();
 });
 
-/** Runs the fetch while letting the waits between pages pass at once, and records each request's time. */
 async function fetchJobs(pages: unknown[][]) {
   const requestTimes: number[] = [];
   fetchMock.mockImplementation(async () => {

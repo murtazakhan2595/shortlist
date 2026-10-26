@@ -4,7 +4,7 @@ import { DISMISSED_REASON, dismissFailedStep, findOpenFailures, retryFailedStep 
 import { getAdminClient } from "@/server/supabase/admin";
 import { TEST_RUN_STARTED_AT } from "./test-runs";
 
-// Failed steps against the real database. Queueing is replaced, so no step really runs again.
+// Queueing is replaced, so no step really runs again.
 const queued = vi.hoisted(() => ({ steps: [] as { step: string; payload: unknown }[], fail: false }));
 vi.mock("@/server/queue/queue", () => ({
   enqueueStep: async (step: string, payload: unknown) => {

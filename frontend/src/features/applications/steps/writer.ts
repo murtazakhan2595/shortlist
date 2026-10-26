@@ -7,35 +7,27 @@ import type { ModelMessage } from "@/server/models/messages";
 import type { EmailDraft, WriterContext } from "../schemas";
 import { findDraftProblems } from "./draft-checks";
 
-// The writer (PLAN.md items 2.2 and 7.4): a LangGraph loop that writes an application email, for a captured
-// post or a listing whose post gave an address, and checks it. Notes for listings were dropped (owner,
-// 25 October 2026): they cost more than they were worth.
+// A LangGraph loop that writes an application email and checks it:
 //
 //   write -> code check -> model check -> done
 //     ^          |             |
 //     +----------+-------------+   problems, and fewer than MAX_DRAFTS drafts so far
 //
-// The graph only decides the route. "write" and "model check" are one model call each; "code check" is
-// plain code (draft-checks.ts). Problems after MAX_DRAFTS drafts block the application (X4).
+// Problems after MAX_DRAFTS drafts block the application.
 
 export const MAX_DRAFTS = 3;
 
-// ---------------------------------------------------------------------------
-// The graph
-// ---------------------------------------------------------------------------
-
 const WriterState = Annotation.Root({
   draft: Annotation<EmailDraft | null>,
-  /** What the last check found. Empty after a check that passed. */
+  /** Empty after a check that passed. */
   problems: Annotation<string[]>,
-  /** How many drafts have been written. */
   drafts: Annotation<number>,
 });
 export type WriterStateValues = typeof WriterState.State;
 
 export const START_STATE: WriterStateValues = { draft: null, problems: [], drafts: 0 };
 
-/** Given to each run from outside the saved state: the material, and other models when an eval asks. */
+/** Passed per run, not checkpointed: the large material, and other models when an eval asks. */
 const WriterRunContext = Annotation.Root({
   writer: Annotation<WriterContext>,
   models: Annotation<{ write?: ModelSettings; check?: ModelSettings } | undefined>,
@@ -44,7 +36,7 @@ type WriterRuntime = Runtime<typeof WriterRunContext.State>;
 
 export function buildWriterGraph(checkpointer: BaseCheckpointSaver) {
   return new StateGraph(WriterState, WriterRunContext)
-    .addNode("write", write)
+    .addNode("write", writeDraft)
     .addNode("codeCheck", codeCheck)
     .addNode("modelCheck", modelCheck)
     .addEdge(START, "write")
@@ -54,12 +46,10 @@ export function buildWriterGraph(checkpointer: BaseCheckpointSaver) {
     .compile({ checkpointer });
 }
 
-/** A finished run is ready when its last check found nothing; otherwise it is blocked. */
 export function writerOutcome(state: WriterStateValues): "ready" | "blocked" {
   return state.draft && state.problems.length === 0 ? "ready" : "blocked";
 }
 
-/** After a check: on to the next stage if it passed, back to writing while drafts are left, else stop. */
 function routeAfter(next: "modelCheck" | typeof END) {
   return (state: WriterStateValues) => {
     if (state.problems.length === 0) return next;
@@ -67,7 +57,7 @@ function routeAfter(next: "modelCheck" | typeof END) {
   };
 }
 
-async function write(state: WriterStateValues, runtime: WriterRuntime) {
+async function writeDraft(state: WriterStateValues, runtime: WriterRuntime) {
   const { writer, models } = contextOf(runtime);
   const revision = state.draft ? { draft: state.draft, problems: state.problems } : undefined;
   const draft = await writeEmail(writer, revision, models?.write);
@@ -93,9 +83,7 @@ function draftOf(state: WriterStateValues): EmailDraft {
   return state.draft;
 }
 
-// ---------------------------------------------------------------------------
-// Write: one model call chooses the CV, the title and the pattern, and writes the email (P2, P4, P7)
-// ---------------------------------------------------------------------------
+// --- write: one model call picks the CV, title and pattern, and writes the email ---
 
 const WRITE_TASK =
   "You write one job application email for the candidate described in the documents. The candidate reviews it and sends it; nothing is sent without them.";
@@ -159,7 +147,7 @@ async function writeEmail(
     schema,
     messages: [
       { role: "system", content: WRITE_INSTRUCTIONS },
-      // The owner's material comes first and ends with a cache breakpoint: it is the same in every call.
+      // Same in every call, so it goes first and ends with a cache breakpoint.
       { role: "user", content: [{ type: "text", text: material, cache: true }] },
       { role: "user", content: task.join("\n\n") },
     ],
@@ -175,11 +163,8 @@ function nonEmpty(values: string[], what: string): [string, ...string[]] {
   return [first, ...rest];
 }
 
-// ---------------------------------------------------------------------------
-// Model check: a strict review of every claim against the owner's material (X4, principle 2).
-// Adapted from the reviewer's factual grounding audit in ai-job-search's apply.md (MIT, credited in
-// THIRD_PARTY_NOTICES.md): reframed emphasis is fine, changed facts and escalated numbers are not.
-// ---------------------------------------------------------------------------
+// --- model check: every claim against the profile and answer bank ---
+// Adapted from the factual grounding audit in ai-job-search's apply.md (MIT, see THIRD_PARTY_NOTICES.md).
 
 const CHECK_INSTRUCTIONS = `You check one job application email before the candidate sends it. Your only job is truthfulness.
 

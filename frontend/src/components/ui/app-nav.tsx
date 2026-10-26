@@ -9,7 +9,6 @@ type NavLink = {
   label: string;
   /** Other paths in the same section, such as a captured post under Capture. */
   alsoCovers?: string[];
-  /** Used every day, so on a phone it sits in the bar at the bottom; the others stay in the header. */
   onTabBar: boolean;
 };
 
@@ -40,7 +39,6 @@ const PLACES = {
 
 type Place = keyof typeof PLACES;
 
-/** True when the page at `pathname` belongs to the link's section. */
 function isCurrent(link: NavLink, pathname: string | null): boolean {
   if (pathname === null) return false;
   if (link.href === "/") return pathname === "/";
@@ -65,11 +63,7 @@ function CurrentNavLinks({ place }: { place: Place }) {
   return <NavLinks place={place} pathname={usePathname()} />;
 }
 
-/**
- * The links, with the current section marked. A page with an id in its path (a captured post, a form) is
- * only known per request, so the path is read behind a boundary and the links show unmarked until then
- * (Cache Components).
- */
+// A path with an id in it is only known per request, so the links show unmarked until it is read.
 function LinksWithCurrent({ place }: { place: Place }) {
   return (
     <Suspense fallback={<NavLinks place={place} pathname={null} />}>
@@ -78,7 +72,6 @@ function LinksWithCurrent({ place }: { place: Place }) {
   );
 }
 
-/** The links in the header. On a phone only the ones not on the tab bar show here. */
 export function HeaderNav() {
   return (
     <nav aria-label="Main" className="flex items-center">
@@ -87,10 +80,7 @@ export function HeaderNav() {
   );
 }
 
-/**
- * The bar fixed to the bottom of a phone screen. The installed app has no browser back button or
- * address bar, so every page used daily must be one tap away.
- */
+// The installed app has no back button or address bar, so every page used daily must be one tap away.
 export function TabBar() {
   return (
     <>

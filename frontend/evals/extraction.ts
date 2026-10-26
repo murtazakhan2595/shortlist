@@ -4,7 +4,7 @@ import { imageContentType } from "@/lib/uploads";
 import { readPrivateFile } from "./cases";
 import type { EvalCheck, Grade } from "./check";
 
-// Check E1, extraction from captured posts (REQUIREMENTS.md section 7), in two parts because the
+// Check E1, extraction from captured posts, in two parts because the
 // pass bars differ: the email must be exactly right on every pasted-text post, and on 95% of screenshots.
 // A case is a saved post (a path relative to private/) and what a careful reader takes from it.
 

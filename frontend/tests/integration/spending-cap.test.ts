@@ -6,8 +6,7 @@ import { fetchHimalayasJobs } from "@/server/himalayas";
 import { getAdminClient } from "@/server/supabase/admin";
 import { TEST_RUN_STARTED_AT } from "./test-runs";
 
-// The nightly run at the monthly spending cap (B2), against the real database. The cap is faked as
-// reached, so the owner's real settings are never changed. No model or Himalayas call may happen.
+// The cap is faked as reached, so the owner's real settings are never changed.
 vi.mock("@/server/spending", () => ({ loadSpendingCap: async () => ({ spentUsd: 50.5, capUsd: 50, reached: true }) }));
 
 const invokeModel = vi.hoisted(() => vi.fn());

@@ -2,15 +2,8 @@ import "server-only";
 import { requireOwner } from "@/server/auth/require-owner";
 import { findAllOpenFailures, type OpenFailure } from "@/server/queue/failed-steps";
 
-// Data Access Layer for failed steps: the feature's reads, each starting with the owner check.
-
-/** An open failure, with the page of what it was working on. */
 export type FailureWithPage = OpenFailure & { href: string };
 
-/**
- * Every open failure, newest first, each with a link to its page: the captured post, the form, or the Jobs
- * page for the nightly run's steps (fetching, scoring, notes).
- */
 export async function getOpenFailures(): Promise<FailureWithPage[]> {
   const { db } = await requireOwner();
   const failures = await findAllOpenFailures(db);

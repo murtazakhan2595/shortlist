@@ -1,11 +1,8 @@
 import { ImageResponse } from "next/og";
 
-// The app icon (PLAN.md item 2.5): a short printed list with one line marked by the highlighter, as in
-// the wordmark. Served at /icon/192 and /icon/512 for the install manifest (app/manifest.ts).
 // Everything sits inside the middle 80%, the part Android keeps when it crops an icon to a circle.
 
-// ImageResponse takes literal colours, not CSS variables: these are --paper, --ink, --ink-muted and
-// --highlight from globals.css.
+// ImageResponse takes literal colours, not CSS variables: these mirror globals.css.
 const PAPER = "#f3f5f7";
 const INK = "#1c2840";
 const INK_MUTED = "#556078";
@@ -29,7 +26,6 @@ export default async function Icon({ id }: { id: Promise<string | number> }) {
       <div style={{ width: "100%", height: "100%", background: PAPER, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 9 * unit, width: 60 * unit }}>
           {line(42, INK_MUTED, 6)}
-          {/* The marked line: a highlighter stroke behind it, tilted a little and running past both ends. */}
           <div style={{ display: "flex", position: "relative", height: 8 * unit }}>
             <div
               style={{

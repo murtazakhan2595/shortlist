@@ -5,7 +5,6 @@ import { fail } from "@/lib/result";
 import { saveGmailConsent } from "@/server/gmail/gmail";
 import { GMAIL_STATE_COOKIE, GmailCallbackQuerySchema, type GmailConnectResult } from "@/server/gmail/schemas";
 
-// GET /api/gmail/callback: Google sends the owner back here after the consent page (AGENTS.md, Contracts).
 // The state must match the cookie set by /api/gmail/connect, so only a consent the owner started is accepted.
 export async function GET(request: NextRequest): Promise<Response> {
   const query = GmailCallbackQuerySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
@@ -17,7 +16,6 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   try {
     await saveGmailConsent(query.data.code, new URL("/api/gmail/callback", request.url).toString());
-    // Applications that became ready before Gmail was connected get their drafts now.
     await queueMissingDrafts();
     return backToSettings(request, "connected");
   } catch (error) {

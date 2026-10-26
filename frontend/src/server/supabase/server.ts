@@ -7,13 +7,9 @@ import type { Database } from "./database.types";
 
 export type ServerClient = SupabaseClient<Database>;
 
-/**
- * A database client acting as whoever is signed in, read from the session cookie.
- * It obeys the owner-only access rules. Owner code gets it through requireOwner(), not directly.
- */
+// Owner code gets this through requireOwner(), not directly.
 export async function getServerClient(): Promise<ServerClient> {
-  // Cookies first: reading request data is what tells Next.js to stop prerendering here, so the
-  // settings below are read only for a real request, never at build time.
+  // Cookies first: reading request data stops Next.js prerendering here, so env is never read at build time.
   const cookieStore = await cookies();
   const env = getServerEnv();
 
@@ -24,8 +20,7 @@ export async function getServerClient(): Promise<ServerClient> {
         try {
           for (const { name, value, options } of cookiesToSet) cookieStore.set(name, value, options);
         } catch {
-          // Pages cannot set cookies, only Server Actions and route handlers can.
-          // That is safe to ignore: the proxy refreshes the session on every request.
+          // Pages cannot set cookies. Safe to ignore: the proxy refreshes the session on every request.
         }
       },
     },

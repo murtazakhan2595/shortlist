@@ -1,12 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { AIMessage } from "@langchain/core/messages";
 import { afterAll, expect, test, vi } from "vitest";
-import { scoreListing, scoringGaveUp, selectTopListings } from "@/features/discovery/steps/score-listings";
+import { scoreListing, skipFailedListing, selectTopListings } from "@/features/discovery/steps/score-listings";
 import { getAdminClient } from "@/server/supabase/admin";
 import { TEST_RUN_STARTED_AT } from "./test-runs";
 
-// The scoring steps against the real database and the owner's real profile, with a fake model.
-// Queued steps are collected here instead of going to the real queue.
 const invokeModel = vi.hoisted(() => vi.fn());
 vi.mock("@/server/models/chat-models", () => ({ createStructuredModel: () => ({ invoke: invokeModel }) }));
 
@@ -80,7 +78,6 @@ test("scores each listing once, then keeps the best ones by score, writes emails
   await scoreListing({ listingId: weak });
   expect(queued).toEqual([]);
 
-  // The last listing scored hands the run on to choosing the top listings.
   invokeModel.mockResolvedValueOnce(modelAnswer(rating(95)));
   await scoreListing({ listingId: unclear });
   expect(invokeModel).toHaveBeenCalledTimes(3);
@@ -109,7 +106,6 @@ test("scores each listing once, then keeps the best ones by score, writes emails
   const { data: finished } = await database.from("runs").select("status, listings_scored").eq("id", runId).single();
   expect(finished).toEqual({ status: "succeeded", listings_scored: 3 });
 
-  // Every model call is costed against the run (B1).
   const { count } = await database.from("model_calls").select("id", { count: "exact", head: true }).eq("run_id", runId);
   expect(count).toBe(3);
 });
@@ -133,13 +129,12 @@ test("a listing that cannot be scored does not hold up the run, and one scored o
     .select("id")
     .single();
   if (failure.error) throw failure.error;
-  await scoringGaveUp({ listingId: broken });
+  await skipFailedListing({ listingId: broken });
   expect(queued).toEqual([{ step: "select_top_listings", payload: { runId: secondRunId } }]);
 
   await selectTopListings({ runId: secondRunId });
   queued.length = 0;
 
-  // The owner tries it again later: the failure is closed and the listing scored, and the finished run is left as it is.
   await database.from("failed_steps").delete().eq("id", failure.data.id);
   invokeModel.mockResolvedValueOnce(modelAnswer(rating(90)));
   await scoreListing({ listingId: broken });

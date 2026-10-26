@@ -1,8 +1,6 @@
 import { z } from "zod";
 import { findModelPrice, MODEL_PROVIDERS, MODEL_STEPS, REASONING_EFFORTS } from "@/lib/model-catalog";
 
-// Contracts for the settings feature (PLAN.md item 1.3; U4, B3).
-//
 // Server Actions:
 //   updateSettings(UpdateSettingsInput)   -> Result<UpdateSettingsInput>
 //   updateStepModel(UpdateStepModelInput) -> Result<UpdateStepModelInput>
@@ -12,12 +10,11 @@ export const UpdateSettingsInputSchema = z.object({
   monthlyCapUsd: z.number().min(0).max(1_000),
   payFloorUsdMonth: z.int().min(0),
   excludedCountries: z.array(z.string().trim().min(1)).max(50),
-  /** Companies whose jobs the nightly run drops before scoring. */
   blockedCompanies: z.array(z.string().trim().min(1).max(200)).max(500),
 });
 export type UpdateSettingsInput = z.infer<typeof UpdateSettingsInputSchema>;
 
-// Only a model with a known price can be chosen, so every call's cost can be recorded (B1).
+// Only a model with a known price can be chosen, so every call's cost can be recorded.
 export const UpdateStepModelInputSchema = z
   .object({
     step: z.enum(MODEL_STEPS),

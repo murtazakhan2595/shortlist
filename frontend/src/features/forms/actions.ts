@@ -21,10 +21,8 @@ import {
   type FormQuestionAnswered,
 } from "./schemas";
 
-// Server Actions for forms (contracts in ./schemas.ts). Each checks its input, checks the owner, and does
-// one thing. Database writes use the owner's client, so the access rules apply too.
+// Writes use the owner's client, so the database access rules apply too.
 
-/** A one-time link the browser uploads a page's screenshot to, straight into private storage. */
 export async function createFormUploadUrl(request: ImageUploadRequest): Promise<Result<SignedUpload>> {
   const input = ImageUploadRequestSchema.safeParse(request);
   if (!input.success) return fail("invalid_input", input.error.issues[0].message);
@@ -37,7 +35,6 @@ export async function createFormUploadUrl(request: ImageUploadRequest): Promise<
   }
 }
 
-/** Saves pages as a new form, or adds them to a form (F3), and queues them to be read. */
 export async function addFormPages(request: AddFormPagesInput): Promise<Result<FormPagesAdded>> {
   const input = AddFormPagesInputSchema.safeParse(request);
   if (!input.success) return fail("invalid_input", input.error.issues[0].message);
@@ -51,10 +48,6 @@ export async function addFormPages(request: AddFormPagesInput): Promise<Result<F
   }
 }
 
-/**
- * The owner answers a question, or corrects an answer. By default the answer is also saved to the answer
- * bank, so the next form that asks gets it (F5).
- */
 export async function answerFormQuestion(request: AnswerFormQuestionInput): Promise<Result<FormQuestionAnswered>> {
   const input = AnswerFormQuestionInputSchema.safeParse(request);
   if (!input.success) return fail("invalid_input", input.error.issues[0].message);
@@ -65,7 +58,7 @@ export async function answerFormQuestion(request: AnswerFormQuestionInput): Prom
     .from("form_answers")
     .update({ answer, status: "answered", note: null })
     .eq("id", formAnswerId)
-    // Not a question still being answered or checked: that step would overwrite the owner's answer.
+    // Not one still being answered or checked: that step would overwrite this answer.
     .in("status", ["answered", "needs_input", "asset_needed"])
     .select("question")
     .maybeSingle();
@@ -80,10 +73,7 @@ export async function answerFormQuestion(request: AnswerFormQuestionInput): Prom
   }
 }
 
-/**
- * A new form is an application on the form route. Its job is known only once its pages are read, so its
- * duplicate key is its own id: a form is not matched against other applications.
- */
+// The job is unknown until the pages are read, so the duplicate key is the form's own id.
 async function startForm(db: ServerClient, pages: FormPages): Promise<Result<FormPagesAdded>> {
   const id = randomUUID();
   const { error } = await db
@@ -94,7 +84,7 @@ async function startForm(db: ServerClient, pages: FormPages): Promise<Result<For
   try {
     await enqueueStep(STEP_NAMES.readForm, { applicationId: id, pages: pagesToRead(pages) });
   } catch (error) {
-    // Nothing would ever read this form, so it is removed and the owner can simply send the pages again.
+    // Nothing would ever read this form, so remove it; the pages can be sent again.
     await db.from("applications").delete().eq("id", id);
     throw error;
   }
@@ -103,11 +93,8 @@ async function startForm(db: ServerClient, pages: FormPages): Promise<Result<For
 
 const NOT_READY = "Shortlist is still working on this form. Add more pages once it is done.";
 
-/**
- * Adds the pages to a ready form and sets it preparing again. Refused otherwise: while earlier pages are
- * worked on, two chains of steps on one form would overwrite each other's work, and a form whose step
- * failed is tried again instead (failed-steps), so its waiting pages are not lost.
- */
+// Only a ready form: two chains of steps on one form would overwrite each other, and a failed form is
+// retried from failed-steps instead, so its waiting pages are not lost.
 async function addToForm(db: ServerClient, applicationId: string, pages: FormPages): Promise<Result<FormPagesAdded>> {
   const { data: form, error: readError } = await db
     .from("applications")
@@ -123,7 +110,7 @@ async function addToForm(db: ServerClient, applicationId: string, pages: FormPag
     .from("applications")
     .update({ ...pageColumns(pages, { imagePaths: form.form_image_paths, text: form.form_text }), status: "preparing" })
     .eq("id", applicationId)
-    // Only if it is still ready: of pages sent twice at once, one request wins and starts one chain.
+    // Of two requests at once, one wins and starts one chain.
     .eq("status", "ready")
     .select("id")
     .maybeSingle();
@@ -133,7 +120,7 @@ async function addToForm(db: ServerClient, applicationId: string, pages: FormPag
   try {
     await enqueueStep(STEP_NAMES.readForm, { applicationId, pages: pagesToRead(pages) });
   } catch (error) {
-    // Nothing would read the new pages, so the form is put back as it was and the owner can add them again.
+    // Nothing would read the new pages, so put the form back as it was.
     await db
       .from("applications")
       .update({ status: "ready", form_image_paths: form.form_image_paths, form_text: form.form_text })
@@ -143,16 +130,12 @@ async function addToForm(db: ServerClient, applicationId: string, pages: FormPag
   return ok({ applicationId });
 }
 
-/**
- * The pages for read_form, one screenshot each, so every model call stays short. Each gets its own id,
- * so a page already read is not read again (read-form.ts).
- */
+// One screenshot per page keeps each model call short; the id lets a retry skip a page already read.
 function pagesToRead(pages: FormPages): FormPage[] {
   if (pages.inputType === "text") return [{ inputType: "text", pageId: randomUUID(), text: pages.text }];
   return pages.imagePaths.map((imagePath) => ({ inputType: "screenshot", pageId: randomUUID(), imagePath }));
 }
 
-/** The form's stored pages with the new ones added after them. */
 function pageColumns(pages: FormPages, stored: { imagePaths: string[]; text: string | null }) {
   if (pages.inputType === "screenshot") return { form_image_paths: [...stored.imagePaths, ...pages.imagePaths] };
   return { form_text: stored.text ? `${stored.text}\n\n${pages.text}` : pages.text };

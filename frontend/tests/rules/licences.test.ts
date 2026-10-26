@@ -2,7 +2,6 @@ import { execFileSync } from "node:child_process";
 import { describe, expect, test } from "vitest";
 import packageJson from "../../package.json";
 
-// Principle 6: only permissive licences.
 // Packages we choose must be on the allow list. Packages those bring in must not be under a forbidden licence.
 
 const ALLOWED = new Set([

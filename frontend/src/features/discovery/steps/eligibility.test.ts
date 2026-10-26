@@ -131,7 +131,7 @@ describe("a Hacker News post: kept when it can be done from Pakistan", () => {
     "Acme | Engineer | Remote (Global)",
     "Acme | Engineer | REMOTE (EMEA/APAC)",
     "Acme | Engineer | Remote, anywhere in the world",
-    // An employer that sponsors a visa or helps with relocation is open to the owner (Q4).
+    // An employer that sponsors a visa or helps with relocation is open to the owner.
     "Acme | Engineer | ONSITE in London | Visa sponsorship",
     "Acme | Engineer | Berlin | HYBRID\n\nWe offer relocation support.",
     "Acme | Engineer | NYC | ONSITE\n\nWe sponsor H-1Bs.",

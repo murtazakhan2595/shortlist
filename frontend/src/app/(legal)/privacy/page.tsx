@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Privacy policy" };
 
-// Every statement here must stay true of the code: the Gmail rules are REQUIREMENTS.md X1 and X5,
-// and principle 4 keeps Gmail away from language models.
+// Every statement must stay true of the code: Gmail only creates drafts, and none of it reaches a model.
 export default function PrivacyPage() {
   return (
     <>

@@ -3,10 +3,7 @@ import type { ReactNode } from "react";
 import { AutoRefresh } from "@/components/ui/auto-refresh";
 import type { CaptureView } from "../data";
 
-/**
- * One captured post: what was read from it, and what happens next. failureNotice is shown in place of the
- * progress while the post is read or its email written, if a step doing that failed every attempt.
- */
+/** failureNotice replaces the progress message when reading the post or writing its email failed. */
 export function CaptureDetails({ capture, failureNotice }: { capture: CaptureView; failureNotice?: ReactNode }) {
   const stuck = failureNotice && (capture.status === "received" || capture.status === "processing");
   return (

@@ -6,16 +6,12 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { dismissFailedStep, retryFailedStep } from "../actions";
 
-/**
- * Try again queues the failed step once more; Dismiss closes it without. With href, a link to the page of
- * what it was working on. The page then refreshes to show where things stand.
- */
 export function FailureActions({ failedStepId, href }: { failedStepId: string; href?: string }) {
   const router = useRouter();
   const [error, setError] = useState<string>();
   const [isPending, startTransition] = useTransition();
 
-  function act(action: typeof retryFailedStep) {
+  function runAction(action: typeof retryFailedStep) {
     setError(undefined);
     startTransition(async () => {
       const result = await action({ failedStepId });
@@ -28,10 +24,10 @@ export function FailureActions({ failedStepId, href }: { failedStepId: string; h
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <Button type="button" variant="secondary" className="sm:w-auto" disabled={isPending} onClick={() => act(retryFailedStep)}>
+        <Button type="button" variant="secondary" className="sm:w-auto" disabled={isPending} onClick={() => runAction(retryFailedStep)}>
           {isPending ? "Working…" : "Try again"}
         </Button>
-        <Button type="button" variant="quiet" disabled={isPending} onClick={() => act(dismissFailedStep)}>
+        <Button type="button" variant="quiet" disabled={isPending} onClick={() => runAction(dismissFailedStep)}>
           Dismiss
         </Button>
         {href && (
