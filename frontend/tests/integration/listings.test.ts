@@ -7,6 +7,7 @@ import {
   himalayasListing,
   saveNewListings,
 } from "@/features/discovery/steps/fetch-listings";
+import type { GreenhouseJob } from "@/server/greenhouse";
 import type { HackerNewsPost } from "@/server/hacker-news";
 import type { HimalayasJob } from "@/server/himalayas";
 import { getAdminClient } from "@/server/supabase/admin";
@@ -22,6 +23,13 @@ const hackerNewsPosts = vi.hoisted(() => ({ value: [] as unknown[] }));
 vi.mock("@/server/hacker-news", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/server/hacker-news")>()),
   fetchHackerNewsPosts: vi.fn(async () => hackerNewsPosts.value),
+}));
+
+// The board reading itself is tested in company-boards.test.ts.
+const greenhouseReads = vi.hoisted(() => ({ value: [] as { jobs: unknown[]; after?: string }[] }));
+vi.mock("@/features/discovery/steps/company-boards", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/features/discovery/steps/company-boards")>()),
+  readWatchedGreenhouseBoards: vi.fn(async () => greenhouseReads.value.shift() ?? { jobs: [] }),
 }));
 
 const queued = vi.hoisted((): { step: string; payload: unknown }[] => []);
@@ -48,6 +56,19 @@ afterAll(async () => {
 
 function hackerNewsPost(id: number, place: string): HackerNewsPost {
   return { id, text: `${company} | Backend Engineer ${id} | ${place}<p>Details.`, created_at_i: Date.now() / 1000 };
+}
+
+function greenhouseJob(location: string): GreenhouseJob {
+  return {
+    id: Math.floor(Math.random() * 1e9),
+    title: `Platform Engineer ${runId}`,
+    company_name: company,
+    location: { name: location },
+    first_published: new Date().toISOString(),
+    absolute_url: "https://job-boards.greenhouse.io/test/jobs/1",
+    content: "&lt;p&gt;Build our platform.&lt;/p&gt;",
+    offices: [],
+  };
 }
 
 function job(id: string, expiryDate: number | null): HimalayasJob {
@@ -122,6 +143,18 @@ test("the night reads each source in turn, saves its listings with the filter's 
 
   await fetchListings(next);
   await fetchListings(next);
+  const toGreenhouse = { runId: stepRunId, source: "greenhouse", readSoFar: 4 };
+  expect(queued.splice(0)).toEqual([
+    { step: "fetch_listings", payload: toGreenhouse },
+    { step: "fetch_listings", payload: toGreenhouse },
+  ]);
+
+  // Greenhouse is read over two steps: the first stops after a batch of boards.
+  greenhouseReads.value = [{ jobs: [{ job: greenhouseJob("Remote"), company }], after: "acme" }];
+  await fetchListings(toGreenhouse);
+  const onwards = { ...toGreenhouse, readSoFar: 5, after: "acme" };
+  expect(queued.splice(0)).toEqual([{ step: "fetch_listings", payload: onwards }]);
+  await fetchListings(onwards);
 
   const { data: saved } = await database
     .from("listings")
@@ -139,15 +172,15 @@ test("the night reads each source in turn, saves its listings with the filter's 
       eligibility_reason: "On-site or hybrid, with no visa sponsorship",
     },
     { id: expect.any(String), source: "himalayas", title: "Engineer developer", eligibility: "eligible", eligibility_reason: null },
+    { id: expect.any(String), source: "greenhouse", title: `Platform Engineer ${runId}`, eligibility: "eligible", eligibility_reason: null },
   ]);
   const { data: counted } = await database.from("runs").select("status, listings_fetched, listings_kept").eq("id", stepRunId).single();
-  expect(counted).toEqual({ status: "running", listings_fetched: 4, listings_kept: 2 });
+  expect(counted).toEqual({ status: "running", listings_fetched: 5, listings_kept: 3 });
 
-  // Only the kept listings are scored. They are still unscored on the second run, so they are queued again;
-  // the scoring step itself skips a listing that already has a score.
-  const keptIds = [saved?.[1].id, saved?.[3].id];
+  // Only the kept listings are scored.
+  const keptIds = [saved?.[1].id, saved?.[3].id, saved?.[4].id];
   const scoring = queued.splice(0);
-  expect(scoring.map((step) => step.step)).toEqual(Array(4).fill("score_listing"));
+  expect(scoring.map((step) => step.step)).toEqual(Array(3).fill("score_listing"));
   expect(new Set(scoring.map((step) => (step.payload as { listingId: string }).listingId))).toEqual(new Set(keptIds));
 });
 
@@ -160,7 +193,13 @@ test("a source that failed every attempt is skipped, and the night goes on", asy
     { step: "fetch_listings", payload: { runId: gaveUpRunId, source: "hackernews", readSoFar: 0 } },
   ]);
 
-  // The last source giving up still finishes fetching: nothing was saved, so the run goes straight to its list.
   await skipFailedSource({ runId: gaveUpRunId, source: "hackernews", readSoFar: 0 });
+  expect(queued.splice(0)).toEqual([
+    { step: "fetch_listings", payload: { runId: gaveUpRunId, source: "greenhouse", readSoFar: 0 } },
+  ]);
+
+  // The last source giving up, even part way through its boards, still finishes fetching: nothing was saved,
+  // so the run goes straight to its list.
+  await skipFailedSource({ runId: gaveUpRunId, source: "greenhouse", readSoFar: 0, after: "acme" });
   expect(queued.splice(0)).toEqual([{ step: "select_top_listings", payload: { runId: gaveUpRunId } }]);
 });

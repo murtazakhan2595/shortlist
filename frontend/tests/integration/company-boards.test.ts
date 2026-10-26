@@ -1,12 +1,22 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, expect, test, vi } from "vitest";
-import { addBoardsFromListings, checkBoards, loadBoardLists } from "@/features/discovery/steps/check-boards";
-import { fetchGreenhouseBoard } from "@/server/greenhouse";
+import {
+  addBoardsFromListings,
+  checkBoards,
+  loadBoardLists,
+  readWatchedGreenhouseBoards,
+} from "@/features/discovery/steps/company-boards";
+import { fetchGreenhouseBoard, fetchGreenhouseJob, type GreenhouseBoardJob } from "@/server/greenhouse";
 import { getAdminClient } from "@/server/supabase/admin";
 
 // The SQL rules are tested in supabase/tests/database/company-boards.test.sql.
-vi.mock("@/server/greenhouse", () => ({ fetchGreenhouseBoard: vi.fn() }));
+vi.mock("@/server/greenhouse", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/server/greenhouse")>()),
+  fetchGreenhouseBoard: vi.fn(),
+  fetchGreenhouseJob: vi.fn(),
+}));
 const readBoard = vi.mocked(fetchGreenhouseBoard);
+const readJob = vi.mocked(fetchGreenhouseJob);
 
 const queued = vi.hoisted((): { step: string; payload: unknown }[] => []);
 vi.mock("@/server/queue/queue", () => ({
@@ -19,6 +29,7 @@ const prefix = `test-${randomUUID()}`;
 afterEach(() => {
   vi.restoreAllMocks();
   readBoard.mockReset();
+  readJob.mockReset();
   queued.length = 0;
 });
 
@@ -101,4 +112,53 @@ test("adds the boards that kept listings link to", async () => {
   ]);
 
   expect(await boards([linked], "ashby")).toMatchObject([{ slug: linked, status: "unchecked" }]);
+});
+
+test("the nightly read: new remote developer jobs on watched boards, each read once, and boards kept up to date", async () => {
+  const [hiring, quiet, blocked] = ["a-hiring", "b-quiet", "c-blocked"].map((name) => `${prefix}-${name}`);
+  const longAgo = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString();
+  await database.from("company_boards").insert([
+    { provider: "greenhouse", slug: hiring, status: "watched", company: "Acme", next_check_at: null, matched_at: longAgo },
+    { provider: "greenhouse", slug: quiet, status: "watched", company: "Quiet Co", next_check_at: null, matched_at: longAgo },
+    { provider: "greenhouse", slug: blocked, status: "watched", company: "Blocked Co", next_check_at: null, matched_at: longAgo },
+  ]);
+  const today = new Date().toISOString();
+  const job = (id: number, title: string, location: string, published = today): GreenhouseBoardJob => ({
+    id,
+    title: `${title} ${prefix}`,
+    company_name: "Acme",
+    location: { name: location },
+    first_published: published,
+  });
+  // Any board not made by this test fails to read, so a real board is never changed.
+  readBoard.mockImplementation(async (slug) => {
+    if (slug === hiring) {
+      return [
+        job(1, "Backend Engineer", "Remote"),
+        job(2, "Backend Engineer", "Remote"),
+        job(3, "Frontend Engineer", "Remote", longAgo),
+        job(4, "Data Engineer", "Remote - US"),
+      ];
+    }
+    if (slug === quiet) return [job(5, "Account Executive", "Remote")];
+    throw new Error("not a test board");
+  });
+  readJob.mockImplementation(async (_slug, id) => ({
+    ...job(id, "Backend Engineer", "Remote"),
+    absolute_url: `https://job-boards.greenhouse.io/acme/jobs/${id}`,
+    content: "&lt;p&gt;Build things.&lt;/p&gt;",
+    offices: [],
+  }));
+
+  // Starting at the prefix reads only this test's boards and those after them, which fail to read.
+  const read = await readWatchedGreenhouseBoards(prefix, { payFloorUsdMonth: 0, excludedCountries: [], blockedCompanies: ["Blocked Co"] });
+
+  expect(read.jobs.map(({ job: post, company }) => [post.id, company])).toEqual([[2, "Acme"]]);
+  expect(readJob).toHaveBeenCalledTimes(1);
+  expect(readBoard).not.toHaveBeenCalledWith(blocked);
+  expect(await boards([hiring, quiet, blocked])).toMatchObject([
+    { slug: hiring, status: "watched" },
+    { slug: quiet, status: "idle" },
+    { slug: blocked, status: "watched" },
+  ]);
 });

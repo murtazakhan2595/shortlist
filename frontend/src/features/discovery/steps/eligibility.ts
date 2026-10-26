@@ -1,5 +1,6 @@
 import "server-only";
 import { escapeRegExp } from "@/lib/regex";
+import { GREENHOUSE_SOURCE } from "@/server/greenhouse";
 import { HACKER_NEWS_SOURCE } from "@/server/hacker-news";
 import { slugify } from "@/server/job-key";
 import { getAdminClient } from "@/server/supabase/admin";
@@ -51,6 +52,11 @@ function exclusionReason(listing: Listing, settings: FilterSettings): string | n
     if (JOB_SEEKER_POST.test(listing.description)) return "Someone looking for work, not a job";
     const place = checkLocation(listing);
     if (place.excluded) return place.excluded;
+  }
+  // Every place a board job names must be open: "Remote; Remote US" is limited to the US.
+  const boardPlaces = (listing.location ?? "").split(";").filter((place) => place.trim() !== "");
+  if (listing.source === GREENHOUSE_SOURCE && !offersVisa(listing.description) && !boardPlaces.every(isOpenRemoteLocation)) {
+    return `Remote only within a region that leaves out ${OWNER_COUNTRY}`;
   }
   return countryReason(listing, settings.excludedCountries);
 }
@@ -235,6 +241,10 @@ function unclearReasons(listing: Listing): string[] {
   if (listing.source === HACKER_NEWS_SOURCE) {
     const place = checkLocation(listing);
     if (place.doubt) doubts.push(place.doubt);
+  }
+  // The location said open; the post itself may still name a region.
+  if (listing.source === GREENHOUSE_SOURCE && remoteScope(listing.description) === "limited") {
+    doubts.push("Remote, but the post may limit where you can work from");
   }
   if (WORK_AUTHORISATION.test(listing.description)) doubts.push("Mentions work authorisation or where you must live");
   if (listing.seniority.length > 0 && listing.seniority.every((level) => level === "Entry-level")) doubts.push("Listed as entry level");

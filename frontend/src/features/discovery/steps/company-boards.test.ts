@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { fetchGreenhouseBoard, type GreenhouseBoardJob } from "@/server/greenhouse";
-import { boardLinksIn, checkBoard, isWatchable } from "./check-boards";
+import { boardAfterRead, boardLinksIn, checkBoard, isWatchable } from "./company-boards";
 
-vi.mock("@/server/greenhouse", () => ({ fetchGreenhouseBoard: vi.fn() }));
+vi.mock("@/server/greenhouse", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/server/greenhouse")>()),
+  fetchGreenhouseBoard: vi.fn(),
+}));
 const readBoard = vi.mocked(fetchGreenhouseBoard);
 
 afterEach(() => readBoard.mockReset());
@@ -54,6 +57,21 @@ describe("a board is watched when it has a remote developer job open to Pakistan
 
   test("a provider with no reader yet is left for later", async () => {
     expect(await checkBoard({ ...BOARD, provider: "lever" }, NOW)).toMatchObject({ status: "unchecked" });
+  });
+});
+
+describe("a watched board read at night with no such job", () => {
+  const watched = { ...BOARD, status: "watched", matched_at: "2026-10-10T20:00:00Z" };
+
+  test("stays watched within 30 days of its last match", () => {
+    expect(boardAfterRead(watched, [], NOW)).toMatchObject({ status: "watched", next_check_at: null, matched_at: watched.matched_at });
+  });
+
+  test("goes back to idle after 30 days", () => {
+    expect(boardAfterRead({ ...watched, matched_at: "2026-09-20T20:00:00Z" }, [], NOW)).toMatchObject({
+      status: "idle",
+      next_check_at: "2026-11-25T20:00:00.000Z",
+    });
   });
 });
 

@@ -37,7 +37,7 @@ Feashliaa/job-board-aggregator, `data/greenhouse_companies.json`, `data/lever_co
 
 | Source | Used in | What was taken |
 |---|---|---|
-| https://github.com/Feashliaa/job-board-aggregator/tree/main/data | `frontend/src/features/discovery/steps/check-boards.ts` | The lists of company board names on Greenhouse, Lever and Ashby, as the starting list for the company watchlist. No code |
+| https://github.com/Feashliaa/job-board-aggregator/tree/main/data | `frontend/src/features/discovery/steps/company-boards.ts` | The lists of company board names on Greenhouse, Lever and Ashby, as the starting list for the company watchlist. No code |
 
 ## MIT License text
 
