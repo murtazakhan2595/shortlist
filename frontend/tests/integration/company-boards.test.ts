@@ -154,7 +154,7 @@ test("the nightly read: new remote developer jobs on watched boards, each read o
   const settings = { payFloorUsdMonth: 0, excludedCountries: [], blockedCompanies: ["Blocked Co"] };
   const read = await readWatchedBoards("greenhouse", prefix, settings, "run-1");
 
-  expect(read.listings.map((listing) => [listing.source_id, listing.company])).toEqual([["2", "Acme"]]);
+  expect(read.listings.map((listing) => [listing.source_id, listing.company])).toEqual([[`${hiring}/2`, "Acme"]]);
   expect(readJob).toHaveBeenCalledTimes(1);
   expect(readBoard).not.toHaveBeenCalledWith(blocked);
   expect(await boards([hiring, quiet, blocked])).toMatchObject([

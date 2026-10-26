@@ -17,7 +17,7 @@ const MARK_STYLES: Record<Label, { on: string; off: string }> = {
 };
 
 /** The mark shows at once and is saved in the background. failureNotice replaces the email when a step failed. */
-export function JobRow({ job, failureNotice }: { job: JobView; failureNotice?: ReactNode }) {
+export function JobRow({ job, failureNotice, answers }: { job: JobView; failureNotice?: ReactNode; answers?: ReactNode }) {
   const router = useRouter();
   const [label, setLabel] = useState(job.label);
   const [error, setError] = useState<string>();
@@ -83,6 +83,7 @@ export function JobRow({ job, failureNotice }: { job: JobView; failureNotice?: R
             Open the job on {sourceName(job.source)}
           </a>
         </div>
+        {answers}
         <BlockCompany listingId={job.id} company={job.company} />
         {error && (
           <p role="alert" className="text-sm text-danger">

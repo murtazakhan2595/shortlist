@@ -1,6 +1,7 @@
 import "server-only";
 import { NIGHTLY_SOURCES } from "@/lib/source-names";
 import { requireOwner } from "@/server/auth/require-owner";
+import { GREENHOUSE_SOURCE } from "@/server/greenhouse";
 import { findOpenFailures, type OpenFailure } from "@/server/queue/failed-steps";
 
 export type JobView = {
@@ -19,6 +20,9 @@ export type JobView = {
   reasons: string | null;
   label: "apply" | "skip" | null;
   email: { status: string; to: string; body: string | null; inGmail: boolean; blockedReason: string | null } | null;
+  /** Greenhouse publishes a job's questions, so answers can be drafted for it. */
+  canDraftAnswers: boolean;
+  form: { id: string; status: string } | null;
   failure: OpenFailure | null;
 };
 
@@ -102,6 +106,7 @@ export async function getJobsList(): Promise<JobsListView | null> {
   const jobs: JobView[] = listings.map((listing) => {
     // Older notes are not shown: only emails are prepared now.
     const email = listing.applications.find((application) => application.route === "email" && application.recipient_email);
+    const form = listing.applications.find((application) => application.route === "form");
     const ownIds = [listing.id, ...listing.applications.map((own) => own.id)];
     return {
       id: listing.id,
@@ -127,6 +132,8 @@ export async function getJobsList(): Promise<JobsListView | null> {
               blockedReason: email.blocked_reason,
             }
           : null,
+      canDraftAnswers: listing.source === GREENHOUSE_SOURCE,
+      form: form ? { id: form.id, status: form.status } : null,
       failure: failures.find((failure) => failure.targetIds.some((id) => ownIds.includes(id))) ?? null,
     };
   });

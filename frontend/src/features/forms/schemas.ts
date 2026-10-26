@@ -5,6 +5,7 @@ import { IMAGE_EXTENSIONS, storagePathSchema } from "@/lib/uploads";
 //   createFormUploadUrl(ImageUploadRequest)   -> Result<SignedUpload>   (from @/lib/uploads)
 //   addFormPages(AddFormPagesInput)           -> Result<FormPagesAdded>
 //   answerFormQuestion(AnswerFormQuestionInput) -> Result<FormQuestionAnswered>
+//   draftListingAnswers(DraftListingAnswersInput) -> Result<FormStarted>
 
 export const MAX_FORM_PAGES_PER_REQUEST = 10;
 export const MAX_FORM_TEXT_LENGTH = 50_000;
@@ -46,7 +47,12 @@ export const AnswerFormQuestionInputSchema = z.object({
 });
 export type AnswerFormQuestionInput = z.infer<typeof AnswerFormQuestionInputSchema>;
 
+// Only a Greenhouse job publishes its questions; any other is refused.
+export const DraftListingAnswersInputSchema = z.object({ listingId: z.uuid() });
+export type DraftListingAnswersInput = z.infer<typeof DraftListingAnswersInputSchema>;
+
 export type FormPagesAdded = { applicationId: string };
+export type FormStarted = { applicationId: string };
 export type FormQuestionAnswered = { formAnswerId: string; answerBankVersion: number | null };
 
 export const FormPayloadSchema = z.object({ applicationId: z.uuid() });

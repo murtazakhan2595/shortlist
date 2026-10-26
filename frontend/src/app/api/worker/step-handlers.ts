@@ -5,7 +5,7 @@ import { checkBoards, checkWithoutNewLists, loadBoardLists } from "@/features/di
 import { skipFailedSource, fetchListings } from "@/features/discovery/steps/fetch-listings";
 import { scoreListing, skipFailedListing, selectTopListings } from "@/features/discovery/steps/score-listings";
 import { answerForm, checkFormAnswers } from "@/features/forms/steps/answer-form";
-import { readForm } from "@/features/forms/steps/read-form";
+import { readForm, readListingForm } from "@/features/forms/steps/read-form";
 import { QUEUE_CHECK_STEP, runQueueCheck } from "@/server/queue/queue-check";
 import type { StepHandlers } from "@/server/queue/run-next-step";
 import { STEP_NAMES } from "@/server/queue/step-names";
@@ -18,6 +18,7 @@ export const STEP_HANDLERS: StepHandlers = {
   [STEP_NAMES.advanceWriter]: { run: advanceWriter },
   [STEP_NAMES.createGmailDraft]: { run: createGmailDraft },
   [STEP_NAMES.readForm]: { run: readForm },
+  [STEP_NAMES.readListingForm]: { run: readListingForm },
   [STEP_NAMES.answerForm]: { run: answerForm },
   [STEP_NAMES.checkFormAnswers]: { run: checkFormAnswers },
   [STEP_NAMES.fetchListings]: { run: fetchListings, giveUp: skipFailedSource },

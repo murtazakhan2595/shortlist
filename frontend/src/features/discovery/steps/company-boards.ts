@@ -3,7 +3,7 @@ import { z } from "zod";
 import { mapConcurrently } from "@/lib/concurrency";
 import { htmlToText } from "@/lib/html";
 import { type AshbyCompensationComponent, type AshbyJob, ASHBY_SOURCE, fetchAshbyBoard } from "@/server/ashby";
-import { fetchGreenhouseBoard, fetchGreenhouseJob, GREENHOUSE_SOURCE, type GreenhouseJob } from "@/server/greenhouse";
+import { fetchGreenhouseBoard, fetchGreenhouseJob, GREENHOUSE_SOURCE, type GreenhouseJob, greenhouseSourceId } from "@/server/greenhouse";
 import { jobKey } from "@/server/job-key";
 import { fetchLeverBoard, LEVER_SOURCE, type LeverPosting } from "@/server/lever";
 import { enqueueStep } from "@/server/queue/queue";
@@ -51,7 +51,7 @@ const BOARD_READERS: Record<BoardProvider, (slug: string) => Promise<BoardJob[] 
       // The list has no posts, so a post is read only for a job worth it.
       toListing: async (company, runId) => {
         const post = await fetchGreenhouseJob(slug, job.id);
-        return post && greenhouseListing(post, company, runId);
+        return post && greenhouseListing(post, slug, company, runId);
       },
     })) ?? null,
   lever: async (slug) =>
@@ -354,11 +354,11 @@ function countryName(country: string | null | undefined): string[] {
   return [/^[A-Z]{2}$/.test(country) ? (REGION_NAMES.of(country) ?? country) : country];
 }
 
-export function greenhouseListing(job: GreenhouseJob, company: string, runId: string): Listing {
+export function greenhouseListing(job: GreenhouseJob, slug: string, company: string, runId: string): Listing {
   return boardListing(
     {
       source: GREENHOUSE_SOURCE,
-      source_id: String(job.id),
+      source_id: greenhouseSourceId(slug, job.id),
       url: job.absolute_url,
       title: job.title,
       company,

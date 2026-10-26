@@ -133,9 +133,9 @@ test("converts a Greenhouse job, with its offices as places and no email, whatev
     offices: [{ name: "Remote" }, { name: "Remote US" }],
   };
 
-  expect(greenhouseListing(job, "Acme", "run-1")).toMatchObject({
+  expect(greenhouseListing(job, "acme", "Acme", "run-1")).toMatchObject({
     source: "greenhouse",
-    source_id: "7",
+    source_id: "acme/7",
     url: "https://job-boards.greenhouse.io/acme/jobs/7",
     title: "Backend Engineer",
     company: "Acme",

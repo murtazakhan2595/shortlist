@@ -24,6 +24,8 @@ const JOB: JobView = {
   reasons: "Strengths:\n- React",
   label: null,
   email: null,
+  canDraftAnswers: false,
+  form: null,
   failure: null,
 };
 
