@@ -28,6 +28,7 @@ career-ops-hq/career-ops, pinned at commit `6caf821f1b852f27a63b297484617784c47b
 | Source | Used in | What was taken |
 |---|---|---|
 | https://github.com/career-ops-hq/career-ops/blob/6caf821f1b852f27a63b297484617784c47b8b2a/providers/hackernews.mjs | `frontend/src/server/hacker-news.ts` | Finding the "Who is hiring?" thread by the whoishiring account and its title, and reading its posts in one Algolia request, translated to TypeScript |
+| https://github.com/career-ops-hq/career-ops/blob/6caf821f1b852f27a63b297484617784c47b8b2a/providers/ashby.mjs | `frontend/src/features/discovery/steps/company-boards.ts` | Reading an Ashby job's pay from its tiers' Salary components, the widest range first, translated to TypeScript |
 
 An idea was also taken, with no code: `verify-cv-facts.mjs` checks that every number and tool in a draft appears in the profile, which `frontend/src/features/applications/steps/draft-checks.ts` does in its own way.
 

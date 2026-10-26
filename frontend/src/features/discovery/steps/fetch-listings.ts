@@ -1,9 +1,12 @@
 import "server-only";
 import { z } from "zod";
-import { GREENHOUSE_SOURCE, type GreenhouseJob } from "@/server/greenhouse";
+import { htmlToText } from "@/lib/html";
+import { ASHBY_SOURCE } from "@/server/ashby";
+import { GREENHOUSE_SOURCE } from "@/server/greenhouse";
 import { fetchHackerNewsPosts, HACKER_NEWS_SOURCE, hackerNewsPostUrl, type HackerNewsPost } from "@/server/hacker-news";
 import { fetchHimalayasJobs, HIMALAYAS_SOURCE, type HimalayasJob } from "@/server/himalayas";
 import { jobKey } from "@/server/job-key";
+import { LEVER_SOURCE } from "@/server/lever";
 import { enqueueStep } from "@/server/queue/queue";
 import { STEP_NAMES } from "@/server/queue/step-names";
 import { finishRun } from "@/server/runs";
@@ -11,15 +14,15 @@ import { loadSpendingCap } from "@/server/spending";
 import { getAdminClient } from "@/server/supabase/admin";
 import type { Json } from "@/server/supabase/database.types";
 import type { Eligibility, Listing } from "../schemas";
-import { addBoardsFromListings, readWatchedGreenhouseBoards } from "./company-boards";
+import { addBoardsFromListings, readWatchedBoards } from "./company-boards";
 import { eligibilityOf, type FilterSettings, loadFilterSettings, offersVisa, REMOTE } from "./eligibility";
 import { queueScoring } from "./score-listings";
 
 // The daily run's first step, one source per call: each source's step queues the next, and the last
-// queues scoring. Greenhouse is read over several calls, a batch of boards each. Excluded listings are saved too, so the filter's choices can be checked.
+// queues scoring. Company boards are read over several calls, a batch of boards each. Excluded listings are saved too, so the filter's choices can be checked.
 // Safe to run twice: listings already saved are skipped, and only unscored ones are queued.
 
-const SOURCES = [HIMALAYAS_SOURCE, HACKER_NEWS_SOURCE, GREENHOUSE_SOURCE] as const;
+const SOURCES = [HIMALAYAS_SOURCE, HACKER_NEWS_SOURCE, GREENHOUSE_SOURCE, LEVER_SOURCE, ASHBY_SOURCE] as const;
 type Source = (typeof SOURCES)[number];
 
 const FetchListingsPayloadSchema = z.object({
@@ -42,10 +45,9 @@ const FETCHERS: Record<Source, (context: FetchContext) => Promise<Fetched>> = {
   [HACKER_NEWS_SOURCE]: async ({ runId }) => ({
     listings: (await fetchHackerNewsPosts()).map((post) => hackerNewsListing(post, runId)),
   }),
-  [GREENHOUSE_SOURCE]: async ({ runId, after, settings }) => {
-    const read = await readWatchedGreenhouseBoards(after, settings);
-    return { listings: read.jobs.map(({ job, company }) => greenhouseListing(job, company, runId)), after: read.after };
-  },
+  [GREENHOUSE_SOURCE]: ({ runId, after, settings }) => readWatchedBoards("greenhouse", after, settings, runId),
+  [LEVER_SOURCE]: ({ runId, after, settings }) => readWatchedBoards("lever", after, settings, runId),
+  [ASHBY_SOURCE]: ({ runId, after, settings }) => readWatchedBoards("ashby", after, settings, runId),
 };
 
 // The overlap catches jobs published while the last run ran; a job read twice is saved once.
@@ -210,45 +212,6 @@ export function hackerNewsListing(post: HackerNewsPost, runId: string): Listing 
   };
 }
 
-/** Longer than the 30 days jobs are read back, so a job is never saved twice. */
-const GREENHOUSE_LISTING_DAYS = 45;
-
-// Greenhouse jobs are applied to on their board, and an address in the post is usually for something else
-// (accessibility requests, privacy), so no email is written for them.
-export function greenhouseListing(job: GreenhouseJob, company: string, runId: string): Listing {
-  // The location and the offices together say where the job is: "Remote" with an office "Remote US".
-  const places = [...new Set([job.location?.name, ...job.offices.map((office) => office.name)])].filter(
-    (place): place is string => Boolean(place),
-  );
-  // The post's tags arrive entity-encoded, so it is decoded twice.
-  const description = htmlToText(htmlToText(job.content));
-  const postedAt = job.first_published ? new Date(job.first_published) : new Date();
-
-  return {
-    source: GREENHOUSE_SOURCE,
-    source_id: String(job.id),
-    url: job.absolute_url,
-    title: job.title.trim(),
-    company,
-    location: places.join("; ") || null,
-    countries: [],
-    salary_min: null,
-    salary_max: null,
-    salary_currency: null,
-    salary_period: null,
-    seniority: [],
-    employment_type: null,
-    categories: [],
-    tags: offersVisa(description) ? ["remote", "visa"] : ["remote"],
-    description,
-    fingerprint: jobKey(company, job.title),
-    posted_at: postedAt.toISOString(),
-    expires_at: new Date(postedAt.getTime() + GREENHOUSE_LISTING_DAYS * 24 * 60 * 60 * 1000).toISOString(),
-    run_id: runId,
-    contact_email: null,
-  };
-}
-
 // "jobs@acme.com", and the spelled-out forms posts use against spam: "jobs [at] acme [dot] com",
 // "jobs (at) acme (dot) io". A bare "jobs at acme dot com" is left out: "engineers at acme" reads the same.
 const PLAIN_EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/;
@@ -270,22 +233,6 @@ export function contactEmailIn(text: string): string | null {
 // Hacker News never closes <p>, and shortens long link text with "...", so links become their full address.
 function hackerNewsText(html: string): string {
   return htmlToText(html.replace(/<a\s[^>]*href="([^"]*)"[^>]*>.*?<\/a>/gi, "$1").replace(/<p>/gi, "\n\n"));
-}
-
-const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
-
-export function htmlToText(html: string): string {
-  return html
-    .replace(/<li[^>]*>/gi, "\n- ")
-    .replace(/<(br|\/p|\/div|\/h[1-6]|\/ul|\/ol)[^>]*>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, code: string) => String.fromCodePoint(Number.parseInt(code, 16)))
-    .replace(/&([a-z]+);/gi, (entity, name: string) => ENTITIES[name.toLowerCase()] ?? entity)
-    .replace(/[ \t]+/g, " ")
-    .replace(/ *\n */g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
 }
 
 /** The database skips jobs already saved from any source, captured, or answered a form for. */
