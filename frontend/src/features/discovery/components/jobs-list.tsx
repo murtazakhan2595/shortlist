@@ -70,13 +70,18 @@ export function JobsList({ list, renderFailure }: { list: JobsListView | null; r
   );
 }
 
-/** One source's jobs: its top ones, numbered, then the rest it kept, by score. */
+/** One source's jobs: its top ones, numbered, then the rest it kept, by score. Older ones say which night. */
 function SourceList({ jobs, running, renderFailure }: { jobs: SourceJobs; running: boolean; renderFailure: RenderFailure }) {
   if (jobs.top.length === 0 && jobs.more.length === 0) {
     return !running && <p className="text-ink-muted">No new jobs from {jobs.name} this time.</p>;
   }
   return (
     <div className="flex flex-col gap-8">
+      {jobs.earlierRun && (
+        <p className="text-ink-muted">
+          No new jobs from {jobs.name} {running ? "yet" : "this time"}. These are from {RUN_DATE.format(new Date(jobs.earlierRun))}.
+        </p>
+      )}
       {jobs.top.length > 0 ? (
         <ol className="flex flex-col border-b border-rule">
           {jobs.top.map((job) => (

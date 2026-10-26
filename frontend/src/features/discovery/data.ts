@@ -33,8 +33,12 @@ const RUN_FINISHES_WITHIN_HOURS = 6;
 /** The schedule starts a run every 24 hours; a little longer allows for a late start. */
 const RUN_STARTS_EVERY_HOURS = 26;
 
-/** One source's jobs from a night: its top N (the daily target), then the rest it kept, by score. */
-export type SourceJobs = { source: string; name: string; top: JobView[]; more: JobView[] };
+/**
+ * One source's jobs from its latest night that kept any: its top N (the daily target), then the rest it kept,
+ * by score. earlierRun is that night's start when it is not the latest run, so a source with nothing new (Hacker
+ * News between monthly threads) keeps its last list instead of going empty (owner, 26 October 2026).
+ */
+export type SourceJobs = { source: string; name: string; top: JobView[]; more: JobView[]; earlierRun: string | null };
 
 /**
  * The latest daily run and its listings, by source (owner, 25 October 2026). Listings the filter dropped are
@@ -56,7 +60,7 @@ export type JobsListView = {
   sources: SourceJobs[];
 };
 
-/** The latest daily run's list, or null before the first run. */
+/** The latest daily run, with each source's jobs from its latest night that kept any, or null before the first run. */
 export async function getJobsList(): Promise<JobsListView | null> {
   const { db } = await requireOwner();
   const run = await db
@@ -69,17 +73,39 @@ export async function getJobsList(): Promise<JobsListView | null> {
   if (run.error) throw new Error(`Could not load the latest daily run: ${run.error.message}`);
   if (!run.data) return null;
 
-  const [listings, calls] = await Promise.all([
+  // Each source's latest daily run that kept a job it shows.
+  const sourceRuns = await Promise.all(
+    NIGHTLY_SOURCES.map(async ({ id }) => {
+      const latest = await db
+        .from("listings")
+        .select("run_id, runs!inner (started_at, kind)")
+        .eq("source", id)
+        .eq("runs.kind", "daily")
+        .neq("eligibility", "excluded")
+        .order("runs(started_at)", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (latest.error) throw new Error(`Could not find the latest jobs from ${id}: ${latest.error.message}`);
+      return latest.data?.run_id ? { source: id, runId: latest.data.run_id, startedAt: latest.data.runs.started_at } : null;
+    }),
+  );
+  const shownRuns = sourceRuns.filter((sourceRun) => sourceRun !== null);
+
+  const [loaded, calls] = await Promise.all([
     db
       .from("listings")
       .select(
-        "id, title, company, location, source, url, tags, eligibility, eligibility_reason, top_rank, label, scores (score, reasons), applications (id, route, status, body, blocked_reason, recipient_email, gmail_draft_id)",
+        "id, title, company, location, source, url, tags, eligibility, eligibility_reason, top_rank, label, run_id, scores (score, reasons), applications (id, route, status, body, blocked_reason, recipient_email, gmail_draft_id)",
       )
-      .eq("run_id", run.data.id)
+      .in("run_id", shownRuns.length > 0 ? shownRuns.map((sourceRun) => sourceRun.runId) : [run.data.id])
       .neq("eligibility", "excluded"),
     db.from("model_calls").select("cost_usd").eq("run_id", run.data.id),
   ]);
-  if (listings.error) throw new Error(`Could not load the run's listings: ${listings.error.message}`);
+  if (loaded.error) throw new Error(`Could not load the listings: ${loaded.error.message}`);
+  // Two sources may share a run, so each keeps only its own listings from its own run.
+  const listings = loaded.data.filter((listing) =>
+    shownRuns.some((sourceRun) => sourceRun.source === listing.source && sourceRun.runId === listing.run_id),
+  );
   if (calls.error) throw new Error(`Could not load the run's cost: ${calls.error.message}`);
 
   // Failures name the run (fetching, choosing the list), a listing (scoring, starting its email) or its
@@ -87,11 +113,11 @@ export async function getJobsList(): Promise<JobsListView | null> {
   const runId = run.data.id;
   const failures = await findOpenFailures(db, [
     runId,
-    ...listings.data.map((listing) => listing.id),
-    ...listings.data.flatMap((listing) => listing.applications.map((application) => application.id)),
+    ...listings.map((listing) => listing.id),
+    ...listings.flatMap((listing) => listing.applications.map((application) => application.id)),
   ]);
 
-  const jobs: JobView[] = listings.data.map((listing) => {
+  const jobs: JobView[] = listings.map((listing) => {
     // Notes written before 25 October 2026 are not shown: only emails are prepared now.
     const email = listing.applications.find((application) => application.route === "email" && application.recipient_email);
     const ownIds = [listing.id, ...listing.applications.map((own) => own.id)];
@@ -138,9 +164,11 @@ export async function getJobsList(): Promise<JobsListView | null> {
     // leaves the list: it is excluded, so it was not loaded.
     sources: NIGHTLY_SOURCES.map(({ id, name }) => {
       const fromSource = jobs.filter((job) => job.source === id);
+      const sourceRun = shownRuns.find((shown) => shown.source === id);
       return {
         source: id,
         name,
+        earlierRun: sourceRun && sourceRun.runId !== runId ? sourceRun.startedAt : null,
         top: fromSource.filter((job) => job.topRank !== null).sort((a, b) => (a.topRank ?? 0) - (b.topRank ?? 0)),
         more: fromSource.filter((job) => job.topRank === null).sort(byScore),
       };
