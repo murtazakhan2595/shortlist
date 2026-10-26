@@ -1,8 +1,10 @@
 import "server-only";
 import { escapeRegExp } from "@/lib/regex";
+import { ASHBY_SOURCE } from "@/server/ashby";
 import { GREENHOUSE_SOURCE } from "@/server/greenhouse";
 import { HACKER_NEWS_SOURCE } from "@/server/hacker-news";
 import { slugify } from "@/server/job-key";
+import { LEVER_SOURCE } from "@/server/lever";
 import { getAdminClient } from "@/server/supabase/admin";
 import type { Eligibility, Listing } from "../schemas";
 
@@ -13,6 +15,9 @@ import type { Eligibility, Listing } from "../schemas";
 export type FilterSettings = { payFloorUsdMonth: number; excludedCountries: string[]; blockedCompanies: string[] };
 
 const OWNER_COUNTRY = "Pakistan";
+
+// Company boards, whose location names every place a job is open to.
+const BOARD_SOURCES: string[] = [GREENHOUSE_SOURCE, LEVER_SOURCE, ASHBY_SOURCE];
 
 export async function loadFilterSettings(): Promise<FilterSettings> {
   const { data, error } = await getAdminClient()
@@ -55,7 +60,7 @@ function exclusionReason(listing: Listing, settings: FilterSettings): string | n
   }
   // Every place a board job names must be open: "Remote; Remote US" is limited to the US.
   const boardPlaces = (listing.location ?? "").split(";").filter((place) => place.trim() !== "");
-  if (listing.source === GREENHOUSE_SOURCE && !offersVisa(listing.description) && !boardPlaces.every(isOpenRemoteLocation)) {
+  if (BOARD_SOURCES.includes(listing.source) && !offersVisa(listing.description) && !boardPlaces.every(isOpenRemoteLocation)) {
     return `Remote only within a region that leaves out ${OWNER_COUNTRY}`;
   }
   return countryReason(listing, settings.excludedCountries);
@@ -243,7 +248,7 @@ function unclearReasons(listing: Listing): string[] {
     if (place.doubt) doubts.push(place.doubt);
   }
   // The location said open; the post itself may still name a region.
-  if (listing.source === GREENHOUSE_SOURCE && remoteScope(listing.description) === "limited") {
+  if (BOARD_SOURCES.includes(listing.source) && remoteScope(listing.description) === "limited") {
     doubts.push("Remote, but the post may limit where you can work from");
   }
   if (WORK_AUTHORISATION.test(listing.description)) doubts.push("Mentions work authorisation or where you must live");

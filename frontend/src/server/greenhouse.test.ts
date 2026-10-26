@@ -35,7 +35,7 @@ test("a board that no longer exists reads as null", async () => {
 test("any other error fails, so the board is tried again", async () => {
   fetchMock.mockResolvedValue(new Response("Busy", { status: 503 }));
 
-  await expect(fetchGreenhouseBoard("acme")).rejects.toThrow("Greenhouse answered 503 for acme/jobs");
+  await expect(fetchGreenhouseBoard("acme")).rejects.toThrow("Greenhouse answered 503 for /v1/boards/acme/jobs");
 });
 
 test("reads one job's full post, with the offices that say where it is", async () => {

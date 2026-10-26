@@ -7,6 +7,7 @@ import {
   himalayasListing,
   saveNewListings,
 } from "@/features/discovery/steps/fetch-listings";
+import { greenhouseListing } from "@/features/discovery/steps/company-boards";
 import type { GreenhouseJob } from "@/server/greenhouse";
 import type { HackerNewsPost } from "@/server/hacker-news";
 import type { HimalayasJob } from "@/server/himalayas";
@@ -26,10 +27,10 @@ vi.mock("@/server/hacker-news", async (importOriginal) => ({
 }));
 
 // The board reading itself is tested in company-boards.test.ts.
-const greenhouseReads = vi.hoisted(() => ({ value: [] as { jobs: unknown[]; after?: string }[] }));
+const boardReads = vi.hoisted(() => ({ value: [] as { listings: unknown[]; after?: string }[] }));
 vi.mock("@/features/discovery/steps/company-boards", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/features/discovery/steps/company-boards")>()),
-  readWatchedGreenhouseBoards: vi.fn(async () => greenhouseReads.value.shift() ?? { jobs: [] }),
+  readWatchedBoards: vi.fn(async () => boardReads.value.shift() ?? { listings: [] }),
 }));
 
 const queued = vi.hoisted((): { step: string; payload: unknown }[] => []);
@@ -150,11 +151,19 @@ test("the night reads each source in turn, saves its listings with the filter's 
   ]);
 
   // Greenhouse is read over two steps: the first stops after a batch of boards.
-  greenhouseReads.value = [{ jobs: [{ job: greenhouseJob("Remote"), company }], after: "acme" }];
+  boardReads.value = [{ listings: [greenhouseListing(greenhouseJob("Remote"), company, stepRunId)], after: "acme" }];
   await fetchListings(toGreenhouse);
   const onwards = { ...toGreenhouse, readSoFar: 5, after: "acme" };
   expect(queued.splice(0)).toEqual([{ step: "fetch_listings", payload: onwards }]);
   await fetchListings(onwards);
+
+  // Then Lever and Ashby, which have nothing new here.
+  const toLever = { runId: stepRunId, source: "lever", readSoFar: 5 };
+  expect(queued.splice(0)).toEqual([{ step: "fetch_listings", payload: toLever }]);
+  await fetchListings(toLever);
+  const toAshby = { runId: stepRunId, source: "ashby", readSoFar: 5 };
+  expect(queued.splice(0)).toEqual([{ step: "fetch_listings", payload: toAshby }]);
+  await fetchListings(toAshby);
 
   const { data: saved } = await database
     .from("listings")
@@ -198,8 +207,13 @@ test("a source that failed every attempt is skipped, and the night goes on", asy
     { step: "fetch_listings", payload: { runId: gaveUpRunId, source: "greenhouse", readSoFar: 0 } },
   ]);
 
-  // The last source giving up, even part way through its boards, still finishes fetching: nothing was saved,
-  // so the run goes straight to its list.
+  // A source giving up part way through its boards goes on to the next source.
   await skipFailedSource({ runId: gaveUpRunId, source: "greenhouse", readSoFar: 0, after: "acme" });
+  expect(queued.splice(0)).toEqual([
+    { step: "fetch_listings", payload: { runId: gaveUpRunId, source: "lever", readSoFar: 0 } },
+  ]);
+
+  // The last source giving up still finishes fetching: nothing was saved, so the run goes straight to its list.
+  await skipFailedSource({ runId: gaveUpRunId, source: "ashby", readSoFar: 0 });
   expect(queued.splice(0)).toEqual([{ step: "select_top_listings", payload: { runId: gaveUpRunId } }]);
 });

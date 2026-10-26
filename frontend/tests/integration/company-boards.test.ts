@@ -4,7 +4,7 @@ import {
   addBoardsFromListings,
   checkBoards,
   loadBoardLists,
-  readWatchedGreenhouseBoards,
+  readWatchedBoards,
 } from "@/features/discovery/steps/company-boards";
 import { fetchGreenhouseBoard, fetchGreenhouseJob, type GreenhouseBoardJob } from "@/server/greenhouse";
 import { getAdminClient } from "@/server/supabase/admin";
@@ -151,9 +151,10 @@ test("the nightly read: new remote developer jobs on watched boards, each read o
   }));
 
   // Starting at the prefix reads only this test's boards and those after them, which fail to read.
-  const read = await readWatchedGreenhouseBoards(prefix, { payFloorUsdMonth: 0, excludedCountries: [], blockedCompanies: ["Blocked Co"] });
+  const settings = { payFloorUsdMonth: 0, excludedCountries: [], blockedCompanies: ["Blocked Co"] };
+  const read = await readWatchedBoards("greenhouse", prefix, settings, "run-1");
 
-  expect(read.jobs.map(({ job: post, company }) => [post.id, company])).toEqual([[2, "Acme"]]);
+  expect(read.listings.map((listing) => [listing.source_id, listing.company])).toEqual([["2", "Acme"]]);
   expect(readJob).toHaveBeenCalledTimes(1);
   expect(readBoard).not.toHaveBeenCalledWith(blocked);
   expect(await boards([hiring, quiet, blocked])).toMatchObject([
