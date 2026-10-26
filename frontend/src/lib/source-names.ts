@@ -1,6 +1,7 @@
 const SOURCES: Record<string, { name: string; site: string }> = {
   himalayas: { name: "Himalayas", site: "https://himalayas.app" },
   hackernews: { name: "Hacker News", site: "https://news.ycombinator.com" },
+  greenhouse: { name: "Greenhouse", site: "https://www.greenhouse.com" },
 };
 
 /** In the nightly run's order. */

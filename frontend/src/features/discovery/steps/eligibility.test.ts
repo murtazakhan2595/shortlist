@@ -199,3 +199,31 @@ describe("a job board's location field", () => {
     "",
   ])("%s is not", (location) => expect(isOpenRemoteLocation(location)).toBe(false));
 });
+
+describe("a Greenhouse job: kept only when every place it names is open", () => {
+  function decideBoardJob(location: string, description = "Build our API in TypeScript.") {
+    return decide({ source: "greenhouse", countries: [], seniority: [], categories: [], location, description });
+  }
+
+  test("eligible when the location and offices name no region", () => {
+    expect(decideBoardJob("Remote")).toEqual({ eligibility: "eligible", eligibility_reason: null });
+  });
+
+  test("dropped when an office limits it to a region", () => {
+    expect(decideBoardJob("Remote; Remote US")).toEqual({
+      eligibility: "excluded",
+      eligibility_reason: "Remote only within a region that leaves out Pakistan",
+    });
+  });
+
+  test("kept when the post offers a visa", () => {
+    expect(decideBoardJob("Remote; Remote US", "We offer visa sponsorship.").eligibility).toBe("eligible");
+  });
+
+  test("unclear when the post itself names a region", () => {
+    expect(decideBoardJob("Remote", "This role is remote within the US.")).toEqual({
+      eligibility: "unclear",
+      eligibility_reason: "Remote, but the post may limit where you can work from",
+    });
+  });
+});

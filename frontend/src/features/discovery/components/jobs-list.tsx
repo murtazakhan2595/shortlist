@@ -15,7 +15,7 @@ export function JobsList({ list, renderFailure }: { list: JobsListView | null; r
   if (!list) {
     return (
       <p className="max-w-prose text-ink-muted">
-        No list yet. Every night at 02:00, Shortlist finds new jobs on {NIGHTLY_SOURCES.map((source) => source.name).join(" and ")},
+        No list yet. Every night at 02:00, Shortlist finds new jobs on {new Intl.ListFormat("en").format(NIGHTLY_SOURCES.map((source) => source.name))},
         ranks them against your profile and writes an email for the best ones that give an address. They appear here.
       </p>
     );
@@ -54,7 +54,7 @@ export function JobsList({ list, renderFailure }: { list: JobsListView | null; r
         Jobs from{" "}
         {NIGHTLY_SOURCES.map((source, index) => (
           <span key={source.site}>
-            {index > 0 && " and "}
+            {index > 0 && (index === NIGHTLY_SOURCES.length - 1 ? " and " : ", ")}
             <a href={source.site} target="_blank" rel="noreferrer" className="underline">
               {source.name}
             </a>

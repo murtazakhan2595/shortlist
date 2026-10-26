@@ -1,7 +1,8 @@
 import { describe, expect, test } from "vitest";
+import type { GreenhouseJob } from "@/server/greenhouse";
 import type { HackerNewsPost } from "@/server/hacker-news";
 import type { HimalayasJob } from "@/server/himalayas";
-import { contactEmailIn, hackerNewsListing, himalayasListing, htmlToText } from "./fetch-listings";
+import { contactEmailIn, greenhouseListing, hackerNewsListing, himalayasListing, htmlToText } from "./fetch-listings";
 
 const JOB: HimalayasJob = {
   guid: "https://himalayas.app/companies/acme/jobs/full-stack-engineer-123",
@@ -153,5 +154,33 @@ describe("the email address a post gives", () => {
     "Our engineers at acme dot com build tools",
   ])("none in: %s", (text) => {
     expect(contactEmailIn(text)).toBeNull();
+  });
+});
+
+test("converts a Greenhouse job, with its offices as places and no email, whatever the post gives", () => {
+  const job: GreenhouseJob = {
+    id: 7,
+    title: " Backend Engineer ",
+    company_name: "Acme Inc",
+    location: { name: "Remote" },
+    first_published: "2026-10-20T10:00:00Z",
+    absolute_url: "https://job-boards.greenhouse.io/acme/jobs/7",
+    content: "&lt;p&gt;Build things &amp;amp; ship.&lt;/p&gt;&lt;p&gt;Questions: access@acme.com. We sponsor visas.&lt;/p&gt;",
+    offices: [{ name: "Remote" }, { name: "Remote US" }],
+  };
+
+  expect(greenhouseListing(job, "Acme", "run-1")).toMatchObject({
+    source: "greenhouse",
+    source_id: "7",
+    url: "https://job-boards.greenhouse.io/acme/jobs/7",
+    title: "Backend Engineer",
+    company: "Acme",
+    location: "Remote; Remote US",
+    tags: ["remote", "visa"],
+    description: "Build things & ship.\nQuestions: access@acme.com. We sponsor visas.",
+    fingerprint: "acme_backend-engineer",
+    posted_at: "2026-10-20T10:00:00.000Z",
+    expires_at: "2026-12-04T10:00:00.000Z",
+    contact_email: null,
   });
 });

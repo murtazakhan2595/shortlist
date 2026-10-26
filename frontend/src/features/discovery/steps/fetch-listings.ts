@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { GREENHOUSE_SOURCE, type GreenhouseJob } from "@/server/greenhouse";
 import { fetchHackerNewsPosts, HACKER_NEWS_SOURCE, hackerNewsPostUrl, type HackerNewsPost } from "@/server/hacker-news";
 import { fetchHimalayasJobs, HIMALAYAS_SOURCE, type HimalayasJob } from "@/server/himalayas";
 import { jobKey } from "@/server/job-key";
@@ -10,28 +11,41 @@ import { loadSpendingCap } from "@/server/spending";
 import { getAdminClient } from "@/server/supabase/admin";
 import type { Json } from "@/server/supabase/database.types";
 import type { Eligibility, Listing } from "../schemas";
-import { addBoardsFromListings } from "./check-boards";
-import { eligibilityOf, loadFilterSettings, offersVisa, REMOTE } from "./eligibility";
+import { addBoardsFromListings, readWatchedGreenhouseBoards } from "./company-boards";
+import { eligibilityOf, type FilterSettings, loadFilterSettings, offersVisa, REMOTE } from "./eligibility";
 import { queueScoring } from "./score-listings";
 
 // The daily run's first step, one source per call: each source's step queues the next, and the last
-// queues scoring. Excluded listings are saved too, so the filter's choices can be checked.
+// queues scoring. Greenhouse is read over several calls, a batch of boards each. Excluded listings are saved too, so the filter's choices can be checked.
 // Safe to run twice: listings already saved are skipped, and only unscored ones are queued.
 
-const SOURCES = [HIMALAYAS_SOURCE, HACKER_NEWS_SOURCE] as const;
+const SOURCES = [HIMALAYAS_SOURCE, HACKER_NEWS_SOURCE, GREENHOUSE_SOURCE] as const;
 type Source = (typeof SOURCES)[number];
 
 const FetchListingsPayloadSchema = z.object({
   runId: z.uuid(),
   source: z.enum(SOURCES).default(SOURCES[0]),
   readSoFar: z.number().int().min(0).default(0),
+  /** Where a source read over several calls goes on from. */
+  after: z.string().optional(),
 });
 type FetchListingsPayload = z.infer<typeof FetchListingsPayloadSchema>;
 
-const FETCHERS: Record<Source, (since: Date, runId: string) => Promise<Listing[]>> = {
-  [HIMALAYAS_SOURCE]: async (since, runId) => (await fetchHimalayasJobs(since)).map((job) => himalayasListing(job, runId)),
+type FetchContext = { since: Date; runId: string; after?: string; settings: FilterSettings };
+type Fetched = { listings: Listing[]; after?: string };
+
+const FETCHERS: Record<Source, (context: FetchContext) => Promise<Fetched>> = {
+  [HIMALAYAS_SOURCE]: async ({ since, runId }) => ({
+    listings: (await fetchHimalayasJobs(since)).map((job) => himalayasListing(job, runId)),
+  }),
   // The thread is read whole each time; posts saved before are skipped when saving.
-  [HACKER_NEWS_SOURCE]: async (_since, runId) => (await fetchHackerNewsPosts()).map((post) => hackerNewsListing(post, runId)),
+  [HACKER_NEWS_SOURCE]: async ({ runId }) => ({
+    listings: (await fetchHackerNewsPosts()).map((post) => hackerNewsListing(post, runId)),
+  }),
+  [GREENHOUSE_SOURCE]: async ({ runId, after, settings }) => {
+    const read = await readWatchedGreenhouseBoards(after, settings);
+    return { listings: read.jobs.map(({ job, company }) => greenhouseListing(job, company, runId)), after: read.after };
+  },
 };
 
 // The overlap catches jobs published while the last run ran; a job read twice is saved once.
@@ -39,7 +53,7 @@ const FIRST_RUN_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 const OVERLAP_MS = 60 * 60 * 1000;
 
 export async function fetchListings(payload: Json): Promise<void> {
-  const { runId, source, readSoFar } = FetchListingsPayloadSchema.parse(payload);
+  const { runId, source, readSoFar, after } = FetchListingsPayloadSchema.parse(payload);
 
   // At the spending cap nothing could be scored, so nothing is fetched.
   if ((await loadSpendingCap(getAdminClient())).reached) {
@@ -50,22 +64,24 @@ export async function fetchListings(payload: Json): Promise<void> {
   }
 
   const [since, settings] = await Promise.all([fetchSince(runId), loadFilterSettings()]);
-  const listings = (await FETCHERS[source](since, runId)).map((listing) => ({
-    ...listing,
-    ...eligibilityOf(listing, settings),
-  }));
+  const fetched = await FETCHERS[source]({ since, runId, after, settings });
+  const listings = fetched.listings.map((listing) => ({ ...listing, ...eligibilityOf(listing, settings) }));
 
   await saveNewListings(listings);
   await addBoardsFromListings(listings.filter((listing) => listing.eligibility !== "excluded"));
-  await queueNextSourceOrScore({ runId, source, readSoFar: readSoFar + listings.length });
+  await queueNextSourceOrScore({ runId, source, readSoFar: readSoFar + listings.length, after: fetched.after });
 }
 
 /** After a source's last failed attempt, so the run goes on with the other sources. */
 export async function skipFailedSource(payload: Json): Promise<void> {
-  await queueNextSourceOrScore(FetchListingsPayloadSchema.parse(payload));
+  await queueNextSourceOrScore({ ...FetchListingsPayloadSchema.parse(payload), after: undefined });
 }
 
-async function queueNextSourceOrScore({ runId, source, readSoFar }: FetchListingsPayload): Promise<void> {
+async function queueNextSourceOrScore({ runId, source, readSoFar, after }: FetchListingsPayload): Promise<void> {
+  if (after) {
+    await enqueueStep(STEP_NAMES.fetchListings, { runId, source, readSoFar, after });
+    return;
+  }
   const next = SOURCES[SOURCES.indexOf(source) + 1];
   if (next) {
     await enqueueStep(STEP_NAMES.fetchListings, { runId, source: next, readSoFar });
@@ -191,6 +207,45 @@ export function hackerNewsListing(post: HackerNewsPost, runId: string): Listing 
     expires_at: new Date(postedAt.getTime() + HACKER_NEWS_POST_DAYS * 24 * 60 * 60 * 1000).toISOString(),
     run_id: runId,
     contact_email: contactEmailIn(description),
+  };
+}
+
+/** Longer than the 30 days jobs are read back, so a job is never saved twice. */
+const GREENHOUSE_LISTING_DAYS = 45;
+
+// Greenhouse jobs are applied to on their board, and an address in the post is usually for something else
+// (accessibility requests, privacy), so no email is written for them.
+export function greenhouseListing(job: GreenhouseJob, company: string, runId: string): Listing {
+  // The location and the offices together say where the job is: "Remote" with an office "Remote US".
+  const places = [...new Set([job.location?.name, ...job.offices.map((office) => office.name)])].filter(
+    (place): place is string => Boolean(place),
+  );
+  // The post's tags arrive entity-encoded, so it is decoded twice.
+  const description = htmlToText(htmlToText(job.content));
+  const postedAt = job.first_published ? new Date(job.first_published) : new Date();
+
+  return {
+    source: GREENHOUSE_SOURCE,
+    source_id: String(job.id),
+    url: job.absolute_url,
+    title: job.title.trim(),
+    company,
+    location: places.join("; ") || null,
+    countries: [],
+    salary_min: null,
+    salary_max: null,
+    salary_currency: null,
+    salary_period: null,
+    seniority: [],
+    employment_type: null,
+    categories: [],
+    tags: offersVisa(description) ? ["remote", "visa"] : ["remote"],
+    description,
+    fingerprint: jobKey(company, job.title),
+    posted_at: postedAt.toISOString(),
+    expires_at: new Date(postedAt.getTime() + GREENHOUSE_LISTING_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+    run_id: runId,
+    contact_email: null,
   };
 }
 

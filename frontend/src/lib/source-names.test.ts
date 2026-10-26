@@ -11,5 +11,6 @@ test("lists every nightly source with its name and site, for the tabs and the cr
   expect(NIGHTLY_SOURCES).toEqual([
     { id: "himalayas", name: "Himalayas", site: "https://himalayas.app" },
     { id: "hackernews", name: "Hacker News", site: "https://news.ycombinator.com" },
+    { id: "greenhouse", name: "Greenhouse", site: "https://www.greenhouse.com" },
   ]);
 });

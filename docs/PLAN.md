@@ -392,6 +392,11 @@ Checked before the build (26 October 2026): Greenhouse's Job Board API says its 
 
 **Exit check:** a week after 8.1 is live, every board has been checked once and the watchlist holds the boards with remote developer jobs; Greenhouse, Lever and Ashby jobs reach the nightly list.
 
+**As built (in progress).**
+
+- **Company watchlist (8.1).** `company_boards` (provider, slug, status, `next_check_at`); the `board-check` schedule at 20:00 UTC queues `load_board_lists`, then `check_boards` in steps of 100 boards, 10 at a time. A failed read keeps the board's status and retries the next day. Boards linked from kept posts go through `add_boards_to_check`.
+- **Greenhouse reader (8.2).** Greenhouse is the third nightly source, read 25 watched boards per step (`after` in the payload says where to go on). A job is read in full only when its title and location pass, it was posted in the last 30 days and its duplicate key is not saved; at most 20 per board a night, newest first. Only jobs whose location is open are read, so an on-site Greenhouse job offering a visa is not. A location of "Remote" can hide its region in the job's offices ("Remote US"), so the filter checks every place named. No email is written for these jobs: an address in the post is rarely for applying. A watched board with no such job for 30 days goes back to idle; a blocked company's board is not read.
+
 ## 8. Risks
 
 | Risk | What to do |
