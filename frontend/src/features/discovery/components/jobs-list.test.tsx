@@ -30,13 +30,15 @@ const job: JobView = {
 
 const hackerNewsJob: JobView = { ...job, id: "job-2", title: "Backend Developer", source: "hackernews", topRank: null, score: 60, email: null };
 
-function listWith(himalayas: { top: JobView[]; more: JobView[] }, hackerNews = { top: [] as JobView[], more: [hackerNewsJob] }): JobsListView {
+type Jobs = { top: JobView[]; more: JobView[]; earlierRun?: string };
+
+function listWith(himalayas: Jobs, hackerNews: Jobs = { top: [], more: [hackerNewsJob] }): JobsListView {
   return {
     run: { startedAt: "2026-10-21T21:00:00Z", status: "succeeded", fetched: 40, kept: 12, costUsd: 0.2, warning: null },
     failures: [],
     sources: [
-      { source: "himalayas", name: "Himalayas", ...himalayas },
-      { source: "hackernews", name: "Hacker News", ...hackerNews },
+      { source: "himalayas", name: "Himalayas", earlierRun: null, ...himalayas },
+      { source: "hackernews", name: "Hacker News", earlierRun: null, ...hackerNews },
     ],
   };
 }
@@ -75,6 +77,21 @@ test("a source with no new jobs says so", async () => {
   await user.click(screen.getByRole("radio", { name: "Hacker News (0)" }));
 
   expect(screen.getByText("No new jobs from Hacker News this time.")).toBeInTheDocument();
+});
+
+test("a source with nothing new keeps its last list and says which night it is from", async () => {
+  const user = userEvent.setup();
+  render(
+    <JobsList list={listWith({ top: [job], more: [] }, { top: [], more: [hackerNewsJob], earlierRun: "2026-10-20T21:00:00Z" })} renderFailure={renderFailure} />,
+  );
+
+  // The latest run's own source says nothing about an earlier night.
+  expect(screen.queryByText(/These are from/)).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("radio", { name: "Hacker News (1)" }));
+
+  expect(screen.getByText("No new jobs from Hacker News this time. These are from Wednesday 21 October.")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Backend Developer" })).toBeInTheDocument();
 });
 
 test("the run's own failures and its warning are shown at the top", () => {
