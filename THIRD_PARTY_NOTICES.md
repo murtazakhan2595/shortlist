@@ -31,6 +31,14 @@ career-ops-hq/career-ops, pinned at commit `6caf821f1b852f27a63b297484617784c47b
 
 An idea was also taken, with no code: `verify-cv-facts.mjs` checks that every number and tool in a draft appears in the profile, which `frontend/src/features/applications/steps/draft-checks.ts` does in its own way.
 
+## job-board-aggregator (data)
+
+Feashliaa/job-board-aggregator, `data/greenhouse_companies.json`, `data/lever_companies.json` and `data/ashby_companies.json`, read each night from the `main` branch. MIT License, Copyright (c) 2026 Riley Dorrington.
+
+| Source | Used in | What was taken |
+|---|---|---|
+| https://github.com/Feashliaa/job-board-aggregator/tree/main/data | `frontend/src/features/discovery/steps/check-boards.ts` | The lists of company board names on Greenhouse, Lever and Ashby, as the starting list for the company watchlist. No code |
+
 ## MIT License text
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:

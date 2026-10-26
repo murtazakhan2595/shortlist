@@ -10,6 +10,7 @@ import { loadSpendingCap } from "@/server/spending";
 import { getAdminClient } from "@/server/supabase/admin";
 import type { Json } from "@/server/supabase/database.types";
 import type { Eligibility, Listing } from "../schemas";
+import { addBoardsFromListings } from "./check-boards";
 import { eligibilityOf, loadFilterSettings, offersVisa, REMOTE } from "./eligibility";
 import { queueScoring } from "./score-listings";
 
@@ -55,6 +56,7 @@ export async function fetchListings(payload: Json): Promise<void> {
   }));
 
   await saveNewListings(listings);
+  await addBoardsFromListings(listings.filter((listing) => listing.eligibility !== "excluded"));
   await queueNextSourceOrScore({ runId, source, readSoFar: readSoFar + listings.length });
 }
 

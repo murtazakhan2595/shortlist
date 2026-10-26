@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { Listing } from "../schemas";
-import { eligibilityOf, minimumYearsRequired, monthlyPayUsd } from "./eligibility";
+import { eligibilityOf, isOpenRemoteLocation, minimumYearsRequired, monthlyPayUsd } from "./eligibility";
 
 const SETTINGS = { payFloorUsdMonth: 3000, excludedCountries: ["India"], blockedCompanies: ["micro1", "KDCI"] };
 
@@ -178,4 +178,24 @@ describe("a Hacker News post: kept when it can be done from Pakistan", () => {
   test("a Himalayas listing is not judged by these words: Himalayas already lists jobs open to Pakistan", () => {
     expect(decide({ description: "Work from our office in San Francisco." }).eligibility).toBe("eligible");
   });
+});
+
+describe("a job board's location field", () => {
+  test.each(["Remote", "Distributed", "Anywhere", "Remote - Worldwide", "Remote (Global)", "Remote, APAC", "100% Remote"])(
+    "%s is open to Pakistan",
+    (location) => expect(isOpenRemoteLocation(location)).toBe(true),
+  );
+
+  test.each([
+    "Remote - United States",
+    "United States - Remote",
+    "Canada (Remote)",
+    "Remote, US",
+    "Remote - EMEA",
+    "Boston, MA / Remote",
+    "Remote; Remote - US",
+    "Hybrid",
+    "London",
+    "",
+  ])("%s is not", (location) => expect(isOpenRemoteLocation(location)).toBe(false));
 });

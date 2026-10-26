@@ -1,6 +1,7 @@
 import { createGmailDraft } from "@/features/applications/steps/gmail-draft";
 import { advanceWriter, prepareEmailApplication, prepareListingApplication } from "@/features/applications/steps/writer-steps";
 import { extractCapture } from "@/features/captures/steps/extract-capture";
+import { checkBoards, checkWithoutNewLists, loadBoardLists } from "@/features/discovery/steps/check-boards";
 import { skipFailedSource, fetchListings } from "@/features/discovery/steps/fetch-listings";
 import { scoreListing, skipFailedListing, selectTopListings } from "@/features/discovery/steps/score-listings";
 import { answerForm, checkFormAnswers } from "@/features/forms/steps/answer-form";
@@ -22,4 +23,6 @@ export const STEP_HANDLERS: StepHandlers = {
   [STEP_NAMES.fetchListings]: { run: fetchListings, giveUp: skipFailedSource },
   [STEP_NAMES.scoreListing]: { run: scoreListing, giveUp: skipFailedListing },
   [STEP_NAMES.selectTopListings]: { run: selectTopListings },
+  [STEP_NAMES.loadBoardLists]: { run: loadBoardLists, giveUp: checkWithoutNewLists },
+  [STEP_NAMES.checkBoards]: { run: checkBoards },
 };
