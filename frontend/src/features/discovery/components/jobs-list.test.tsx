@@ -25,6 +25,8 @@ const job: JobView = {
   reasons: null,
   label: null,
   email: { status: "preparing", to: "jobs@acme.com", body: null, inGmail: false, blockedReason: null },
+  canDraftAnswers: false,
+  form: null,
   failure: null,
 };
 
@@ -47,7 +49,7 @@ const list = listWith({ top: [job], more: [] });
 const renderFailure = (shown: OpenFailure) => <p key={shown.id}>Failed: {shown.step}</p>;
 
 test("a job whose email failed shows the failure in place of the email", () => {
-  render(<JobsList list={listWith({ top: [{ ...job, failure: failure("f1", "advance_writer") }], more: [] })} renderFailure={renderFailure} />);
+  render(<JobsList list={listWith({ top: [{ ...job, failure: failure("f1", "advance_writer") }], more: [] })} renderFailure={renderFailure} renderAnswers={() => null} />);
 
   const row = screen.getByRole("listitem");
   expect(within(row).getByText("Failed: advance_writer")).toBeInTheDocument();
@@ -56,7 +58,7 @@ test("a job whose email failed shows the failure in place of the email", () => {
 
 test("one tab per source, each with its own top jobs and the rest below by score", async () => {
   const user = userEvent.setup();
-  render(<JobsList list={list} renderFailure={renderFailure} />);
+  render(<JobsList list={list} renderFailure={renderFailure} renderAnswers={() => null} />);
 
   // Himalayas is shown first.
   expect(screen.getByRole("radio", { name: "Himalayas (1)" })).toBeChecked();
@@ -72,7 +74,7 @@ test("one tab per source, each with its own top jobs and the rest below by score
 
 test("a source with no new jobs says so", async () => {
   const user = userEvent.setup();
-  render(<JobsList list={listWith({ top: [job], more: [] }, { top: [], more: [] })} renderFailure={renderFailure} />);
+  render(<JobsList list={listWith({ top: [job], more: [] }, { top: [], more: [] })} renderFailure={renderFailure} renderAnswers={() => null} />);
 
   await user.click(screen.getByRole("radio", { name: "Hacker News (0)" }));
 
@@ -82,7 +84,7 @@ test("a source with no new jobs says so", async () => {
 test("a source with nothing new keeps its last list and says which night it is from", async () => {
   const user = userEvent.setup();
   render(
-    <JobsList list={listWith({ top: [job], more: [] }, { top: [], more: [hackerNewsJob], earlierRun: "2026-10-20T21:00:00Z" })} renderFailure={renderFailure} />,
+    <JobsList list={listWith({ top: [job], more: [] }, { top: [], more: [hackerNewsJob], earlierRun: "2026-10-20T21:00:00Z" })} renderFailure={renderFailure} renderAnswers={() => null} />,
   );
 
   // The latest run's own source says nothing about an earlier night.
@@ -101,7 +103,7 @@ test("the run's own failures and its warning are shown at the top", () => {
     failures: [failure("f2", "fetch_listings")],
   };
 
-  render(<JobsList list={stuck} renderFailure={renderFailure} />);
+  render(<JobsList list={stuck} renderFailure={renderFailure} renderAnswers={() => null} />);
 
   expect(screen.getByRole("alert")).toHaveTextContent("The nightly run has not finished after 6 hours.");
   expect(screen.getByText("Failed: fetch_listings")).toBeInTheDocument();

@@ -1,5 +1,7 @@
 import "server-only";
 import { z } from "zod";
+import { htmlToText } from "@/lib/html";
+import { fetchGreenhouseQuestions, type GreenhouseQuestion, parseGreenhouseSourceId } from "@/server/greenhouse";
 import { callModel } from "@/server/models/call-model";
 import type { ModelMessage } from "@/server/models/messages";
 import { enqueueStep } from "@/server/queue/queue";
@@ -7,7 +9,7 @@ import { STEP_NAMES } from "@/server/queue/step-names";
 import { downloadScreenshot, screenshotPart } from "@/server/screenshots";
 import { getAdminClient } from "@/server/supabase/admin";
 import type { Json } from "@/server/supabase/database.types";
-import { type FormPage, ReadFormPayloadSchema } from "../schemas";
+import { type FormPage, FormPayloadSchema, ReadFormPayloadSchema } from "../schemas";
 
 // One page per model call: several screenshots in one call ran past the time limit.
 // Questions already found are dropped, because screenshots of a long form often overlap. That also makes
@@ -146,4 +148,55 @@ export function questionsToAdd(questions: ReadQuestion[], foundQuestions: string
 /** Two readings of the same question can differ in case, spacing and the required-field asterisk. */
 function comparable(question: string): string {
   return question.toLowerCase().replace(/\*/g, "").replace(/\s+/g, " ").trim();
+}
+
+// --- a Greenhouse job's published questions ---
+
+// The questions come from Greenhouse's API, so no model reads them. Safe to run twice: questions are saved
+// only for a form that has none yet.
+export async function readListingForm(payload: Json): Promise<void> {
+  const { applicationId } = FormPayloadSchema.parse(payload);
+  const db = getAdminClient();
+  const form = await db.from("applications").select("listings (source_id)").eq("id", applicationId).single();
+  if (form.error) throw new Error(`Could not load form ${applicationId}: ${form.error.message}`);
+  const found = await db.from("form_answers").select("id", { count: "exact", head: true }).eq("application_id", applicationId);
+  if (found.error) throw new Error(`Could not load the questions of form ${applicationId}: ${found.error.message}`);
+
+  if ((found.count ?? 0) === 0) {
+    const job = parseGreenhouseSourceId(form.data.listings?.source_id ?? "");
+    if (!job) throw new Error(`Form ${applicationId} is not for a Greenhouse job`);
+    const questions = await fetchGreenhouseQuestions(job.slug, job.jobId);
+    if (!questions) {
+      const closed = await db
+        .from("applications")
+        .update({ status: "blocked", blocked_reason: "The job has closed on Greenhouse." })
+        .eq("id", applicationId);
+      if (closed.error) throw new Error(`Could not mark form ${applicationId} closed: ${closed.error.message}`);
+      return;
+    }
+    const rows = questionsFromGreenhouse(questions).map((question, index) => ({
+      application_id: applicationId,
+      position: index + 1,
+      ...question,
+      status: "pending",
+    }));
+    const inserted = await db.from("form_answers").insert(rows);
+    if (inserted.error) throw new Error(`Could not save the questions of form ${applicationId}: ${inserted.error.message}`);
+  }
+  await enqueueStep(STEP_NAMES.answerForm, { applicationId });
+}
+
+// A list as long as every country costs the model more than it helps: the answer is typed, and the owner
+// picks it from the list.
+const MAX_OPTIONS = 30;
+
+/** Written as read_form writes a question: required ones end with an asterisk, help text below. */
+export function questionsFromGreenhouse(questions: GreenhouseQuestion[]): { question: string; options: string[] }[] {
+  return questions.map(({ label, required, description, fields }) => {
+    const help = description ? htmlToText(description) : "";
+    const options = fields.flatMap((field) => field.values.map((value) => value.label));
+    const longList = options.length > MAX_OPTIONS ? "(Chosen from a list.)" : "";
+    const question = [`${label.trim()}${required ? " *" : ""}`, help, longList].filter(Boolean).join("\n");
+    return { question, options: longList ? [] : options };
+  });
 }

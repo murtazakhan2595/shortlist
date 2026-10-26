@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { JobsList } from "@/features/discovery/components/jobs-list";
 import { getJobsList } from "@/features/discovery/data";
 import { FailureNotice } from "@/features/failed-steps/components/failure-notice";
+import { DraftAnswers } from "@/features/forms/components/draft-answers";
 import { CapReached } from "@/features/settings/components/cap-reached";
 import { getSpendingCap } from "@/features/settings/data";
 
@@ -24,7 +25,11 @@ async function List() {
   return (
     <>
       <CapReached cap={cap} />
-      <JobsList list={list} renderFailure={(failure) => <FailureNotice key={failure.id} failure={failure} />} />
+      <JobsList
+        list={list}
+        renderFailure={(failure) => <FailureNotice key={failure.id} failure={failure} />}
+        renderAnswers={(job) => job.canDraftAnswers && <DraftAnswers listingId={job.id} form={job.form} />}
+      />
     </>
   );
 }

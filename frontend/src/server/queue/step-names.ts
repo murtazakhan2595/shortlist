@@ -8,6 +8,7 @@ export const STEP_NAMES = {
   advanceWriter: "advance_writer",
   createGmailDraft: "create_gmail_draft",
   readForm: "read_form",
+  readListingForm: "read_listing_form",
   answerForm: "answer_form",
   checkFormAnswers: "check_form_answers",
   /** Queued by start_daily_run; each source queues the next. */

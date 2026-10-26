@@ -66,7 +66,8 @@ function greenhouseJob(location: string): GreenhouseJob {
     company_name: company,
     location: { name: location },
     first_published: new Date().toISOString(),
-    absolute_url: "https://job-boards.greenhouse.io/test/jobs/1",
+    // Not a board link, so no test board is added to the watchlist.
+    absolute_url: "https://example.com/careers/1",
     content: "&lt;p&gt;Build our platform.&lt;/p&gt;",
     offices: [],
   };
@@ -151,7 +152,7 @@ test("the night reads each source in turn, saves its listings with the filter's 
   ]);
 
   // Greenhouse is read over two steps: the first stops after a batch of boards.
-  boardReads.value = [{ listings: [greenhouseListing(greenhouseJob("Remote"), company, stepRunId)], after: "acme" }];
+  boardReads.value = [{ listings: [greenhouseListing(greenhouseJob("Remote"), "acme", company, stepRunId)], after: "acme" }];
   await fetchListings(toGreenhouse);
   const onwards = { ...toGreenhouse, readSoFar: 5, after: "acme" };
   expect(queued.splice(0)).toEqual([{ step: "fetch_listings", payload: onwards }]);

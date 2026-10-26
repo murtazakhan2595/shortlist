@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { fetchGreenhouseBoard, fetchGreenhouseJob } from "./greenhouse";
+import { fetchGreenhouseBoard, fetchGreenhouseJob, fetchGreenhouseQuestions, greenhouseSourceId, parseGreenhouseSourceId } from "./greenhouse";
 
 const fetchMock = vi.fn();
 
@@ -61,4 +61,25 @@ test("a job closed since its board was read reads as null", async () => {
   fetchMock.mockResolvedValue(new Response("Not found", { status: 404 }));
 
   expect(await fetchGreenhouseJob("acme", 7)).toBeNull();
+});
+
+test("reads a job's published questions, leaving out the voluntary diversity ones", async () => {
+  fetchMock.mockResolvedValue(
+    Response.json({
+      id: 7,
+      questions: [{ label: "Email", required: true, description: null, fields: [{ name: "email", type: "input_text", values: [] }] }],
+      compliance: [{ type: "eeoc", questions: [] }],
+    }),
+  );
+
+  expect(await fetchGreenhouseQuestions("acme", "7")).toEqual([
+    { label: "Email", required: true, description: null, fields: [{ type: "input_text", values: [] }] },
+  ]);
+  expect(fetchMock.mock.calls[0][0]).toBe("https://boards-api.greenhouse.io/v1/boards/acme/jobs/7?questions=true");
+});
+
+test("a listing keeps its board with the job's id", () => {
+  expect(greenhouseSourceId("acme", 7)).toBe("acme/7");
+  expect(parseGreenhouseSourceId("acme/7")).toEqual({ slug: "acme", jobId: "7" });
+  expect(parseGreenhouseSourceId("7")).toBeNull();
 });

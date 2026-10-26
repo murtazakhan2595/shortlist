@@ -41,3 +41,38 @@ export async function fetchGreenhouseJob(slug: string, jobId: number): Promise<G
   const job = await getBoardJson(`${API_URL}/${encodeURIComponent(slug)}/jobs/${jobId}`, "Greenhouse");
   return job === null ? null : JobSchema.parse(job);
 }
+
+const QuestionSchema = z.object({
+  label: z.string(),
+  required: z.boolean().default(false),
+  /** HTML, or null. */
+  description: z.string().nullish(),
+  fields: z.array(
+    z.object({
+      /** "input_text", "textarea", "input_file", "multi_value_single_select" and others. */
+      type: z.string(),
+      values: z.array(z.object({ label: z.string() })).default([]),
+    }),
+  ),
+});
+export type GreenhouseQuestion = z.infer<typeof QuestionSchema>;
+
+// The voluntary diversity questions (compliance, demographic_questions) are left out.
+const QuestionsSchema = z.object({ questions: z.array(QuestionSchema).default([]) });
+
+/** The questions a job's application form asks, as Greenhouse publishes them. Null when the job has closed. */
+export async function fetchGreenhouseQuestions(slug: string, jobId: string): Promise<GreenhouseQuestion[] | null> {
+  const job = await getBoardJson(`${API_URL}/${encodeURIComponent(slug)}/jobs/${encodeURIComponent(jobId)}?questions=true`, "Greenhouse");
+  return job === null ? null : QuestionsSchema.parse(job).questions;
+}
+
+// A listing keeps its board with the job's id ("acme/7"): the questions are read from the board, and a job's
+// own link can be on the company's site.
+export function greenhouseSourceId(slug: string, jobId: number): string {
+  return `${slug}/${jobId}`;
+}
+
+export function parseGreenhouseSourceId(sourceId: string): { slug: string; jobId: string } | null {
+  const match = /^([^/]+)\/(\d+)$/.exec(sourceId);
+  return match ? { slug: match[1], jobId: match[2] } : null;
+}

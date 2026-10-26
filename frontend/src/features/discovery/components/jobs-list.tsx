@@ -3,15 +3,24 @@ import type { OpenFailure } from "@/server/queue/failed-steps";
 import { AutoRefresh } from "@/components/ui/auto-refresh";
 import { formatUsd } from "@/lib/format";
 import { NIGHTLY_SOURCES } from "@/lib/source-names";
-import type { JobsListView, SourceJobs } from "../data";
+import type { JobsListView, JobView, SourceJobs } from "../data";
 import { JobRow } from "./job-row";
 import { SourceTabs } from "./source-tabs";
 
 const RUN_DATE = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Karachi" });
 
 type RenderFailure = (failure: OpenFailure) => ReactNode;
+type RenderAnswers = (job: JobView) => ReactNode;
 
-export function JobsList({ list, renderFailure }: { list: JobsListView | null; renderFailure: RenderFailure }) {
+export function JobsList({
+  list,
+  renderFailure,
+  renderAnswers,
+}: {
+  list: JobsListView | null;
+  renderFailure: RenderFailure;
+  renderAnswers: RenderAnswers;
+}) {
   if (!list) {
     return (
       <p className="max-w-prose text-ink-muted">
@@ -46,7 +55,7 @@ export function JobsList({ list, renderFailure }: { list: JobsListView | null; r
         tabs={list.sources.map((source) => ({
           source: source.source,
           label: `${source.name} (${source.top.length + source.more.length})`,
-          content: <SourceList jobs={source} running={running} renderFailure={renderFailure} />,
+          content: <SourceList jobs={source} running={running} renderFailure={renderFailure} renderAnswers={renderAnswers} />,
         }))}
       />
 
@@ -66,7 +75,17 @@ export function JobsList({ list, renderFailure }: { list: JobsListView | null; r
   );
 }
 
-function SourceList({ jobs, running, renderFailure }: { jobs: SourceJobs; running: boolean; renderFailure: RenderFailure }) {
+function SourceList({
+  jobs,
+  running,
+  renderFailure,
+  renderAnswers,
+}: {
+  jobs: SourceJobs;
+  running: boolean;
+  renderFailure: RenderFailure;
+  renderAnswers: RenderAnswers;
+}) {
   if (jobs.top.length === 0 && jobs.more.length === 0) {
     return !running && <p className="text-ink-muted">No new jobs from {jobs.name} this time.</p>;
   }
@@ -80,7 +99,7 @@ function SourceList({ jobs, running, renderFailure }: { jobs: SourceJobs; runnin
       {jobs.top.length > 0 ? (
         <ol className="flex flex-col border-b border-rule">
           {jobs.top.map((job) => (
-            <JobRow key={job.id} job={job} failureNotice={job.failure && renderFailure(job.failure)} />
+            <JobRow key={job.id} job={job} failureNotice={job.failure && renderFailure(job.failure)} answers={renderAnswers(job)} />
           ))}
         </ol>
       ) : (
@@ -93,7 +112,7 @@ function SourceList({ jobs, running, renderFailure }: { jobs: SourceJobs; runnin
           <p className="text-sm text-ink-muted">By score, below the top. Mark any you would apply to anyway.</p>
           <ul className="flex flex-col">
             {jobs.more.map((job) => (
-              <JobRow key={job.id} job={job} failureNotice={job.failure && renderFailure(job.failure)} />
+              <JobRow key={job.id} job={job} failureNotice={job.failure && renderFailure(job.failure)} answers={renderAnswers(job)} />
             ))}
           </ul>
         </section>
