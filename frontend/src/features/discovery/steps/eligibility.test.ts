@@ -181,7 +181,7 @@ describe("a Hacker News post: kept when it can be done from Pakistan", () => {
 });
 
 describe("a job board's location field", () => {
-  test.each(["Remote", "Distributed", "Anywhere", "Remote - Worldwide", "Remote (Global)", "Remote, APAC", "100% Remote"])(
+  test.each(["Remote", "Distributed", "Anywhere", "Remote - Worldwide", "Remote (Global)", "Remote, APAC", "100% Remote", "Home based - Worldwide"])(
     "%s is open to Pakistan",
     (location) => expect(isOpenRemoteLocation(location)).toBe(true),
   );
@@ -196,6 +196,7 @@ describe("a job board's location field", () => {
     "Remote; Remote - US",
     "Hybrid",
     "London",
+    "Malaysia, Asia",
     "",
   ])("%s is not", (location) => expect(isOpenRemoteLocation(location)).toBe(false));
 });
