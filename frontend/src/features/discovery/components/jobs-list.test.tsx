@@ -81,6 +81,16 @@ test("a source with no new jobs says so", async () => {
   expect(screen.getByText("No new jobs from Hacker News this time.")).toBeInTheDocument();
 });
 
+test("on a phone, one picker chooses the source instead of a tab per source", async () => {
+  const user = userEvent.setup();
+  render(<JobsList list={listWith({ top: [job], more: [] }, { top: [], more: [] })} renderFailure={renderFailure} renderAnswers={() => null} />);
+
+  await user.selectOptions(screen.getByRole("combobox", { name: "Jobs from" }), "Hacker News (0)");
+
+  expect(screen.getByText("No new jobs from Hacker News this time.")).toBeInTheDocument();
+  expect(screen.getByRole("radio", { name: "Hacker News (0)" })).toBeChecked();
+});
+
 test("a source with nothing new keeps its last list and says which night it is from", async () => {
   const user = userEvent.setup();
   render(
