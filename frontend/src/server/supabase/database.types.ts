@@ -560,6 +560,7 @@ export type Database = {
       scores: {
         Row: {
           created_at: string
+          cv_variant: string | null
           id: string
           listing_id: string
           model_call_id: string | null
@@ -568,6 +569,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          cv_variant?: string | null
           id?: string
           listing_id: string
           model_call_id?: string | null
@@ -576,6 +578,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          cv_variant?: string | null
           id?: string
           listing_id?: string
           model_call_id?: string | null

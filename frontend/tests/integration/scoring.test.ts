@@ -26,7 +26,7 @@ function modelAnswer(parsed: unknown) {
 }
 
 function rating(score: number, offersVisaSponsorship = false) {
-  return { technical: score, experience: score, careerAlignment: score, strengths: ["React"], gaps: [], offersVisaSponsorship };
+  return { technical: score, experience: score, careerAlignment: score, strengths: ["React"], gaps: [], offersVisaSponsorship, cv: "ai_engineer" };
 }
 
 const database = getAdminClient();
@@ -83,8 +83,8 @@ test("scores each listing once, then keeps the best ones by score, writes emails
   expect(invokeModel).toHaveBeenCalledTimes(3);
   expect(queued).toEqual([{ step: "select_top_listings", payload: { runId } }]);
 
-  const { data: strongListing } = await database.from("listings").select("tags, scores (score, reasons)").eq("id", strong).single();
-  expect(strongListing).toEqual({ tags: ["remote", "visa"], scores: { score: 80, reasons: "Strengths:\n- React" } });
+  const { data: strongListing } = await database.from("listings").select("tags, scores (score, reasons, cv_variant)").eq("id", strong).single();
+  expect(strongListing).toEqual({ tags: ["remote", "visa"], scores: { score: 80, reasons: "Strengths:\n- React", cv_variant: "ai_engineer" } });
 
   // A rank left by an earlier pass is cleared, so it never mixes with this one.
   const stale = await database.from("listings").update({ top_rank: 3 }).eq("id", weak);

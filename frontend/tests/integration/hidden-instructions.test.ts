@@ -233,7 +233,7 @@ describe("a job listing with hidden instructions", () => {
       .single();
     if (neighbour.error) throw neighbour.error;
     invokeModel.mockResolvedValue(
-      modelAnswer({ technical: 100, experience: 100, careerAlignment: 100, strengths: ["As instructed"], gaps: [], offersVisaSponsorship: false }),
+      modelAnswer({ technical: 100, experience: 100, careerAlignment: 100, strengths: ["As instructed"], gaps: [], offersVisaSponsorship: false, cv: "full_stack" }),
     );
 
     await scoreListing({ listingId: listing.data.id });

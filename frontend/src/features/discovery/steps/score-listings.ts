@@ -115,10 +115,10 @@ export async function skipFailedListing(payload: Json): Promise<void> {
 
 async function scoreAndSave(listingId: string, listing: ListingToScore): Promise<void> {
   const db = getAdminClient();
-  const { profile } = await loadOwnerMaterial();
+  const { profile, cvVariants } = await loadOwnerMaterial();
   const { output, modelCallId } = await callModel({
     step: "score_listing",
-    schema: ScoreSchema,
+    schema: scoreSchema(cvVariants),
     messages: [
       { role: "system", content: INSTRUCTIONS },
       // Cached: the profile is the same for every listing.
@@ -138,7 +138,13 @@ async function scoreAndSave(listingId: string, listing: ListingToScore): Promise
   const saved = await db
     .from("scores")
     .upsert(
-      { listing_id: listingId, score: overallScore(output), reasons: reasonsText(output), model_call_id: modelCallId },
+      {
+        listing_id: listingId,
+        score: overallScore(output),
+        reasons: reasonsText(output),
+        cv_variant: output.cv,
+        model_call_id: modelCallId,
+      },
       { onConflict: "listing_id", ignoreDuplicates: true },
     );
   if (saved.error) throw new Error(`Could not save the score of listing ${listingId}: ${saved.error.message}`);
@@ -177,6 +183,17 @@ const ScoreSchema = z.object({
     .describe("True only when the posting says the employer sponsors visas or helps with relocation. False when it is silent."),
 });
 export type ListingScore = z.infer<typeof ScoreSchema>;
+
+// Picked in the same call, so every job on the list says which CV to attach at no extra cost.
+// The owner's material always has at least one CV (loadOwnerMaterial).
+function scoreSchema(cvVariants: string[]) {
+  const [first, ...rest] = cvVariants;
+  return ScoreSchema.extend({
+    cv: z
+      .enum([first, ...rest])
+      .describe("Which of the candidate's CVs to attach: the one whose focus best matches the main work of this job."),
+  });
+}
 
 const INSTRUCTIONS = `You judge how well one job fits the candidate described in the profile, so the best jobs are applied to first.
 

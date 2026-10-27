@@ -3,16 +3,10 @@
 import { useRouter } from "next/navigation";
 import { type ChangeEvent, useState, useTransition } from "react";
 import { Input } from "@/components/ui/input";
+import { CV_VARIANTS, type CvVariant, cvName, cvTitle } from "@/lib/cv-variants";
 import { fail, ok, type Result } from "@/lib/result";
 import { MAX_UPLOAD_BYTES } from "@/lib/uploads";
 import { createCvUploadUrl, saveCvFile } from "../actions";
-import { CV_VARIANTS, type CvVariant } from "../schemas";
-
-const VARIANT_NAMES: Record<CvVariant, string> = {
-  full_stack: "Full-stack",
-  ai_engineer: "AI engineer",
-  ai_full_stack: "AI full-stack",
-};
 
 export function CvFiles({ cvs }: { cvs: { variant: string; fileName: string }[] }) {
   return (
@@ -38,7 +32,7 @@ function CvRow({ variant, fileName }: { variant: CvVariant; fileName: string | n
     startTransition(async () => {
       const result = await uploadCv(variant, file);
       if (!result.ok) return setMessage({ ok: false, text: result.error.message });
-      setMessage({ ok: true, text: `${file.name} is now your ${VARIANT_NAMES[variant].toLowerCase()} CV.` });
+      setMessage({ ok: true, text: `${file.name} is now your ${cvName(variant)} CV.` });
       router.refresh();
     });
   }
@@ -46,11 +40,11 @@ function CvRow({ variant, fileName }: { variant: CvVariant; fileName: string | n
   return (
     <li className="flex flex-col gap-2 border-t border-rule py-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-        <span className="font-medium">{VARIANT_NAMES[variant]}</span>
+        <span className="font-medium">{cvTitle(variant)}</span>
         <span className="text-sm break-all text-ink-muted">{fileName ?? "None yet"}</span>
       </div>
       <label htmlFor={fieldId} className="sr-only">
-        New {VARIANT_NAMES[variant].toLowerCase()} CV
+        New {cvName(variant)} CV
       </label>
       <Input
         id={fieldId}

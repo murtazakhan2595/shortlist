@@ -36,12 +36,12 @@ test("a new PDF goes straight to storage, then becomes the current CV of its kin
   render(<CvFiles cvs={[]} />);
   const file = new File(["%PDF-1.7"], "New-CV.pdf", { type: "application/pdf" });
 
-  await userEvent.upload(screen.getByLabelText("New ai engineer CV"), file);
+  await userEvent.upload(screen.getByLabelText("New AI engineer CV"), file);
 
   expect(createCvUploadUrl).toHaveBeenCalledWith({ fileName: "New-CV.pdf", contentType: "application/pdf", sizeBytes: file.size });
   expect(fetch).toHaveBeenCalledWith("https://storage.example/upload", expect.objectContaining({ method: "PUT", body: file }));
   expect(saveCvFile).toHaveBeenCalledWith({ variant: "ai_engineer", fileName: "New-CV.pdf", storagePath: path });
-  expect(await screen.findByRole("status")).toHaveTextContent("New-CV.pdf is now your ai engineer CV.");
+  expect(await screen.findByRole("status")).toHaveTextContent("New-CV.pdf is now your AI engineer CV.");
   expect(refresh).toHaveBeenCalled();
 });
 
