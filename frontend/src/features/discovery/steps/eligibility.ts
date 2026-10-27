@@ -208,14 +208,17 @@ function remoteScope(text: string): "open" | "limited" | "unsaid" {
   return "unsaid";
 }
 
-// A job board's location field: "Remote", "Remote - US", "Canada (Remote)", "Remote; London".
-const REMOTE_LOCATION = /\b(remote|distributed|anywhere)\b/i;
-const WORK_MODEL_WORDS = /\b(remote|distributed|anywhere|fully|work from home|wfh)\b|100%/gi;
+// A job board's location field: "Remote", "Remote - US", "Canada (Remote)", "Remote; London", "Home based - Worldwide".
+const REMOTE_LOCATION = /\b(remote|distributed|anywhere|worldwide|home[\s-]based|work from home|wfh)\b/i;
+const WORK_MODEL_WORDS = /\b(remote|distributed|anywhere|fully|home[\s-]based|work from home|wfh)\b|100%/gi;
 
-/** Open only when it says remote and names no place, or a place that includes the owner's country. */
+/**
+ * Open only when it says the job is remote and names no place, or a place that includes the owner's country.
+ * A place alone is an office: "Malaysia, Asia" is not remote.
+ */
 export function isOpenRemoteLocation(location: string): boolean {
-  if (OPEN_TO_OWNER.test(location)) return true;
   if (!REMOTE_LOCATION.test(location)) return false;
+  if (OPEN_TO_OWNER.test(location)) return true;
   return location.replace(WORK_MODEL_WORDS, "").replace(/[\s\p{P}]/gu, "") === "";
 }
 

@@ -130,7 +130,7 @@ test("converts a Greenhouse job, with its offices as places and no email, whatev
     first_published: "2026-10-20T10:00:00Z",
     absolute_url: "https://job-boards.greenhouse.io/acme/jobs/7",
     content: "&lt;p&gt;Build things &amp;amp; ship.&lt;/p&gt;&lt;p&gt;Questions: access@acme.com. We sponsor visas.&lt;/p&gt;",
-    offices: [{ name: "Remote" }, { name: "Remote US" }],
+    offices: [{ name: "remote" }, { name: "Remote US" }],
   };
 
   expect(greenhouseListing(job, "acme", "Acme", "run-1")).toMatchObject({

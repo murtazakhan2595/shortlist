@@ -340,8 +340,14 @@ function boardListing({ places, description, postedAt, ...fields }: BoardListing
   };
 }
 
+/** Each place once, whatever its capitals: "Home based" and "Home Based" are one. */
 function uniquePlaces(places: (string | null | undefined)[]): string[] {
-  return [...new Set(places.map((place) => place?.trim()).filter((place): place is string => Boolean(place)))];
+  const byKey = new Map<string, string>();
+  for (const place of places) {
+    const trimmed = place?.trim();
+    if (trimmed && !byKey.has(trimmed.toLowerCase())) byKey.set(trimmed.toLowerCase(), trimmed);
+  }
+  return [...byKey.values()];
 }
 
 function workplaceLabel(type: string | null | undefined): string | null {
