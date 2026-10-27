@@ -25,6 +25,7 @@ const job: JobView = {
   reasons: null,
   label: null,
   email: { status: "preparing", to: "jobs@acme.com", body: null, inGmail: false, blockedReason: null },
+  cv: null,
   canDraftAnswers: false,
   form: null,
   failure: null,

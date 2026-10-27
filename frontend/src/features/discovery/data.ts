@@ -1,4 +1,5 @@
 import "server-only";
+import { cvName } from "@/lib/cv-variants";
 import { NIGHTLY_SOURCES } from "@/lib/source-names";
 import { requireOwner } from "@/server/auth/require-owner";
 import { GREENHOUSE_SOURCE } from "@/server/greenhouse";
@@ -20,6 +21,8 @@ export type JobView = {
   reasons: string | null;
   label: "apply" | "skip" | null;
   email: { status: string; to: string; body: string | null; inGmail: boolean; blockedReason: string | null } | null;
+  /** The CV attached to the email, or else the one the scoring picked, by name ("AI engineer"). */
+  cv: string | null;
   /** Greenhouse publishes a job's questions, so answers can be drafted for it. */
   canDraftAnswers: boolean;
   form: { id: string; status: string } | null;
@@ -83,7 +86,7 @@ export async function getJobsList(): Promise<JobsListView | null> {
     db
       .from("listings")
       .select(
-        "id, title, company, location, source, url, tags, eligibility, eligibility_reason, top_rank, label, run_id, scores (score, reasons), applications (id, route, status, body, blocked_reason, recipient_email, gmail_draft_id)",
+        "id, title, company, location, source, url, tags, eligibility, eligibility_reason, top_rank, label, run_id, scores (score, reasons, cv_variant), applications (id, route, status, body, blocked_reason, recipient_email, gmail_draft_id, cv_files (variant))",
       )
       .in("run_id", shownRuns.length > 0 ? shownRuns.map((sourceRun) => sourceRun.runId) : [run.data.id])
       .neq("eligibility", "excluded"),
@@ -132,6 +135,7 @@ export async function getJobsList(): Promise<JobsListView | null> {
               blockedReason: email.blocked_reason,
             }
           : null,
+      cv: cvOf(email?.cv_files?.variant ?? listing.scores?.cv_variant),
       canDraftAnswers: listing.source === GREENHOUSE_SOURCE,
       form: form ? { id: form.id, status: form.status } : null,
       failure: failures.find((failure) => failure.targetIds.some((id) => ownIds.includes(id))) ?? null,
@@ -188,4 +192,8 @@ export async function getLatestRunWarning(): Promise<string | null> {
     .maybeSingle();
   if (error) throw new Error(`Could not load the latest daily run: ${error.message}`);
   return data ? runWarning(data, new Date()) : null;
+}
+
+function cvOf(variant: string | null | undefined): string | null {
+  return variant ? cvName(variant) : null;
 }

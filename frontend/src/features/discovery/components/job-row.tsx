@@ -62,7 +62,12 @@ export function JobRow({ job, failureNotice, answers }: { job: JobView; failureN
           </details>
         )}
 
-        {job.failure ? failureNotice : job.email && <Email email={job.email} />}
+        {job.failure ? failureNotice : job.email && <Email email={job.email} cv={job.cv} />}
+        {!job.email && job.cv && (
+          <p className="text-sm">
+            <span className="font-semibold">CV to attach:</span> your {job.cv} CV.
+          </p>
+        )}
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
           <div className="flex gap-2" role="group" aria-label={`Mark ${job.title}`}>
@@ -152,7 +157,7 @@ function tagNames(tags: string[]): string[] {
   return tags.map((tag) => TAG_NAMES[tag] ?? tag);
 }
 
-function Email({ email }: { email: NonNullable<JobView["email"]> }) {
+function Email({ email, cv }: { email: NonNullable<JobView["email"]>; cv: string | null }) {
   if (email.status === "preparing") return <p className="text-sm text-ink-muted">Writing the email to {email.to}…</p>;
 
   if (email.status === "blocked") {
@@ -176,7 +181,7 @@ function Email({ email }: { email: NonNullable<JobView["email"]> }) {
     <div className="flex flex-col gap-2">
       <p className="text-sm">
         <span className="font-semibold">Email to {email.to}:</span>{" "}
-        {email.inGmail ? "in your Gmail drafts, with your CV attached." : "being saved to your Gmail drafts."}
+        {email.inGmail ? `in your Gmail drafts, with your ${cv ? `${cv} ` : ""}CV attached.` : "being saved to your Gmail drafts."}
       </p>
       <div className="flex items-start gap-3 rounded-md border border-rule bg-field p-3">
         <p className="min-w-0 flex-1 text-sm leading-relaxed whitespace-pre-wrap break-words">{email.body}</p>

@@ -24,6 +24,7 @@ const JOB: JobView = {
   reasons: "Strengths:\n- React",
   label: null,
   email: null,
+  cv: null,
   canDraftAnswers: false,
   form: null,
   failure: null,
@@ -152,4 +153,17 @@ test("an email still being written says so", () => {
   renderRow({ ...JOB, email: { status: "preparing", to: "jobs@acme.com", body: null, inGmail: false, blockedReason: null } });
 
   expect(screen.getByText("Writing the email to jobs@acme.com…")).toBeInTheDocument();
+});
+
+test("says which CV to attach, as the scoring picked it", () => {
+  renderRow({ ...JOB, cv: "AI engineer" });
+
+  expect(screen.getByText(/your AI engineer CV\./)).toBeInTheDocument();
+});
+
+test("a job with an email names the CV attached to it instead", () => {
+  renderRow({ ...JOB, cv: "full-stack", email: { status: "ready", to: "jobs@acme.com", body: "Hello.", inGmail: true, blockedReason: null } });
+
+  expect(screen.getByText(/in your Gmail drafts, with your full-stack CV attached\./)).toBeInTheDocument();
+  expect(screen.queryByText(/CV to attach/)).not.toBeInTheDocument();
 });
