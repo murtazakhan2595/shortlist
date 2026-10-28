@@ -16,13 +16,14 @@ export async function updateSettings(request: UpdateSettingsInput): Promise<Resu
   if (!input.success) return fail("invalid_input", input.error.issues[0].message);
 
   const { db } = await requireOwner();
-  const { dailyTarget, monthlyCapUsd, payFloorUsdMonth, excludedCountries, blockedCompanies } = input.data;
+  const { dailyTarget, monthlyCapUsd, payFloorUsdMonth, minScore, excludedCountries, blockedCompanies } = input.data;
   const { error } = await db
     .from("settings")
     .update({
       daily_target: dailyTarget,
       monthly_cap_usd: monthlyCapUsd,
       pay_floor_usd_month: payFloorUsdMonth,
+      min_score: minScore,
       // Each country once, as the filter compares names exactly.
       excluded_countries: [...new Set(excludedCountries)],
       blocked_companies: [...new Set(blockedCompanies)],

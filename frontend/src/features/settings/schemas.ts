@@ -9,6 +9,7 @@ export const UpdateSettingsInputSchema = z.object({
   dailyTarget: z.int().min(1).max(100),
   monthlyCapUsd: z.number().min(0).max(1_000),
   payFloorUsdMonth: z.int().min(0),
+  minScore: z.int().min(0).max(100),
   excludedCountries: z.array(z.string().trim().min(1)).max(50),
   blockedCompanies: z.array(z.string().trim().min(1).max(200)).max(500),
 });

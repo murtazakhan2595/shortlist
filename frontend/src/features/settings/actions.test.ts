@@ -35,6 +35,7 @@ const SETTINGS = {
   dailyTarget: 15,
   monthlyCapUsd: 40.5,
   payFloorUsdMonth: 3000,
+  minScore: 60,
   excludedCountries: ["India", "India", "Nigeria"],
   blockedCompanies: ["KDCI", "micro1", "KDCI"],
 };
@@ -49,6 +50,7 @@ test("saves the nightly run's settings to the one settings row, each country and
         daily_target: 15,
         monthly_cap_usd: 40.5,
         pay_floor_usd_month: 3000,
+        min_score: 60,
         excluded_countries: ["India", "Nigeria"],
         blocked_companies: ["KDCI", "micro1"],
       },
@@ -58,9 +60,8 @@ test("saves the nightly run's settings to the one settings row, each country and
 });
 
 test("refuses settings out of range before touching the database", async () => {
-  const result = await updateSettings({ ...SETTINGS, dailyTarget: 0 });
-
-  expect(result.ok).toBe(false);
+  expect((await updateSettings({ ...SETTINGS, dailyTarget: 0 })).ok).toBe(false);
+  expect((await updateSettings({ ...SETTINGS, minScore: 101 })).ok).toBe(false);
   expect(db.updates).toEqual([]);
 });
 

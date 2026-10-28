@@ -29,11 +29,12 @@ export function RunSettingsForm({ settings }: { settings: UpdateSettingsInput })
         dailyTarget: Number(form.get("dailyTarget")),
         monthlyCapUsd: Number(form.get("monthlyCapUsd")),
         payFloorUsdMonth: Number(form.get("payFloorUsdMonth")),
+        minScore: Number(form.get("minScore")),
         excludedCountries: commaList(String(form.get("excludedCountries"))),
         blockedCompanies: commaList(String(form.get("blockedCompanies"))),
       });
       if (!result.ok) return setMessage({ ok: false, text: result.error.message });
-      setMessage({ ok: true, text: "Saved. The next nightly run uses these." });
+      setMessage({ ok: true, text: "Saved." });
       router.refresh();
     });
   }
@@ -59,6 +60,9 @@ export function RunSettingsForm({ settings }: { settings: UpdateSettingsInput })
         </Field>
         <Field id="payFloorUsdMonth" label="Lowest pay, US dollars a month" hint="Jobs that state less are dropped.">
           <Input id="payFloorUsdMonth" name="payFloorUsdMonth" aria-describedby="payFloorUsdMonth-hint" type="number" required min={0} step={1} defaultValue={settings.payFloorUsdMonth} />
+        </Field>
+        <Field id="minScore" label="Lowest score shown" hint="Jobs that scored below this are hidden on the Jobs page, unless you marked them. 0 shows every job.">
+          <Input id="minScore" name="minScore" aria-describedby="minScore-hint" type="number" required min={0} max={100} step={1} defaultValue={settings.minScore} />
         </Field>
         <Field id="excludedCountries" label="Excluded countries" hint="Separated by commas, as Himalayas names them.">
           <Input id="excludedCountries" name="excludedCountries" aria-describedby="excludedCountries-hint" defaultValue={settings.excludedCountries.join(", ")} />
