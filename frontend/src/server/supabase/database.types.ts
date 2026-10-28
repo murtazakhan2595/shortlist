@@ -608,6 +608,7 @@ export type Database = {
           daily_target: number
           excluded_countries: string[]
           id: boolean
+          min_score: number
           monthly_cap_usd: number
           owner_user_id: string | null
           pay_floor_usd_month: number
@@ -617,6 +618,7 @@ export type Database = {
           daily_target?: number
           excluded_countries?: string[]
           id?: boolean
+          min_score?: number
           monthly_cap_usd?: number
           owner_user_id?: string | null
           pay_floor_usd_month?: number
@@ -626,6 +628,7 @@ export type Database = {
           daily_target?: number
           excluded_countries?: string[]
           id?: boolean
+          min_score?: number
           monthly_cap_usd?: number
           owner_user_id?: string | null
           pay_floor_usd_month?: number

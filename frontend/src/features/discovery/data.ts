@@ -4,6 +4,7 @@ import { NIGHTLY_SOURCES } from "@/lib/source-names";
 import { requireOwner } from "@/server/auth/require-owner";
 import { GREENHOUSE_SOURCE } from "@/server/greenhouse";
 import { findOpenFailures, type OpenFailure } from "@/server/queue/failed-steps";
+import type { JobsFilters } from "./schemas";
 
 export type JobView = {
   id: string;
@@ -33,10 +34,12 @@ export type JobView = {
 const RUN_FINISHES_WITHIN_HOURS = 6;
 // Runs start every 24 hours; the extra allows for a late start.
 const RUN_STARTS_EVERY_HOURS = 26;
+const NIGHTS_OFFERED = 14;
 
 // From each source's latest run that kept any jobs, so a source with nothing new (Hacker News between
 // monthly threads) keeps its last list. earlierRun is set when that is not the latest run.
-export type SourceJobs = { source: string; name: string; top: JobView[]; more: JobView[]; earlierRun: string | null };
+// hidden counts the jobs left out for scoring under the owner's lowest score.
+export type SourceJobs = { source: string; name: string; top: JobView[]; more: JobView[]; earlierRun: string | null; hidden: number };
 
 export type JobsListView = {
   run: {
@@ -51,19 +54,26 @@ export type JobsListView = {
   failures: OpenFailure[];
   /** Every nightly source, even one with no new jobs. */
   sources: SourceJobs[];
+  /** The latest nightly runs, newest first, to pick an earlier night from. */
+  nights: { id: string; startedAt: string }[];
+  filters: { night: string; show: JobsFilters["show"]; minScore: number };
 };
 
-export async function getJobsList(): Promise<JobsListView | null> {
+export async function getJobsList(filters: JobsFilters): Promise<JobsListView | null> {
   const { db } = await requireOwner();
-  const run = await db
-    .from("runs")
-    .select("id, started_at, status, listings_fetched, listings_kept")
-    .eq("kind", "daily")
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (run.error) throw new Error(`Could not load the latest daily run: ${run.error.message}`);
-  if (!run.data) return null;
+  const runs = db.from("runs").select("id, started_at, status, listings_fetched, listings_kept").eq("kind", "daily");
+  const [run, nights, settings] = await Promise.all([
+    (filters.night ? runs.eq("id", filters.night) : runs).order("started_at", { ascending: false }).limit(1).maybeSingle(),
+    db.from("runs").select("id, started_at").eq("kind", "daily").order("started_at", { ascending: false }).limit(NIGHTS_OFFERED),
+    db.from("settings").select("min_score").single(),
+  ]);
+  if (run.error) throw new Error(`Could not load the daily run: ${run.error.message}`);
+  if (nights.error) throw new Error(`Could not load the earlier nights: ${nights.error.message}`);
+  if (settings.error) throw new Error(`Could not load the lowest score shown: ${settings.error.message}`);
+  // An old or mistyped night in the address shows the latest one instead.
+  if (!run.data) return filters.night ? getJobsList({ ...filters, night: undefined }) : null;
+  const minScore = settings.data.min_score;
+  const nightStarted = run.data.started_at;
 
   const sourceRuns = await Promise.all(
     NIGHTLY_SOURCES.map(async ({ id }) => {
@@ -72,6 +82,7 @@ export async function getJobsList(): Promise<JobsListView | null> {
         .select("run_id, runs!inner (started_at, kind)")
         .eq("source", id)
         .eq("runs.kind", "daily")
+        .lte("runs.started_at", nightStarted)
         .neq("eligibility", "excluded")
         .order("runs(started_at)", { ascending: false })
         .limit(1)
@@ -150,22 +161,33 @@ export async function getJobsList(): Promise<JobsListView | null> {
       fetched: run.data.listings_fetched,
       kept: run.data.listings_kept,
       costUsd: calls.data.reduce((total, call) => total + call.cost_usd, 0),
-      warning: runWarning(run.data, new Date()),
+      // Only the latest night can still be running late; an earlier one is simply over.
+      warning: runId === nights.data[0]?.id ? runWarning(run.data, new Date()) : null,
     },
     failures: failures.filter((failure) => failure.targetIds.includes(runId)),
     // A listing whose company was blocked after ranking keeps its rank but is excluded, so it was not loaded.
     sources: NIGHTLY_SOURCES.map(({ id, name }) => {
-      const fromSource = jobs.filter((job) => job.source === id);
-      const sourceRun = shownRuns.find((shown) => shown.source === id);
+      const { shown, hidden } = filterJobs(jobs.filter((job) => job.source === id), filters.show, minScore);
+      const sourceRun = shownRuns.find((shownRun) => shownRun.source === id);
       return {
         source: id,
         name,
         earlierRun: sourceRun && sourceRun.runId !== runId ? sourceRun.startedAt : null,
-        top: fromSource.filter((job) => job.topRank !== null).sort((a, b) => (a.topRank ?? 0) - (b.topRank ?? 0)),
-        more: fromSource.filter((job) => job.topRank === null).sort(byScore),
+        top: shown.filter((job) => job.topRank !== null).sort((a, b) => (a.topRank ?? 0) - (b.topRank ?? 0)),
+        more: shown.filter((job) => job.topRank === null).sort(byScore),
+        hidden,
       };
     }),
+    nights: nights.data.map((night) => ({ id: night.id, startedAt: night.started_at })),
+    filters: { night: runId, show: filters.show, minScore },
   };
+}
+
+export function filterJobs(jobs: JobView[], show: JobsFilters["show"], minScore: number): { shown: JobView[]; hidden: number } {
+  const matching = jobs.filter((job) => show === "all" || (show === "undecided" ? job.label === null : job.label === show));
+  // A job the owner marked stays, whatever its score; one not scored yet stays until it is.
+  const tooLow = (job: JobView) => job.label === null && job.score !== null && job.score < minScore;
+  return { shown: matching.filter((job) => !tooLow(job)), hidden: matching.filter(tooLow).length };
 }
 
 export function runWarning(run: { status: string; started_at: string }, now: Date): string | null {

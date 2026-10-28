@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import type { OpenFailure } from "@/server/queue/failed-steps";
 import { AutoRefresh } from "@/components/ui/auto-refresh";
@@ -5,6 +6,7 @@ import { formatUsd } from "@/lib/format";
 import { NIGHTLY_SOURCES } from "@/lib/source-names";
 import type { JobsListView, JobView, SourceJobs } from "../data";
 import { JobRow } from "./job-row";
+import { JobsFilters } from "./jobs-filters";
 import { SourceTabs } from "./source-tabs";
 
 const RUN_DATE = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Karachi" });
@@ -51,11 +53,22 @@ export function JobsList({
         ones kept after the filter, {onList} on your lists. Cost {formatUsd(run.costUsd)}.
       </p>
 
+      <JobsFilters nights={list.nights} filters={list.filters} />
+
       <SourceTabs
         tabs={list.sources.map((source) => ({
           source: source.source,
           label: `${source.name} (${source.top.length + source.more.length})`,
-          content: <SourceList jobs={source} running={running} renderFailure={renderFailure} renderAnswers={renderAnswers} />,
+          content: (
+            <SourceList
+              jobs={source}
+              running={running}
+              filtered={list.filters.show !== "all"}
+              minScore={list.filters.minScore}
+              renderFailure={renderFailure}
+              renderAnswers={renderAnswers}
+            />
+          ),
         }))}
       />
 
@@ -78,19 +91,42 @@ export function JobsList({
 function SourceList({
   jobs,
   running,
+  filtered,
+  minScore,
   renderFailure,
   renderAnswers,
 }: {
   jobs: SourceJobs;
   running: boolean;
+  filtered: boolean;
+  minScore: number;
   renderFailure: RenderFailure;
   renderAnswers: RenderAnswers;
 }) {
+  // Some jobs may be left out, so "none made it" messages would not be true.
+  const partial = filtered || jobs.hidden > 0;
+  const hiddenNote = jobs.hidden > 0 && (
+    <p className="text-sm text-ink-muted">
+      {jobs.hidden} {jobs.hidden === 1 ? "job scored" : "jobs scored"} under {minScore}, so {jobs.hidden === 1 ? "it is" : "they are"} hidden. Change
+      this in{" "}
+      <Link href="/settings" className="underline">
+        Settings
+      </Link>
+      .
+    </p>
+  );
   if (jobs.top.length === 0 && jobs.more.length === 0) {
-    return !running && <p className="text-ink-muted">No new jobs from {jobs.name} this time.</p>;
+    if (running && !partial) return null;
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-ink-muted">{partial ? `No jobs from ${jobs.name} to show here.` : `No new jobs from ${jobs.name} this time.`}</p>
+        {hiddenNote}
+      </div>
+    );
   }
   return (
     <div className="flex flex-col gap-8">
+      {hiddenNote}
       {jobs.earlierRun && (
         <p className="text-ink-muted">
           No new jobs from {jobs.name} {running ? "yet" : "this time"}. These are from {RUN_DATE.format(new Date(jobs.earlierRun))}.
@@ -103,7 +139,7 @@ function SourceList({
           ))}
         </ol>
       ) : (
-        !running && <p className="text-ink-muted">No job from {jobs.name} fitted well enough to make the top this time.</p>
+        !running && !partial && <p className="text-ink-muted">No job from {jobs.name} fitted well enough to make the top this time.</p>
       )}
 
       {jobs.more.length > 0 && (

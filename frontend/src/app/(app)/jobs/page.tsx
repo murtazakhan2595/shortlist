@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { JobsList } from "@/features/discovery/components/jobs-list";
 import { getJobsList } from "@/features/discovery/data";
+import { JobsFiltersSchema } from "@/features/discovery/schemas";
 import { FailureNotice } from "@/features/failed-steps/components/failure-notice";
 import { DraftAnswers } from "@/features/forms/components/draft-answers";
 import { CapReached } from "@/features/settings/components/cap-reached";
@@ -9,19 +10,22 @@ import { getSpendingCap } from "@/features/settings/data";
 
 export const metadata: Metadata = { title: "Jobs" };
 
-export default function JobsPage() {
+type SearchParams = PageProps<"/jobs">["searchParams"];
+
+export default function JobsPage({ searchParams }: PageProps<"/jobs">) {
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-5 py-8">
       <h1 className="text-2xl font-bold">Jobs</h1>
       <Suspense fallback={<p className="text-ink-muted">Loading…</p>}>
-        <List />
+        <List searchParams={searchParams} />
       </Suspense>
     </main>
   );
 }
 
-async function List() {
-  const [list, cap] = await Promise.all([getJobsList(), getSpendingCap()]);
+async function List({ searchParams }: { searchParams: SearchParams }) {
+  const filters = JobsFiltersSchema.parse(await searchParams);
+  const [list, cap] = await Promise.all([getJobsList(filters), getSpendingCap()]);
   return (
     <>
       <CapReached cap={cap} />

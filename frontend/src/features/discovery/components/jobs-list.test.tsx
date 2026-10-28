@@ -5,7 +5,8 @@ import type { OpenFailure } from "@/server/queue/failed-steps";
 import type { JobsListView, JobView } from "../data";
 import { JobsList } from "./jobs-list";
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+const push = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push }), usePathname: () => "/jobs" }));
 vi.mock("../actions", () => ({ labelListing: vi.fn() }));
 
 const failure = (id: string, step: string): OpenFailure => ({ id, step, error: "broke", failedAt: "2026-10-22T00:00:00Z", targetIds: [] });
@@ -33,16 +34,21 @@ const job: JobView = {
 
 const hackerNewsJob: JobView = { ...job, id: "job-2", title: "Backend Developer", source: "hackernews", topRank: null, score: 60, email: null };
 
-type Jobs = { top: JobView[]; more: JobView[]; earlierRun?: string };
+type Jobs = { top: JobView[]; more: JobView[]; earlierRun?: string; hidden?: number };
 
 function listWith(himalayas: Jobs, hackerNews: Jobs = { top: [], more: [hackerNewsJob] }): JobsListView {
   return {
     run: { startedAt: "2026-10-21T21:00:00Z", status: "succeeded", fetched: 40, kept: 12, costUsd: 0.2, warning: null },
     failures: [],
     sources: [
-      { source: "himalayas", name: "Himalayas", earlierRun: null, ...himalayas },
-      { source: "hackernews", name: "Hacker News", earlierRun: null, ...hackerNews },
+      { source: "himalayas", name: "Himalayas", earlierRun: null, hidden: 0, ...himalayas },
+      { source: "hackernews", name: "Hacker News", earlierRun: null, hidden: 0, ...hackerNews },
     ],
+    nights: [
+      { id: "run-2", startedAt: "2026-10-21T21:00:00Z" },
+      { id: "run-1", startedAt: "2026-10-20T21:00:00Z" },
+    ],
+    filters: { night: "run-2", show: "all", minScore: 0 },
   };
 }
 const list = listWith({ top: [job], more: [] });
@@ -119,4 +125,32 @@ test("the run's own failures and its warning are shown at the top", () => {
   expect(screen.getByRole("alert")).toHaveTextContent("The nightly run has not finished after 6 hours.");
   expect(screen.getByText("Failed: fetch_listings")).toBeInTheDocument();
   expect(screen.getByText(/40 jobs read, 12 new/)).toBeInTheDocument();
+});
+
+test("an earlier night and a kind of job are picked in the page address", async () => {
+  const user = userEvent.setup();
+  render(<JobsList list={list} renderFailure={renderFailure} renderAnswers={() => null} />);
+
+  expect(screen.getByRole("combobox", { name: "Night of" })).toHaveDisplayValue("Thu 22 Oct, latest");
+  await user.selectOptions(screen.getByRole("combobox", { name: "Night of" }), "Wed 21 Oct");
+  expect(push).toHaveBeenLastCalledWith("/jobs?night=run-1", { scroll: false });
+
+  await user.selectOptions(screen.getByRole("combobox", { name: "Show" }), "Marked Apply");
+  expect(push).toHaveBeenLastCalledWith("/jobs?show=apply", { scroll: false });
+});
+
+test("says how many jobs scored under the lowest score shown, and where to change it", () => {
+  const lowScores = { ...listWith({ top: [job], more: [], hidden: 3 }), filters: { night: "run-2", show: "all" as const, minScore: 60 } };
+  render(<JobsList list={lowScores} renderFailure={renderFailure} renderAnswers={() => null} />);
+
+  expect(screen.getByText(/3 jobs scored under 60, so they are hidden/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
+});
+
+test("a filtered source with nothing to show does not claim there were no new jobs", () => {
+  const applyOnly = { ...listWith({ top: [], more: [] }), filters: { night: "run-2", show: "apply" as const, minScore: 0 } };
+  render(<JobsList list={applyOnly} renderFailure={renderFailure} renderAnswers={() => null} />);
+
+  expect(screen.getByText("No jobs from Himalayas to show here.")).toBeInTheDocument();
+  expect(screen.queryByText(/No new jobs/)).not.toBeInTheDocument();
 });

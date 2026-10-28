@@ -8,7 +8,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 const updateSettings = vi.fn();
 vi.mock("../actions", () => ({ updateSettings: (input: unknown) => updateSettings(input) }));
 
-const settings = { dailyTarget: 20, monthlyCapUsd: 50, payFloorUsdMonth: 3000, excludedCountries: ["India"], blockedCompanies: ["micro1"] };
+const settings = { dailyTarget: 20, monthlyCapUsd: 50, payFloorUsdMonth: 3000, minScore: 0, excludedCountries: ["India"], blockedCompanies: ["micro1"] };
 
 test("shows the saved settings, and saves the edited ones with the countries and companies as lists", async () => {
   updateSettings.mockResolvedValue({ ok: true, data: settings });
@@ -18,6 +18,8 @@ test("shows the saved settings, and saves the edited ones with the countries and
   expect(screen.getByLabelText("Excluded countries")).toHaveValue("India");
   await user.clear(screen.getByLabelText("Top jobs per source"));
   await user.type(screen.getByLabelText("Top jobs per source"), "12");
+  await user.clear(screen.getByLabelText("Lowest score shown"));
+  await user.type(screen.getByLabelText("Lowest score shown"), "60");
   await user.type(screen.getByLabelText("Excluded countries"), ", Nigeria ,");
   expect(screen.getByLabelText("Blocked companies")).toHaveValue("micro1");
   await user.type(screen.getByLabelText("Blocked companies"), ", KDCI");
@@ -26,6 +28,7 @@ test("shows the saved settings, and saves the edited ones with the countries and
   expect(updateSettings).toHaveBeenCalledWith({
     ...settings,
     dailyTarget: 12,
+    minScore: 60,
     excludedCountries: ["India", "Nigeria"],
     blockedCompanies: ["micro1", "KDCI"],
   });

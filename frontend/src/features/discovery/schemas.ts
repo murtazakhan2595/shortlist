@@ -11,6 +11,13 @@ export const LabelListingInputSchema = z.object({
 });
 export type LabelListingInput = z.infer<typeof LabelListingInputSchema>;
 
+// From the Jobs page address, so anything unknown falls back to the latest night and every job.
+export const JOB_FILTERS = ["all", "undecided", "apply", "skip"] as const;
+export const JobsFiltersSchema = z.object({
+  night: z.uuid().optional().catch(undefined),
+  show: z.enum(JOB_FILTERS).catch("all"),
+});
+export type JobsFilters = z.infer<typeof JobsFiltersSchema>;
 
 // The company is read from the listing on the server, never sent by the browser.
 export const BlockCompanyInputSchema = z.object({ listingId: z.uuid() });
