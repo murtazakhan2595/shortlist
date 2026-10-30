@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { requireOwner } from "@/server/auth/require-owner";
 import { findOpenFailures, type OpenFailure } from "@/server/queue/failed-steps";
+import { screenshotLinks } from "@/server/screenshots";
 import type { Tables } from "@/server/supabase/database.types";
 
 export type FormQuestion = Pick<Tables<"form_answers">, "id" | "position" | "question" | "options" | "answer" | "status" | "note">;
@@ -14,6 +15,10 @@ export type FormView = {
   company: string | null;
   screenshots: number;
   hasPastedText: boolean;
+  /** The job post or description, as read from the pages. */
+  jobText: string | null;
+  /** The pages the owner added, the job post among them, as links that work for an hour. */
+  screenshotUrls: string[];
   questions: FormQuestion[];
   /** The latest step that failed every attempt, until retried. */
   failure: OpenFailure | null;
@@ -30,7 +35,7 @@ export async function getForm(id: string): Promise<FormView | null> {
     db
       .from("applications")
       .select(
-        "id, status, job_role, job_company, form_image_paths, form_text, form_answers (id, position, question, options, answer, status, note)",
+        "id, status, job_role, job_company, job_text, form_image_paths, form_text, form_answers (id, position, question, options, answer, status, note)",
       )
       .eq("id", id)
       .eq("route", "form")
@@ -43,6 +48,7 @@ export async function getForm(id: string): Promise<FormView | null> {
   if (calls.error) throw new Error(`Could not load the cost of form ${id}: ${calls.error.message}`);
   if (!form.data) return null;
 
+  const screenshotUrls = await screenshotLinks(db, form.data.form_image_paths);
   return {
     id: form.data.id,
     status: form.data.status,
@@ -50,6 +56,8 @@ export async function getForm(id: string): Promise<FormView | null> {
     company: form.data.job_company,
     screenshots: form.data.form_image_paths.length,
     hasPastedText: form.data.form_text !== null,
+    jobText: form.data.job_text,
+    screenshotUrls,
     questions: form.data.form_answers,
     failure: failures[0] ?? null,
     costUsd: calls.data.reduce((total, call) => total + call.cost_usd, 0),

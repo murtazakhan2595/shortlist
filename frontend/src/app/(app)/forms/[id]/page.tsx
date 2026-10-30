@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { OriginalPost } from "@/components/ui/original-post";
 import { FailureNotice } from "@/features/failed-steps/components/failure-notice";
 import { FormDetails } from "@/features/forms/components/form-details";
 import { FormPagesForm } from "@/features/forms/components/form-pages-form";
@@ -30,6 +31,7 @@ async function Form({ params }: { params: PageProps<"/forms/[id]">["params"] }) 
     <>
       <FormDetails form={form} failureNotice={form.failure && <FailureNotice failure={form.failure} />} />
       {/* Pages added while earlier ones are worked on would start a second chain of steps (actions.ts). */}
+      <OriginalPost text={form.jobText} screenshotUrls={form.screenshotUrls} />
       {form.status === "ready" && <MorePages applicationId={form.id} />}
     </>
   );

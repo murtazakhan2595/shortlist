@@ -53,24 +53,24 @@ export function JobsList({
         ones kept after the filter, {onList} on your lists. Cost {formatUsd(run.costUsd)}.
       </p>
 
-      <JobsFilters nights={list.nights} filters={list.filters} />
-
-      <SourceTabs
-        tabs={list.sources.map((source) => ({
-          source: source.source,
-          label: `${source.name} (${source.top.length + source.more.length})`,
-          content: (
-            <SourceList
-              jobs={source}
-              running={running}
-              filtered={list.filters.show !== "all"}
-              minScore={list.filters.minScore}
-              renderFailure={renderFailure}
-              renderAnswers={renderAnswers}
-            />
-          ),
-        }))}
-      />
+      <JobsFilters nights={list.nights} filters={list.filters}>
+        <SourceTabs
+          tabs={list.sources.map((source) => ({
+            source: source.source,
+            label: `${source.name} (${source.top.length + source.more.length})`,
+            content: (
+              <SourceList
+                jobs={source}
+                running={running}
+                filtered={list.filters.show !== "all"}
+                minScore={list.filters.minScore}
+                renderFailure={renderFailure}
+                renderAnswers={renderAnswers}
+              />
+            ),
+          }))}
+        />
+      </JobsFilters>
 
       <p className="text-sm text-ink-muted">
         Jobs from{" "}

@@ -15,6 +15,8 @@ const capture: CaptureView = {
   contactEmail: "jobs@acme.example",
   formUrl: null,
   postUrl: null,
+  postText: null,
+  screenshotUrls: [],
   createdAt: "2026-10-19T00:00:00Z",
   failure: null,
 };

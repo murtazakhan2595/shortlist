@@ -33,6 +33,16 @@ export async function downloadScreenshot(storagePath: string): Promise<Screensho
   return { mimeType, base64: Buffer.from(await data.arrayBuffer()).toString("base64") };
 }
 
+const LINK_SECONDS = 60 * 60;
+
+/** Links that open the owner's screenshots for an hour, made with the owner's client so storage's own access rule applies. */
+export async function screenshotLinks(db: SupabaseClient<Database>, storagePaths: string[]): Promise<string[]> {
+  if (storagePaths.length === 0) return [];
+  const { data, error } = await db.storage.from(SCREENSHOTS_BUCKET).createSignedUrls(storagePaths, LINK_SECONDS);
+  if (error) throw new Error(`Could not link the screenshots: ${error.message}`);
+  return data.flatMap((link) => (link.signedUrl ? [link.signedUrl] : []));
+}
+
 export function screenshotPart(screenshot: Screenshot): ModelContentPart {
   return { type: "image", url: `data:${screenshot.mimeType};base64,${screenshot.base64}` };
 }
