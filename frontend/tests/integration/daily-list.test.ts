@@ -66,7 +66,7 @@ test("the daily list names each application's job, source and what was prepared,
   const byId = new Map(applications.map((application) => [application.id, application]));
 
   expect(byId.get(ids.email)).toMatchObject({ route: "email", role: "Daily List Engineer", company: "Acme", source: "LinkedIn", inGmail: true, href: `/captures/${ids.capture}` });
-  expect(byId.get(ids.note)).toMatchObject({ route: "note", role: "Note Engineer", source: "Himalayas", score: 77, tags: ["remote"], href: "/jobs" });
+  expect(byId.get(ids.note)).toMatchObject({ route: "note", role: "Note Engineer", source: "Himalayas", score: 77, tags: ["remote"], href: `/jobs/${ids.listing}` });
   expect(byId.get(ids.form)).toMatchObject({ route: "form", role: "Form Engineer", company: "Gamma", source: null, status: "preparing", href: `/forms/${ids.form}` });
 });
 

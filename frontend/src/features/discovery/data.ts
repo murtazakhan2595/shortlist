@@ -1,9 +1,12 @@
 import "server-only";
+import type { QueryData, SupabaseClient } from "@supabase/supabase-js";
+import { z } from "zod";
 import { cvName } from "@/lib/cv-variants";
 import { NIGHTLY_SOURCES } from "@/lib/source-names";
 import { requireOwner } from "@/server/auth/require-owner";
 import { GREENHOUSE_SOURCE } from "@/server/greenhouse";
 import { findOpenFailures, type OpenFailure } from "@/server/queue/failed-steps";
+import type { Database } from "@/server/supabase/database.types";
 import type { JobsFilters } from "./schemas";
 
 export type JobView = {
@@ -94,11 +97,7 @@ export async function getJobsList(filters: JobsFilters): Promise<JobsListView | 
   const shownRuns = sourceRuns.filter((sourceRun) => sourceRun !== null);
 
   const [loaded, calls] = await Promise.all([
-    db
-      .from("listings")
-      .select(
-        "id, title, company, location, source, url, tags, eligibility, eligibility_reason, top_rank, label, run_id, scores (score, reasons, cv_variant), applications (id, route, status, body, blocked_reason, recipient_email, gmail_draft_id, cv_files (variant))",
-      )
+    selectJobs(db)
       .in("run_id", shownRuns.length > 0 ? shownRuns.map((sourceRun) => sourceRun.runId) : [run.data.id])
       .neq("eligibility", "excluded"),
     db.from("model_calls").select("cost_usd").eq("run_id", run.data.id),
@@ -117,41 +116,7 @@ export async function getJobsList(filters: JobsFilters): Promise<JobsListView | 
     ...listings.flatMap((listing) => listing.applications.map((application) => application.id)),
   ]);
 
-  const jobs: JobView[] = listings.map((listing) => {
-    // Older notes are not shown: only emails are prepared now.
-    const email = listing.applications.find((application) => application.route === "email" && application.recipient_email);
-    const form = listing.applications.find((application) => application.route === "form");
-    const ownIds = [listing.id, ...listing.applications.map((own) => own.id)];
-    return {
-      id: listing.id,
-      title: listing.title,
-      company: listing.company,
-      location: listing.location,
-      source: listing.source,
-      url: listing.url,
-      tags: listing.tags,
-      eligibility: listing.eligibility,
-      eligibilityReason: listing.eligibility_reason,
-      topRank: listing.top_rank,
-      score: listing.scores?.score ?? null,
-      reasons: listing.scores?.reasons ?? null,
-      label: listing.label === "apply" || listing.label === "skip" ? listing.label : null,
-      email:
-        email?.recipient_email
-          ? {
-              status: email.status,
-              to: email.recipient_email,
-              body: email.body,
-              inGmail: email.gmail_draft_id !== null,
-              blockedReason: email.blocked_reason,
-            }
-          : null,
-      cv: cvOf(email?.cv_files?.variant ?? listing.scores?.cv_variant),
-      canDraftAnswers: listing.source === GREENHOUSE_SOURCE,
-      form: form ? { id: form.id, status: form.status } : null,
-      failure: failures.find((failure) => failure.targetIds.some((id) => ownIds.includes(id))) ?? null,
-    };
-  });
+  const jobs = listings.map((listing) => toJobView(listing, failures));
 
   const byScore = (a: JobView, b: JobView) => (b.score ?? -1) - (a.score ?? -1);
   return {
@@ -181,6 +146,68 @@ export async function getJobsList(filters: JobsFilters): Promise<JobsListView | 
     nights: nights.data.map((night) => ({ id: night.id, startedAt: night.started_at })),
     filters: { night: runId, show: filters.show, minScore },
   };
+}
+
+function selectJobs(db: SupabaseClient<Database>) {
+  return db
+    .from("listings")
+    .select(
+      "id, title, company, location, source, url, tags, eligibility, eligibility_reason, top_rank, label, run_id, scores (score, reasons, cv_variant), applications (id, route, status, body, blocked_reason, recipient_email, gmail_draft_id, cv_files (variant))",
+    );
+}
+type LoadedJob = QueryData<ReturnType<typeof selectJobs>>[number];
+
+function toJobView(listing: LoadedJob, failures: OpenFailure[]): JobView {
+  // Older notes are not shown: only emails are prepared now.
+  const email = listing.applications.find((application) => application.route === "email" && application.recipient_email);
+  const form = listing.applications.find((application) => application.route === "form");
+  const ownIds = [listing.id, ...listing.applications.map((own) => own.id)];
+  return {
+    id: listing.id,
+    title: listing.title,
+    company: listing.company,
+    location: listing.location,
+    source: listing.source,
+    url: listing.url,
+    tags: listing.tags,
+    eligibility: listing.eligibility,
+    eligibilityReason: listing.eligibility_reason,
+    topRank: listing.top_rank,
+    score: listing.scores?.score ?? null,
+    reasons: listing.scores?.reasons ?? null,
+    label: listing.label === "apply" || listing.label === "skip" ? listing.label : null,
+    email:
+      email?.recipient_email
+        ? {
+            status: email.status,
+            to: email.recipient_email,
+            body: email.body,
+            inGmail: email.gmail_draft_id !== null,
+            blockedReason: email.blocked_reason,
+          }
+        : null,
+    cv: cvOf(email?.cv_files?.variant ?? listing.scores?.cv_variant),
+    canDraftAnswers: listing.source === GREENHOUSE_SOURCE,
+    form: form ? { id: form.id, status: form.status } : null,
+    failure: failures.find((failure) => failure.targetIds.some((id) => ownIds.includes(id))) ?? null,
+  };
+}
+
+/** One job with its full description, to look back at after applying. The id comes from the URL, so it may be anything. */
+export async function getJob(id: string): Promise<{ job: JobView; description: string } | null> {
+  if (!z.uuid().safeParse(id).success) return null;
+
+  const { db } = await requireOwner();
+  const [loaded, text] = await Promise.all([
+    selectJobs(db).eq("id", id).maybeSingle(),
+    db.from("listings").select("description").eq("id", id).maybeSingle(),
+  ]);
+  if (loaded.error) throw new Error(`Could not load job ${id}: ${loaded.error.message}`);
+  if (text.error) throw new Error(`Could not load the description of job ${id}: ${text.error.message}`);
+  if (!loaded.data || !text.data) return null;
+
+  const failures = await findOpenFailures(db, [id, ...loaded.data.applications.map((application) => application.id)]);
+  return { job: toJobView(loaded.data, failures), description: text.data.description };
 }
 
 export function filterJobs(jobs: JobView[], show: JobsFilters["show"], minScore: number): { shown: JobView[]; hidden: number } {

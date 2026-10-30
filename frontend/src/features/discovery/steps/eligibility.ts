@@ -63,6 +63,10 @@ function exclusionReason(listing: Listing, settings: FilterSettings): string | n
   if (BOARD_SOURCES.includes(listing.source) && !offersVisa(listing.description) && !boardPlaces.every(isOpenRemoteLocation)) {
     return `Remote only within a region that leaves out ${OWNER_COUNTRY}`;
   }
+  // A Hacker News title is the post's first line, read above, where an office often sits beside "or remote".
+  if (listing.source !== HACKER_NEWS_SOURCE && titleLimitsRemote(listing.title) && !offersVisa(listing.description)) {
+    return `Remote only within a region that leaves out ${OWNER_COUNTRY}`;
+  }
   return countryReason(listing, settings.excludedCountries);
 }
 
@@ -220,6 +224,21 @@ export function isOpenRemoteLocation(location: string): boolean {
   if (!REMOTE_LOCATION.test(location)) return false;
   if (OPEN_TO_OWNER.test(location)) return true;
   return location.replace(WORK_MODEL_WORDS, "").replace(/[\s\p{P}]/gu, "") === "";
+}
+
+// "Solutions Architect (Remote - Brazil)": a title can limit a job whose location field just says "Remote".
+// Country names come from the runtime's own list and are matched as written, so "chad" is never Chad.
+const LETTERS = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
+const REGION_NAMES = new Intl.DisplayNames(["en"], { type: "region", fallback: "none" });
+const COUNTRY_NAMES = LETTERS.flatMap((first) => LETTERS.map((second) => REGION_NAMES.of(first + second))).filter(
+  (name): name is string => name !== undefined && !/Pseudo|Unknown|United Nations/.test(name),
+);
+const AREAS = ["Europe", "EMEA", "LATAM", "LatAm", "Latin America", "North America", "Americas", "US", "USA", "U.S.", "UK", "EU"];
+const PLACE_IN_TITLE = new RegExp(`(?<![A-Za-z])(?:${[...COUNTRY_NAMES, ...AREAS].map(escapeRegExp).join("|")})(?![A-Za-z])`);
+
+/** A title that says the job is remote and names a place, none of which includes the owner's country. */
+export function titleLimitsRemote(title: string): boolean {
+  return REMOTE_LOCATION.test(title) && !OPEN_TO_OWNER.test(title) && PLACE_IN_TITLE.test(title);
 }
 
 function checkLocation(listing: Listing): { excluded?: string; doubt?: string } {
