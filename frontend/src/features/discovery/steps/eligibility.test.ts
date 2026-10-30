@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { Listing } from "../schemas";
-import { eligibilityOf, isOpenRemoteLocation, minimumYearsRequired, monthlyPayUsd } from "./eligibility";
+import { eligibilityOf, isOpenRemoteLocation, minimumYearsRequired, monthlyPayUsd, titleLimitsRemote } from "./eligibility";
 
 const SETTINGS = { payFloorUsdMonth: 3000, excludedCountries: ["India"], blockedCompanies: ["micro1", "KDCI"] };
 
@@ -225,6 +225,38 @@ describe("a Greenhouse job: kept only when every place it names is open", () => 
     expect(decideBoardJob("Remote", "This role is remote within the US.")).toEqual({
       eligibility: "unclear",
       eligibility_reason: "Remote, but the post may limit where you can work from",
+    });
+  });
+});
+
+describe("a title can limit a remote job to a region", () => {
+  test.each([
+    "Senior Solutions Architect (Remote - Brazil)",
+    "Software Engineer - Remote (US)",
+    "Backend Developer, Remote, LATAM",
+    "Full Stack Engineer | Remote | Europe",
+    "Data Engineer (Remote, United Kingdom)",
+  ])("%s is limited", (title) => expect(titleLimitsRemote(title)).toBe(true));
+
+  test.each([
+    "Full Stack Engineer, Integrations - Remote",
+    "Machine Learning Researcher (MSc. or PhD), Remote- Contract",
+    "Senior Engineer (Remote - Worldwide)",
+    "AI Engineer (Remote, APAC)",
+    "Backend Engineer - Remote (Pakistan or Brazil)",
+    "Frontend Engineer - Brazil Payments",
+    "Join us: Remote Platform Engineer",
+  ])("%s is not", (title) => expect(titleLimitsRemote(title)).toBe(false));
+
+  test("a Hacker News title is left to the post's own location rules, as it often names an office beside remote", () => {
+    const post = { source: "hackernews", title: "Berlin, Germany (or remote, CET/CEST overlap)", countries: [], seniority: [], categories: [] };
+    expect(decide({ ...post, description: "Acme | Engineer | Berlin, Germany (or remote, CET/CEST overlap)\nRemote worldwide welcome." }).eligibility).toBe("eligible");
+  });
+
+  test("a job whose title names such a region is dropped, even when its location just says Remote", () => {
+    expect(decide({ source: "greenhouse", location: "Remote", countries: [], title: "Senior Solutions Architect (Remote - Brazil)" })).toEqual({
+      eligibility: "excluded",
+      eligibility_reason: "Remote only within a region that leaves out Pakistan",
     });
   });
 });

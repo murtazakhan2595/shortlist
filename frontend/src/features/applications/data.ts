@@ -79,6 +79,12 @@ export type ApplicationSummary = {
 };
 
 
+export function applicationHref(route: ApplicationSummary["route"], row: { id: string; capture_id: string | null; listing_id: string | null }): string {
+  if (route === "form") return `/forms/${row.id}`;
+  if (row.capture_id) return `/captures/${row.capture_id}`;
+  return row.listing_id ? `/jobs/${row.listing_id}` : "/jobs";
+}
+
 export async function getRecentApplications(): Promise<ApplicationSummary[]> {
   const { db } = await requireOwner();
   // Read after the owner check: the time is only known per request (Cache Components).
@@ -86,7 +92,7 @@ export async function getRecentApplications(): Promise<ApplicationSummary[]> {
   const { data, error } = await db
     .from("applications")
     .select(
-      "id, route, status, created_at, gmail_draft_id, job_role, job_company, capture_id, captures (role, company), listings (title, company, source, tags, scores (score))",
+      "id, route, status, created_at, gmail_draft_id, job_role, job_company, capture_id, listing_id, captures (role, company), listings (title, company, source, tags, scores (score))",
     )
     .gte("created_at", since)
     .order("created_at", { ascending: false });
@@ -108,7 +114,7 @@ export async function getRecentApplications(): Promise<ApplicationSummary[]> {
         score: listing?.scores?.score ?? null,
         tags: listing?.tags ?? [],
         inGmail: row.gmail_draft_id !== null,
-        href: route === "form" ? `/forms/${row.id}` : route === "email" && row.capture_id ? `/captures/${row.capture_id}` : "/jobs",
+        href: applicationHref(route, row),
       },
     ];
   });
