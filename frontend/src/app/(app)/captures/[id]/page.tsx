@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { OriginalPost } from "@/components/ui/original-post";
 import { ApplicationDraft } from "@/features/applications/components/application-draft";
 import { getApplicationForCapture } from "@/features/applications/data";
 import { CaptureDetails } from "@/features/captures/components/capture-details";
@@ -35,6 +36,7 @@ async function Capture({ params }: { params: PageProps<"/captures/[id]">["params
     <>
       <CaptureDetails capture={capture} failureNotice={failureNotice} />
       {application && <ApplicationDraft application={application} failureNotice={failureNotice} />}
+      <OriginalPost text={capture.postText} screenshotUrls={capture.screenshotUrls} />
     </>
   );
 }
