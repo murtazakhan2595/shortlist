@@ -222,10 +222,58 @@ describe("a Greenhouse job: kept only when every place it names is open", () => 
   });
 
   test("unclear when the post itself names a region", () => {
-    expect(decideBoardJob("Remote", "This role is remote within the US.")).toEqual({
+    expect(decideBoardJob("Remote", "This role is remote within the EU.")).toEqual({
       eligibility: "unclear",
       eligibility_reason: "Remote, but the post may limit where you can work from",
     });
+  });
+});
+
+describe("a board job whose location says Remote but whose post limits who may apply", () => {
+  function decidePost(description: string) {
+    return decide({ source: "ashby", countries: [], seniority: [], categories: [], location: "Remote", description });
+  }
+
+  // Wording from real posts.
+  test.each([
+    "Remote-First Policy: Work from anywhere in the US (with occasional team offsites)",
+    "Position will be remote (residing anywhere in the United States and authorized to work in the U.S.)",
+    "Candidates must be currently authorized to work in the United States on a full-time basis.",
+    "All EdReports employees must reside in and be authorized to work in the United States.",
+    "We're only hiring those authorized to work in the United States.",
+    "This position requires candidates to be authorized to work in the US on an ongoing basis.",
+    "Applicants must be currently authorized to work for any employer in the U.S.",
+    "Location: Remote (United States only). Applicants must be physically based in the US.",
+    "LOCATION: Remote within the United States, with the ability to work ET or CT hours.",
+    "This role is open to candidates based in Europe (including UK) only with a valid right to work.",
+    "You must live in Canada.",
+  ])("dropped: %s", (description) => {
+    expect(decidePost(description)).toEqual({
+      eligibility: "excluded",
+      eligibility_reason: "Remote only within a region that leaves out Pakistan",
+    });
+  });
+
+  test.each([
+    // Where people work from, not who may apply.
+    "This role is remote-first, so it can be executed from anywhere in Europe and the US East Coast.",
+    "Remote-first: Work from anywhere in Latin America with a highly collaborative team.",
+    "Fully remote: anywhere in the US or Europe.",
+    // Look-alikes.
+    "Benefits: (U.S. only) 100% coverage of medical, dental, and vision insurance.",
+    "We confirm that you are authorized to work in the U.S. only after a job offer is accepted.",
+    "For positions located in the United States, applicants must be authorized to work in the United States.",
+    "Work from anywhere in the world.",
+  ])("kept: %s", (description) => {
+    expect(decidePost(description).eligibility).not.toBe("excluded");
+  });
+
+  test("kept when the post offers a visa", () => {
+    expect(decidePost("You must be authorized to work in the US. We offer visa sponsorship.").eligibility).not.toBe("excluded");
+  });
+
+  test("a Himalayas listing is not judged by these words", () => {
+    expect(decide({ description: "You must be authorized to work in the United States." }).eligibility).toBe("unclear");
   });
 });
 

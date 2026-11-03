@@ -58,9 +58,14 @@ function exclusionReason(listing: Listing, settings: FilterSettings): string | n
     const place = checkLocation(listing);
     if (place.excluded) return place.excluded;
   }
-  // Every place a board job names must be open: "Remote; Remote US" is limited to the US.
+  // Every place a board job names must be open: "Remote; Remote US" is limited to the US. A location of
+  // just "Remote" can still hide the limit in the post: "Must be authorized to work in the United States".
   const boardPlaces = (listing.location ?? "").split(";").filter((place) => place.trim() !== "");
-  if (BOARD_SOURCES.includes(listing.source) && !offersVisa(listing.description) && !boardPlaces.every(isOpenRemoteLocation)) {
+  if (
+    BOARD_SOURCES.includes(listing.source) &&
+    !offersVisa(listing.description) &&
+    (!boardPlaces.every(isOpenRemoteLocation) || postLimitsRemote(listing.description))
+  ) {
     return `Remote only within a region that leaves out ${OWNER_COUNTRY}`;
   }
   // A Hacker News title is the post's first line, read above, where an office often sits beside "or remote".
@@ -178,8 +183,9 @@ export const REMOTE = /\bremote\b|work from anywhere/i;
 const JOB_SEEKER_POST = /^location:[\s\S]*\bwilling to relocate:/i;
 const NOT_REMOTE = /\b(no|not|non)[\s-]remote\b|\b(on-?site|in[- ]office) only\b/i;
 // Only phrases about where the work can be done: "a global company" says nothing about that.
+// "Work from anywhere in the US" is not open: "from anywhere" counts only when no place follows it.
 const OPEN_TO_OWNER =
-  /\b(worldwide|anywhere in the world|from anywhere|remote[\s(,:–—-]*(global|anywhere|international)|global(ly)? remote|any time ?zones?|all time ?zones|pakistan|asia|apac)\b/i;
+  /\b(worldwide|anywhere in the world|from anywhere(?!\s+in\b)|remote[\s(,:–—-]*(global|anywhere|international)|global(ly)? remote|any time ?zones?|all time ?zones|pakistan|asia|apac)\b/i;
 // "Remote (Germany)", "REMOTE [Europe / GMT+2]": what the brackets name is where the job is open.
 const REMOTE_WITH_PLACE = /remote\s*[([]\s*([^)\]]{1,60})[)\]]/gi;
 const AREA_WORDS = "united states|north america|americas|canada|united kingdom|europe|latin america|latam";
@@ -239,6 +245,32 @@ const PLACE_IN_TITLE = new RegExp(`(?<![A-Za-z])(?:${[...COUNTRY_NAMES, ...AREAS
 /** A title that says the job is remote and names a place, none of which includes the owner's country. */
 export function titleLimitsRemote(title: string): boolean {
   return REMOTE_LOCATION.test(title) && !OPEN_TO_OWNER.test(title) && PLACE_IN_TITLE.test(title);
+}
+
+// Words in a board post that limit a job whose location field just says "Remote". Rules about who may
+// apply drop a job, whatever the region. "Anywhere in Europe" is only about where people work from, so it is
+// kept; "anywhere in the US" is dropped, as a US remote job needs US work authorisation.
+// Look-alikes such as "(U.S. only) medical cover" are deliberately not matched.
+const LIMIT_PLACE =
+  "(?:the )?(?:US|USA|U\\.S\\.A?\\.?|United States|Canada|UK|United Kingdom|EU|Europe|European Union|EMEA|LATAM|Latin America|North America|Americas|Mexico|Brazil|Germany|France|Spain|Portugal|Poland|Netherlands|Ireland|India|Australia|Israel|Argentina|Colombia)(?![A-Za-z])";
+// The US alone: a job open "anywhere in the US or Europe" is kept.
+const US = `(?:the )?(?:US|USA|U\\.S\\.A?\\.?|United States)(?![A-Za-z])(?!\\s*(?:,|/|&|or|and)\\s*${LIMIT_PLACE})`;
+const POST_LIMITS = [
+  new RegExp(`\\bmust (?:currently )?(?:reside|live|be located|be based) (?:in|within) ${LIMIT_PLACE}`, "i"),
+  new RegExp(`\\b(?:be|only hiring those)(?: currently| legally)? authori[sz]ed to work (?:in|for any employer in) ${LIMIT_PLACE}`, "i"),
+  new RegExp(`\\bremote\\W{0,3}${LIMIT_PLACE}[\\s-]*only\\b`, "i"),
+  new RegExp(`\\b(?:open|available) (?:only )?to (?:candidates|applicants|residents)(?: (?:based|located|residing))? in ${LIMIT_PLACE}`, "i"),
+  new RegExp(`\\b(?:anywhere in|remote (?:with)?in) ${US}`, "i"),
+];
+// "For positions located in the United States, applicants must…" binds only the hires made there.
+const ONLY_SOME_HIRES = /\bfor (?:positions|roles|candidates|applicants|employees|hires) (?:located|based) in\b/i;
+
+function postLimitsRemote(description: string): boolean {
+  return POST_LIMITS.some((pattern) => {
+    const match = pattern.exec(description);
+    if (!match) return false;
+    return !ONLY_SOME_HIRES.test(description.slice(Math.max(0, match.index - 90), match.index));
+  });
 }
 
 function checkLocation(listing: Listing): { excluded?: string; doubt?: string } {
